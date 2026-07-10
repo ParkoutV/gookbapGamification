@@ -1,65 +1,89 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import StartScreen from "./components/StartScreen";
+import GameScreen from "./components/GameScreen";
+import Modal from "./components/Modal";
+import { fetchGameData, GameSession } from "./actions";
+
+type GameState = "start" | "playing" | "success" | "fail";
 
 export default function Home() {
+  const [gameState, setGameState] = useState<GameState>("start");
+  const [session, setSession] = useState<GameSession | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+
+  const startGame = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchGameData();
+      if (data) {
+        setSession(data);
+        setGameState("playing");
+      } else {
+        alert("게임 데이터를 불러오는데 실패했습니다.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("오류가 발생했습니다.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSuccess = (time: number) => {
+    setTimeElapsed(time);
+    setGameState("success");
+  };
+
+  const handleFail = () => {
+    setGameState("fail");
+  };
+
+  const handleRestart = () => {
+    startGame();
+  };
+
+  const handleMainMenu = () => {
+    setGameState("start");
+    setSession(null);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-black">
+      {gameState === "start" && (
+        <StartScreen onStart={startGame} isLoading={isLoading} />
+      )}
+      
+      {gameState === "playing" && session && (
+        <GameScreen 
+          session={session} 
+          onSuccess={handleSuccess} 
+          onFail={handleFail} 
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
+
+      {(gameState === "success" || gameState === "fail") && (
+        <>
+          {/* Keep the game screen in the background blurred */}
+          {session && (
+            <div className="blur-sm pointer-events-none fixed inset-0">
+              <GameScreen 
+                session={session} 
+                onSuccess={() => {}} 
+                onFail={() => {}} 
+              />
+            </div>
+          )}
+          <Modal 
+            type={gameState} 
+            timeElapsed={timeElapsed} 
+            onRestart={handleRestart} 
+            onMainMenu={handleMainMenu} 
+          />
+        </>
+      )}
     </div>
   );
 }

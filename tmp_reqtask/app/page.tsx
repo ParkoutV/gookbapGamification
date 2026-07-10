@@ -155,7 +155,7 @@ export default function Home() {
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-12 gap-8 items-start mt-10">
         
         {/* Left Side: Upload Area */}
-        <div className="md:col-span-4 flex flex-col gap-6 sticky top-10">
+        <div className="md:col-span-4 flex flex-col gap-6 md:sticky md:top-10">
           <div>
             <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
               Receipt Manager

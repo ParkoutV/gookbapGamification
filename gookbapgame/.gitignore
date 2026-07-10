@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Database config
+db.properties
+
+# Scripts (Database init & check)
+/scripts/
