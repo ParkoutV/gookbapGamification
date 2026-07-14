@@ -213,7 +213,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
             minScale={0.1}
             maxScale={5}
             centerOnInit
-            wheel={{ smoothStep: 0.005 }}
+            wheel={{ step: 0.05 }}
             panning={{ excluded: ['rnd'] }} // Rnd 드래그 시 패닝 방지
           >
             {({ state }) => (
