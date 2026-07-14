@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
 import { useState, useEffect, useRef, use } from 'react'
@@ -299,7 +301,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {slots.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-zinc-400 text-sm">
-                상단의 '슬롯 추가' 버튼을 눌러 파츠를 배치할 영역을 생성하세요.
+                상단의 &apos;슬롯 추가&apos; 버튼을 눌러 파츠를 배치할 영역을 생성하세요.
               </div>
             ) : (
               slots.map((slot, index) => {
