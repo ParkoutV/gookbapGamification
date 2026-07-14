@@ -107,10 +107,10 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
           {session.parts.map((part) => (
             <div
               key={`left-${part.slotId}`}
-              className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+              className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all overflow-hidden"
               style={{ 
-                left: `${(part.x + part.leftOffsetX) * scale}px`, 
-                top: `${(part.y + part.leftOffsetY) * scale}px`,
+                left: `${part.x * scale}px`, 
+                top: `${part.y * scale}px`,
                 width: `${100 * part.slotScale * scale}px`,
                 height: `${100 * part.slotScale * scale}px`
               }}
@@ -120,7 +120,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
                 src={part.leftPartUrl} 
                 alt="Part" 
                 className="w-full h-full object-contain select-none pointer-events-none" 
-                style={{ transform: `scale(${part.leftPartScale})` }}
+                style={{ transform: `translate(${part.leftOffsetX * scale}px, ${part.leftOffsetY * scale}px) scale(${part.leftPartScale})` }}
               />
               {foundSlots.has(part.slotId) && (
                 <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in z-10">
@@ -144,10 +144,10 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
           {session.parts.map((part) => (
             <div
               key={`right-${part.slotId}`}
-              className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+              className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all overflow-hidden"
               style={{ 
-                left: `${(part.x + part.rightOffsetX) * scale}px`, 
-                top: `${(part.y + part.rightOffsetY) * scale}px`,
+                left: `${part.x * scale}px`, 
+                top: `${part.y * scale}px`,
                 width: `${100 * part.slotScale * scale}px`,
                 height: `${100 * part.slotScale * scale}px`
               }}
@@ -157,7 +157,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
                 src={part.rightPartUrl} 
                 alt="Part" 
                 className="w-full h-full object-contain select-none pointer-events-none" 
-                style={{ transform: `scale(${part.rightPartScale})` }}
+                style={{ transform: `translate(${part.rightOffsetX * scale}px, ${part.rightOffsetY * scale}px) scale(${part.rightPartScale})` }}
               />
               {foundSlots.has(part.slotId) && (
                 <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in z-10">
