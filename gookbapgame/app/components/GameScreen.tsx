@@ -13,23 +13,20 @@ interface GameScreenProps {
 export default function GameScreen({ session, onSuccess, onFail }: GameScreenProps) {
   const [timeLeft, setTimeLeft] = useState(30);
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
-  const [scale, setScale] = useState({ x: 1, y: 1 });
-  const imgRef = React.useRef<HTMLImageElement>(null);
+  const [scale, setScale] = useState(1);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   const updateScale = () => {
-    if (imgRef.current) {
-      const { naturalWidth, naturalHeight, width, height } = imgRef.current;
-      if (naturalWidth && naturalHeight && width && height) {
-        setScale({
-          x: width / naturalWidth,
-          y: height / naturalHeight
-        });
-      }
+    if (containerRef.current) {
+      const { clientWidth } = containerRef.current;
+      setScale(clientWidth / 1200);
     }
   };
 
   useEffect(() => {
     window.addEventListener('resize', updateScale);
+    // Initial call to set scale immediately after mount
+    updateScale();
     return () => window.removeEventListener('resize', updateScale);
   }, []);
 
@@ -96,12 +93,15 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
       {/* Main Game Area */}
       <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-6 overflow-auto">
         {/* Left Image */}
-        <div className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-zinc-800 hover:border-indigo-500 transition-colors">
+        <div 
+          ref={containerRef}
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-zinc-800 hover:border-indigo-500 transition-colors w-full max-w-[1200px]"
+          style={{ aspectRatio: '1200 / 800' }}
+        >
           <img 
-            ref={imgRef}
             src={session.baseImageUrl} 
             alt="Base Image Left" 
-            className="block max-w-full h-auto select-none pointer-events-none"
+            className="w-full h-full object-contain select-none pointer-events-none"
             onLoad={handleImageLoad}
           />
           {session.parts.map((part) => (
@@ -109,16 +109,21 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
               key={`left-${part.slotId}`}
               className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all"
               style={{ 
-                left: `${part.x * scale.x}px`, 
-                top: `${part.y * scale.y}px`,
-                transform: `scale(${scale.x})`,
-                transformOrigin: 'top left'
+                left: `${(part.x + part.leftOffsetX) * scale}px`, 
+                top: `${(part.y + part.leftOffsetY) * scale}px`,
+                width: `${100 * part.slotScale * scale}px`,
+                height: `${100 * part.slotScale * scale}px`
               }}
               onClick={() => handlePartClick(part.slotId, part.isDifference)}
             >
-              <img src={part.leftPartUrl} alt="Part" className="block select-none pointer-events-none" />
+              <img 
+                src={part.leftPartUrl} 
+                alt="Part" 
+                className="w-full h-full object-contain select-none pointer-events-none" 
+                style={{ transform: `scale(${part.leftPartScale})` }}
+              />
               {foundSlots.has(part.slotId) && (
-                <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in">
+                <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in z-10">
                   ✅
                 </div>
               )}
@@ -127,28 +132,35 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
         </div>
 
         {/* Right Image */}
-        <div className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-zinc-800 hover:border-indigo-500 transition-colors">
+        <div 
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-zinc-800 hover:border-indigo-500 transition-colors w-full max-w-[1200px]"
+          style={{ aspectRatio: '1200 / 800' }}
+        >
           <img 
             src={session.baseImageUrl} 
             alt="Base Image Right" 
-            className="block max-w-full h-auto select-none pointer-events-none"
-            onLoad={handleImageLoad}
+            className="w-full h-full object-contain select-none pointer-events-none"
           />
           {session.parts.map((part) => (
             <div
               key={`right-${part.slotId}`}
               className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all"
               style={{ 
-                left: `${part.x * scale.x}px`, 
-                top: `${part.y * scale.y}px`,
-                transform: `scale(${scale.x})`,
-                transformOrigin: 'top left'
+                left: `${(part.x + part.rightOffsetX) * scale}px`, 
+                top: `${(part.y + part.rightOffsetY) * scale}px`,
+                width: `${100 * part.slotScale * scale}px`,
+                height: `${100 * part.slotScale * scale}px`
               }}
               onClick={() => handlePartClick(part.slotId, part.isDifference)}
             >
-              <img src={part.rightPartUrl} alt="Part" className="block select-none pointer-events-none" />
+              <img 
+                src={part.rightPartUrl} 
+                alt="Part" 
+                className="w-full h-full object-contain select-none pointer-events-none" 
+                style={{ transform: `scale(${part.rightPartScale})` }}
+              />
               {foundSlots.has(part.slotId) && (
-                <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in">
+                <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in z-10">
                   ✅
                 </div>
               )}

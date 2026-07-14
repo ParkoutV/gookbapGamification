@@ -261,7 +261,17 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                     >
                       <div className="w-full h-full relative flex items-center justify-center overflow-hidden bg-black/10 backdrop-blur-[2px]">
                         {displayPart ? (
-                          <Image src={displayPart.image_url} alt="Part" fill className="object-contain pointer-events-none" unoptimized />
+                          <Image 
+                            src={displayPart.image_url} 
+                            alt="Part" 
+                            fill 
+                            className="object-contain pointer-events-none" 
+                            unoptimized 
+                            style={{
+                              transform: `translate(${displayPart.offset_x || 0}px, ${displayPart.offset_y || 0}px) scale(${displayPart.scale || 1})`,
+                              transition: 'transform 0.1s ease-out'
+                            }}
+                          />
                         ) : (
                           <Target className="w-8 h-8 text-white/50" />
                         )}

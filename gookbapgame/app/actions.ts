@@ -6,8 +6,15 @@ export type GamePart = {
   slotId: number;
   x: number;
   y: number;
+  slotScale: number;
   leftPartUrl: string;
+  leftOffsetX: number;
+  leftOffsetY: number;
+  leftPartScale: number;
   rightPartUrl: string;
+  rightOffsetX: number;
+  rightOffsetY: number;
+  rightPartScale: number;
   isDifference: boolean;
 };
 
@@ -68,28 +75,35 @@ export async function fetchGameData(): Promise<GameSession | null> {
       if (slotParts.length === 0) continue;
 
       const isDifference = diffIndices.includes(i);
-      let leftPartUrl = "";
-      let rightPartUrl = "";
+      let leftPart = null;
+      let rightPart = null;
 
       if (isDifference && slotParts.length >= 2) {
         // Need 2 distinct parts
         const shuffledSlotParts = [...slotParts].sort(() => 0.5 - Math.random());
-        leftPartUrl = shuffledSlotParts[0].image_url;
-        rightPartUrl = shuffledSlotParts[1].image_url;
+        leftPart = shuffledSlotParts[0];
+        rightPart = shuffledSlotParts[1];
       } else {
         // Same part on both sides
         const randomPart = slotParts[Math.floor(Math.random() * slotParts.length)];
-        leftPartUrl = randomPart.image_url;
-        rightPartUrl = randomPart.image_url;
+        leftPart = randomPart;
+        rightPart = randomPart;
       }
 
       gameParts.push({
         slotId: slot.id,
         x: slot.x_coordinate,
         y: slot.y_coordinate,
-        leftPartUrl,
-        rightPartUrl,
-        isDifference: leftPartUrl !== rightPartUrl
+        slotScale: slot.scale ?? 1.0,
+        leftPartUrl: leftPart.image_url,
+        leftOffsetX: leftPart.offset_x ?? 0,
+        leftOffsetY: leftPart.offset_y ?? 0,
+        leftPartScale: leftPart.scale ?? 1.0,
+        rightPartUrl: rightPart.image_url,
+        rightOffsetX: rightPart.offset_x ?? 0,
+        rightOffsetY: rightPart.offset_y ?? 0,
+        rightPartScale: rightPart.scale ?? 1.0,
+        isDifference: leftPart.image_url !== rightPart.image_url
       });
     }
 
