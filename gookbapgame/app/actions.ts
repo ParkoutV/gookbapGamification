@@ -25,7 +25,7 @@ export type GameSession = {
 
 export async function fetchGameData(): Promise<GameSession | null> {
   try {
-    // 1. Fetch a random base_image
+    // 1. Fetch all base_images and shuffle them
     const { data: baseImages, error: baseErr } = await supabase
       .from("base_images")
       .select("*");
@@ -35,45 +35,62 @@ export async function fetchGameData(): Promise<GameSession | null> {
       return null;
     }
 
-    const randomBaseImage = baseImages[Math.floor(Math.random() * baseImages.length)];
+    const shuffledBaseImages = [...baseImages].sort(() => 0.5 - Math.random());
+    
+    let selectedBaseImage = null;
+    let validSlots: any[] = [];
+    let validParts: any[] = [];
 
-    // 2. Fetch image_slots for this base_image
-    const { data: slots, error: slotsErr } = await supabase
-      .from("image_slots")
-      .select("*")
-      .eq("base_image_id", randomBaseImage.id);
+    // 2. Find the first base_image that meets the minimum requirements
+    for (const base of shuffledBaseImages) {
+      const { data: slots, error: slotsErr } = await supabase
+        .from("image_slots")
+        .select("*")
+        .eq("base_image_id", base.id);
 
-    if (slotsErr || !slots || slots.length < 3) {
-      console.error("Failed to fetch enough image_slots. Need at least 3.");
+      if (slotsErr || !slots || slots.length === 0) continue;
+
+      const categoryIds = slots.map(s => s.category_id);
+      
+      const { data: parts, error: partsErr } = await supabase
+        .from("parts")
+        .select("*")
+        .in("category_id", categoryIds);
+
+      if (partsErr || !parts || parts.length === 0) continue;
+
+      // A valid slot must have at least 2 parts
+      const currentValidSlots = slots.filter(slot => {
+        const slotParts = parts.filter(p => p.category_id === slot.category_id);
+        return slotParts.length >= 2;
+      });
+
+      if (currentValidSlots.length >= 1) {
+        selectedBaseImage = base;
+        validSlots = currentValidSlots;
+        validParts = parts;
+        break;
+      }
+    }
+
+    if (!selectedBaseImage || validSlots.length === 0) {
+      console.error("No valid base image found with at least 1 valid slot.");
       return null;
     }
 
-    // Pick 3 random slots (if there are more than 3)
-    const shuffledSlots = [...slots].sort(() => 0.5 - Math.random()).slice(0, 3);
-    const categoryIds = shuffledSlots.map(s => s.category_id);
-
-    // 3. Fetch parts for these categories
-    const { data: parts, error: partsErr } = await supabase
-      .from("parts")
-      .select("*")
-      .in("category_id", categoryIds);
-
-    if (partsErr || !parts || parts.length === 0) {
-      console.error("Failed to fetch parts.");
-      return null;
-    }
-
-    // 4. Determine 2 differences, 1 same
-    const diffIndices = [0, 1, 2].sort(() => 0.5 - Math.random()).slice(0, 2);
-
+    // 3. Determine differences
+    const N = validSlots.length;
+    // Math.round(N * (2/3)), but guarantee at least 1 difference
+    const numDifferences = Math.max(1, Math.round(N * (2 / 3)));
+    
+    const diffIndices = [...Array(N).keys()].sort(() => 0.5 - Math.random()).slice(0, numDifferences);
+    
     const gameParts: GamePart[] = [];
 
-    for (let i = 0; i < 3; i++) {
-      const slot = shuffledSlots[i];
-      const slotParts = parts.filter(p => p.category_id === slot.category_id);
+    for (let i = 0; i < N; i++) {
+      const slot = validSlots[i];
+      const slotParts = validParts.filter(p => p.category_id === slot.category_id);
       
-      if (slotParts.length === 0) continue;
-
       const isDifference = diffIndices.includes(i);
       let leftPart = null;
       let rightPart = null;
@@ -108,7 +125,7 @@ export async function fetchGameData(): Promise<GameSession | null> {
     }
 
     return {
-      baseImageUrl: randomBaseImage.image_url,
+      baseImageUrl: selectedBaseImage.image_url,
       parts: gameParts
     };
 

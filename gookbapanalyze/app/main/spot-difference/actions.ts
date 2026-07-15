@@ -187,10 +187,14 @@ export async function saveGameData(
     // 3. Upsert Slots
     for (const slot of slots) {
       if (slot.isNew) {
-        // Find max category_id to generate a new one
-        const { data: maxCat } = await supabase.from('image_slots').select('category_id').order('category_id', { ascending: false }).limit(1).single()
-        const newCategoryId = (maxCat?.category_id || 0) + 1
+        // Insert into part_categories first to let the DB generate the ID
+        const { data: catData, error: catError } = await supabase.from('part_categories').insert({
+          name: `새 파츠 그룹`
+        }).select().single()
         
+        if (catError) throw catError
+        
+        const newCategoryId = catData.id
         slot.category_id = newCategoryId
 
         const { data: newSlot, error: insertError } = await supabase.from('image_slots').insert({

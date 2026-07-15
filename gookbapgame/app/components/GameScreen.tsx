@@ -15,6 +15,8 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
   const [scale, setScale] = useState(1);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  
+  const totalDifferences = session.parts.filter(p => p.isDifference).length;
 
   const updateScale = () => {
     if (containerRef.current) {
@@ -43,7 +45,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
       return;
     }
 
-    if (foundSlots.size >= 2) {
+    if (totalDifferences > 0 && foundSlots.size >= totalDifferences) {
       onSuccess(timeElapsed);
       return;
     }
@@ -72,7 +74,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
         <div className="flex items-center gap-2">
           <span className="text-xl md:text-2xl font-bold">찾은 개수:</span>
           <div className="flex gap-1">
-            {[0, 1].map((i) => (
+            {Array.from({ length: totalDifferences }).map((_, i) => (
               <div 
                 key={i} 
                 className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 border-indigo-500 flex items-center justify-center ${i < foundSlots.size ? 'bg-indigo-500 text-white' : 'bg-transparent text-transparent'}`}
@@ -107,7 +109,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
           {session.parts.map((part) => (
             <div
               key={`left-${part.slotId}`}
-              className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all overflow-hidden"
+              className="absolute cursor-pointer overflow-hidden"
               style={{ 
                 left: `${part.x * scale}px`, 
                 top: `${part.y * scale}px`,
@@ -144,7 +146,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
           {session.parts.map((part) => (
             <div
               key={`right-${part.slotId}`}
-              className="absolute cursor-pointer hover:brightness-110 active:scale-95 transition-all overflow-hidden"
+              className="absolute cursor-pointer overflow-hidden"
               style={{ 
                 left: `${part.x * scale}px`, 
                 top: `${part.y * scale}px`,

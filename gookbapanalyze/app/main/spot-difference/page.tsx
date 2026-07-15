@@ -87,38 +87,46 @@ export default function SpotDifferenceListPage() {
       
       // Get cropped image as blob
       cropper.getCroppedCanvas().toBlob(async (blob) => {
-        if (!blob) {
-          alert('이미지 크롭에 실패했습니다.')
-          setIsUploading(false)
-          return
-        }
+        try {
+          if (!blob) {
+            alert('이미지 크롭에 실패했습니다.')
+            setIsUploading(false)
+            return
+          }
 
-        const formData = new FormData()
-        // Convert blob back to file
-        const croppedFile = new File([blob], uploadFile.name, { type: uploadFile.type })
-        formData.append('file', croppedFile)
-        formData.append('title', uploadTitle)
+          const formData = new FormData()
+          // Convert blob back to file with a safe ASCII name to avoid FormData encoding issues
+          const ext = uploadFile.type === 'image/jpeg' ? 'jpg' : 'png'
+          const safeName = `upload.${ext}`
+          const croppedFile = new File([blob], safeName, { type: uploadFile.type || 'image/png' })
+          formData.append('file', croppedFile)
+          formData.append('title', uploadTitle)
 
-        const result = await uploadBaseImage(formData)
-        
-        if (result.error) {
-          alert(result.error)
-          setIsUploading(false)
-        } else if (result.baseImage) {
-          setIsAddModalOpen(false)
-          setIsUploading(false)
-          setUploadFile(null)
-          setUploadFileUrl(null)
-          setUploadTitle('')
+          const result = await uploadBaseImage(formData)
           
-          // 바로 에디터 화면으로 이동
-          router.push(`/main/spot-difference/edit/${result.baseImage.id}`)
+          if (result.error) {
+            alert(result.error)
+            setIsUploading(false)
+          } else if (result.baseImage) {
+            setIsAddModalOpen(false)
+            setIsUploading(false)
+            setUploadFile(null)
+            setUploadFileUrl(null)
+            setUploadTitle('')
+            
+            // 바로 에디터 화면으로 이동
+            router.push(`/main/spot-difference/edit/${result.baseImage.id}`)
+          }
+        } catch (innerErr) {
+          console.error('Inner upload error:', innerErr)
+          alert('업로드 처리 중 오류가 발생했습니다.')
+          setIsUploading(false)
         }
-      }, uploadFile.type)
+      }, uploadFile.type || 'image/png')
 
     } catch (err) {
       console.error(err)
-      alert('업로드 중 오류가 발생했습니다.')
+      alert('업로드 준비 중 오류가 발생했습니다.')
       setIsUploading(false)
     }
   }

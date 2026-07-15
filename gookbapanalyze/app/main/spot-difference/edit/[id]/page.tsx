@@ -150,37 +150,46 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       if (!cropper) throw new Error("Cropper not ready")
       
       cropper.getCroppedCanvas().toBlob(async (blob) => {
-        if (!blob) throw new Error("Cropping failed")
-        
-        const croppedFile = new File([blob], uploadFile.name, { type: uploadFile.type })
-        const formData = new FormData()
-        formData.append('file', croppedFile)
+        try {
+          if (!blob) throw new Error("Cropping failed")
+          
+          // Convert blob back to file with a safe ASCII name to avoid FormData encoding issues
+          const ext = uploadFile.type === 'image/jpeg' ? 'jpg' : 'png'
+          const safeName = `upload.${ext}`
+          const croppedFile = new File([blob], safeName, { type: uploadFile.type || 'image/png' })
+          const formData = new FormData()
+          formData.append('file', croppedFile)
 
-        const result = await uploadPartImage(formData)
-        
-        if (result.error) {
-          alert(result.error)
-        } else {
-          const slot = slots.find(s => s.tempId === targetSlotId)
-          const newPart = {
-            tempId: uuidv4(),
-            slotTempId: targetSlotId,
-            category_id: slot?.category_id || 0,
-            name: `이미지 ${parts.filter(p => p.slotTempId === targetSlotId).length + 1}`,
-            image_url: result.url,
-            offset_x: 0,
-            offset_y: 0,
-            scale: 1.0,
-            isNew: true
+          const result = await uploadPartImage(formData)
+          
+          if (result.error) {
+            alert(result.error)
+          } else {
+            const slot = slots.find(s => s.tempId === targetSlotId)
+            const newPart = {
+              tempId: uuidv4(),
+              slotTempId: targetSlotId,
+              category_id: slot?.category_id || 0,
+              name: `이미지 ${parts.filter(p => p.slotTempId === targetSlotId).length + 1}`,
+              image_url: result.url,
+              offset_x: 0,
+              offset_y: 0,
+              scale: 1.0,
+              isNew: true
+            }
+            setParts([...parts, newPart])
+            setIsCropModalOpen(false)
           }
-          setParts([...parts, newPart])
-          setIsCropModalOpen(false)
+          setIsUploading(false)
+        } catch (innerErr) {
+          console.error('Inner part upload error:', innerErr)
+          alert('업로드 처리 중 오류가 발생했습니다.')
+          setIsUploading(false)
         }
-        setIsUploading(false)
-      }, uploadFile.type)
+      }, uploadFile.type || 'image/png')
     } catch (err) {
       console.error(err)
-      alert('업로드 실패')
+      alert('업로드 준비 중 오류가 발생했습니다.')
       setIsUploading(false)
     }
   }
