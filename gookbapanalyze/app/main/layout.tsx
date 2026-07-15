@@ -31,7 +31,7 @@ export default async function MainLayout({
       <Sidebar permission={permission} email={user.email!} />
       
       {/* Main Content Area */}
-      <main className="md:ml-64 pt-16 md:pt-0 min-h-screen">
+      <main className="md:ml-64 pt-16 md:pt-0 min-h-screen transition-all duration-300 ease-in-out peer-data-[collapsed=true]:md:ml-20">
         <div className="p-8 max-w-6xl mx-auto">
           {children}
         </div>

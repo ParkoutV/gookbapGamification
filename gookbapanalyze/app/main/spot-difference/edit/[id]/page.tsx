@@ -10,7 +10,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { Rnd } from 'react-rnd'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import 'cropperjs/dist/cropper.css'
-import { Save, ArrowLeft, Plus, Image as ImageIcon, Trash2, X, Move, Maximize, Target, Upload } from 'lucide-react'
+import { Save, ArrowLeft, Plus, Image as ImageIcon, Trash2, X, Move, Maximize, Target, Upload, ChevronDown, ChevronUp } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
 export default function SpotDifferenceEditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +38,9 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const [targetSlotId, setTargetSlotId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const cropperRef = useRef<ReactCropperElement>(null)
+
+  // Mobile Menu State
+  const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(true)
 
   useEffect(() => {
     const fetchGameData = async () => {
@@ -205,8 +208,8 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Canvas Area (Left) */}
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* Canvas Area (Top on mobile, Left on desktop) */}
         <div className="flex-1 bg-gray-100 dark:bg-zinc-950 relative overflow-hidden flex items-center justify-center">
           <TransformWrapper
             initialScale={1}
@@ -294,21 +297,36 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        {/* Sidebar (Right) */}
-        <div className="w-96 bg-white dark:bg-zinc-900 border-l border-gray-200 dark:border-zinc-800 flex flex-col overflow-hidden shrink-0 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)]">
-          <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center bg-gray-50 dark:bg-zinc-900">
-            <h2 className="font-bold text-gray-900 dark:text-white flex items-center">
-              <Move className="w-4 h-4 mr-2 text-blue-500" /> 파츠 관리
+        {/* Sidebar (Bottom on mobile, Right on desktop) */}
+        <div 
+          className={`
+            bg-white dark:bg-zinc-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-zinc-800 
+            flex flex-col shrink-0 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)]
+            transition-all duration-300 ease-in-out
+            md:w-96 md:h-auto
+            ${isMobileMenuExpanded ? 'h-[50%]' : 'h-[60px]'}
+          `}
+        >
+          <div 
+            className="h-[60px] md:h-auto p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center bg-gray-50 dark:bg-zinc-900 cursor-pointer md:cursor-default shrink-0"
+            onClick={() => setIsMobileMenuExpanded(!isMobileMenuExpanded)}
+          >
+            <h2 className="font-bold text-gray-900 dark:text-white flex items-center text-sm md:text-base">
+              <Move className="w-4 h-4 mr-2 text-blue-500" /> 
+              <span>파츠 관리</span>
+              <span className="ml-2 md:hidden text-gray-400">
+                {isMobileMenuExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </span>
             </h2>
             <button
-              onClick={addSlot}
+              onClick={(e) => { e.stopPropagation(); addSlot(); setIsMobileMenuExpanded(true); }}
               className="p-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded transition-colors text-xs font-medium flex items-center"
             >
               <Plus className="w-3 h-3 mr-1" /> 슬롯 추가
             </button>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isMobileMenuExpanded ? 'block' : 'hidden md:block'}`}>
             {slots.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-zinc-400 text-sm">
                 상단의 &apos;슬롯 추가&apos; 버튼을 눌러 파츠를 배치할 영역을 생성하세요.
