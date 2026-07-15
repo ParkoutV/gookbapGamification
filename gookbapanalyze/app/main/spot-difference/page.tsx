@@ -95,10 +95,9 @@ export default function SpotDifferenceListPage() {
           }
 
           const formData = new FormData()
-          // Convert blob back to file with a safe ASCII name to avoid FormData encoding issues
-          const ext = uploadFile.type === 'image/jpeg' ? 'jpg' : 'png'
-          const safeName = `upload.${ext}`
-          const croppedFile = new File([blob], safeName, { type: uploadFile.type || 'image/png' })
+          // Convert blob back to file with a safe ASCII name and convert to webp
+          const safeName = `upload.webp`
+          const croppedFile = new File([blob], safeName, { type: 'image/webp' })
           formData.append('file', croppedFile)
           formData.append('title', uploadTitle)
 
@@ -122,7 +121,7 @@ export default function SpotDifferenceListPage() {
           alert('업로드 처리 중 오류가 발생했습니다.')
           setIsUploading(false)
         }
-      }, uploadFile.type || 'image/png')
+      }, 'image/webp', 0.9)
 
     } catch (err) {
       console.error(err)

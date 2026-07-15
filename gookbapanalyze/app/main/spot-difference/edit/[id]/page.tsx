@@ -37,7 +37,9 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [targetSlotId, setTargetSlotId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [editingPartId, setEditingPartId] = useState<string | null>(null)
   const cropperRef = useRef<ReactCropperElement>(null)
+  const [cropData, setCropData] = useState({ x: 0, y: 0, width: 0, height: 0 })
 
   // Mobile Menu State
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(true)
@@ -136,13 +138,36 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       setUploadFile(file)
       setUploadFileUrl(URL.createObjectURL(file))
       setTargetSlotId(slotTempId)
+      setEditingPartId(null)
       setIsCropModalOpen(true)
     }
     e.target.value = ''
   }
 
+  const handleCropChange = () => {
+    const cropper = cropperRef.current?.cropper
+    if (cropper) {
+      const data = cropper.getData()
+      setCropData({
+        x: Math.round(data.x),
+        y: Math.round(data.y),
+        width: Math.round(data.width),
+        height: Math.round(data.height)
+      })
+    }
+  }
+
+  const updateCropData = (field: keyof typeof cropData, value: number) => {
+    const cropper = cropperRef.current?.cropper
+    if (cropper) {
+      const newData = { ...cropData, [field]: value }
+      cropper.setData(newData)
+      setCropData(newData)
+    }
+  }
+
   const handleUploadPart = async () => {
-    if (!uploadFile || !targetSlotId) return
+    if (!uploadFileUrl) return
 
     setIsUploading(true)
     try {
@@ -153,10 +178,11 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
         try {
           if (!blob) throw new Error("Cropping failed")
           
-          // Convert blob back to file with a safe ASCII name to avoid FormData encoding issues
-          const ext = uploadFile.type === 'image/jpeg' ? 'jpg' : 'png'
+          // Convert blob back to file with a safe ASCII name and convert to webp
+          const fileType = 'image/webp'
+          const ext = 'webp'
           const safeName = `upload.${ext}`
-          const croppedFile = new File([blob], safeName, { type: uploadFile.type || 'image/png' })
+          const croppedFile = new File([blob], safeName, { type: fileType })
           const formData = new FormData()
           formData.append('file', croppedFile)
 
@@ -165,20 +191,29 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           if (result.error) {
             alert(result.error)
           } else {
-            const slot = slots.find(s => s.tempId === targetSlotId)
-            const newPart = {
-              tempId: uuidv4(),
-              slotTempId: targetSlotId,
-              category_id: slot?.category_id || 0,
-              name: `이미지 ${parts.filter(p => p.slotTempId === targetSlotId).length + 1}`,
-              image_url: result.url,
-              offset_x: 0,
-              offset_y: 0,
-              scale: 1.0,
-              isNew: true
+            if (editingPartId) {
+              // Update existing part
+              setParts(parts.map(p => p.tempId === editingPartId ? { ...p, image_url: result.url } : p))
+            } else if (targetSlotId) {
+              // Create new part
+              const slot = slots.find(s => s.tempId === targetSlotId)
+              const newPart = {
+                tempId: uuidv4(),
+                slotTempId: targetSlotId,
+                category_id: slot?.category_id || 0,
+                name: `이미지 ${parts.filter(p => p.slotTempId === targetSlotId).length + 1}`,
+                image_url: result.url,
+                offset_x: 0,
+                offset_y: 0,
+                scale: 1.0,
+                isNew: true
+              }
+              setParts([...parts, newPart])
             }
-            setParts([...parts, newPart])
             setIsCropModalOpen(false)
+            setEditingPartId(null)
+            setUploadFileUrl(null)
+            setUploadFile(null)
           }
           setIsUploading(false)
         } catch (innerErr) {
@@ -186,7 +221,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           alert('업로드 처리 중 오류가 발생했습니다.')
           setIsUploading(false)
         }
-      }, uploadFile.type || 'image/png')
+      }, 'image/webp', 0.9)
     } catch (err) {
       console.error(err)
       alert('업로드 준비 중 오류가 발생했습니다.')
@@ -268,10 +303,11 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                           y_coordinate: Math.round(position.y)
                         })
                       }}
-                      bounds="parent"
                       lockAspectRatio
                     >
-                      <div className="w-full h-full relative flex items-center justify-center overflow-hidden bg-black/10 backdrop-blur-[2px]">
+                      <div 
+                        className="w-full h-full relative flex items-center justify-center overflow-hidden bg-black/10 backdrop-blur-[2px]"
+                      >
                         {displayPart ? (
                           <Image 
                             src={displayPart.image_url} 
@@ -429,7 +465,17 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                               onClick={() => setActivePartId(part.tempId)}
                             >
                               <div className="flex gap-2 mb-2">
-                                <div className="w-10 h-10 relative bg-gray-200 dark:bg-zinc-800 rounded shrink-0 overflow-hidden">
+                                <div 
+                                  className="w-10 h-10 relative bg-gray-200 dark:bg-zinc-800 rounded shrink-0 overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500"
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation()
+                                    setUploadFileUrl(part.image_url)
+                                    setUploadFile(null)
+                                    setEditingPartId(part.tempId)
+                                    setIsCropModalOpen(true)
+                                  }}
+                                  title="더블클릭하여 크롭"
+                                >
                                   <Image src={part.image_url} alt="part" fill className="object-cover" unoptimized />
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -489,7 +535,14 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       {/* Part Image Crop Modal */}
       {isCropModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isUploading && setIsCropModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => {
+            if (!isUploading) {
+              setIsCropModalOpen(false)
+              setEditingPartId(null)
+              setUploadFileUrl(null)
+              setUploadFile(null)
+            }
+          }} />
           <div className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">파츠 이미지 크롭</h3>
@@ -507,11 +560,35 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                 responsive={true}
                 autoCropArea={1}
                 checkOrientation={false}
+                crop={handleCropChange}
               />
+              
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {['x', 'y', 'width', 'height'].map((field) => (
+                  <div key={field}>
+                    <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-400 uppercase">{field}</label>
+                    <div className="flex items-center mt-1 border border-gray-300 dark:border-zinc-700 rounded overflow-hidden shadow-sm bg-white dark:bg-zinc-900">
+                      <button onClick={() => updateCropData(field as keyof typeof cropData, cropData[field as keyof typeof cropData] - 1)} className="px-2 py-1 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300">-</button>
+                      <input 
+                        type="number" 
+                        value={cropData[field as keyof typeof cropData]} 
+                        onChange={(e) => updateCropData(field as keyof typeof cropData, parseInt(e.target.value) || 0)}
+                        className="w-full text-center text-xs py-1 bg-transparent dark:text-white outline-none" 
+                      />
+                      <button onClick={() => updateCropData(field as keyof typeof cropData, cropData[field as keyof typeof cropData] + 1)} className="px-2 py-1 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300">+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="p-4 border-t border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 flex justify-end gap-2">
               <button
-                onClick={() => setIsCropModalOpen(false)}
+                onClick={() => {
+                  setIsCropModalOpen(false)
+                  setEditingPartId(null)
+                  setUploadFileUrl(null)
+                  setUploadFile(null)
+                }}
                 disabled={isUploading}
                 className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-zinc-800 border rounded-lg"
               >
