@@ -1,7 +1,15 @@
 'use server'
 
 import { createAdminClient } from '@/utils/supabase/admin'
-import { v4 as uuidv4 } from 'uuid'
+
+function generateShortId(length = 8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
 
 export type TrackGroup = {
   track_type: string
@@ -72,8 +80,8 @@ export async function createTrack(trackTypeJson: string) {
     return { error: '동일한 지점명이 이미 존재합니다.' }
   }
 
-  const privateId = uuidv4()
-  const sharedId = uuidv4()
+  const privateId = generateShortId()
+  const sharedId = generateShortId()
 
   const { error } = await supabase
     .from('tracks')
