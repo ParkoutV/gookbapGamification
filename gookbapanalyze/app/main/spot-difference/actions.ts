@@ -5,6 +5,23 @@
 import { createClient } from '@/utils/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 
+export async function getSupportedLanguages() {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('supported_languages')
+      .select('*')
+      .eq('is_active', true)
+      .order('order_index', { ascending: true })
+
+    if (error) throw error
+    return { success: true, languages: data }
+  } catch (error: any) {
+    console.error('Error fetching languages:', error)
+    return { error: '언어 목록을 불러오는 중 오류가 발생했습니다.' }
+  }
+}
+
 export async function getBaseImages() {
   try {
     const supabase = await createClient()
@@ -30,10 +47,17 @@ export async function uploadBaseImage(formData: FormData) {
     if (!user) return { error: '권한이 없습니다.' }
 
     const file = formData.get('file') as File
-    const title = formData.get('title') as string
+    const titleStr = formData.get('title') as string
 
     if (!file) return { error: '파일이 없습니다.' }
-    if (!title) return { error: '제목을 입력해주세요.' }
+    if (!titleStr) return { error: '제목을 입력해주세요.' }
+
+    let titleObj;
+    try {
+      titleObj = JSON.parse(titleStr)
+    } catch {
+      titleObj = { ko: titleStr }
+    }
 
     const fileExt = file.name.split('.').pop()
     const fileName = `base_${uuidv4()}.${fileExt}`
@@ -52,7 +76,7 @@ export async function uploadBaseImage(formData: FormData) {
     const { data: dbData, error: dbError } = await supabase
       .from('base_images')
       .insert({
-        title: title,
+        title: titleObj,
         image_url: publicUrlData.publicUrl
       })
       .select()
@@ -112,6 +136,7 @@ export async function getGameData(baseImageId: number) {
 
     const categoryIds = slots.map(s => s.category_id)
     let partsData: any[] = []
+    let categoriesData: any[] = []
     
     if (categoryIds.length > 0) {
       const { data: parts, error: partsError } = await supabase
@@ -121,9 +146,22 @@ export async function getGameData(baseImageId: number) {
 
       if (partsError) throw partsError
       partsData = parts
-    }
 
-    return { success: true, baseImage, slots, parts: partsData }
+      const { data: cats, error: catsError } = await supabase
+        .from('part_categories')
+        .select('*')
+        .in('id', categoryIds)
+      
+      if (catsError) throw catsError
+      categoriesData = cats
+    }
+    
+    const mappedSlots = slots.map(s => {
+      const cat = categoriesData.find(c => c.id === s.category_id)
+      return { ...s, name: cat?.name || { ko: `파츠 그룹 ${s.category_id}` } }
+    })
+
+    return { success: true, baseImage, slots: mappedSlots, parts: partsData }
   } catch (error: any) {
     console.error('Error fetching game data:', error)
     return { error: '게임 데이터를 불러오는 중 오류가 발생했습니다.' }
@@ -165,7 +203,8 @@ export async function saveGameData(
   slots: any[], 
   parts: any[], 
   deletedSlotIds: number[], 
-  deletedPartIds: number[]
+  deletedPartIds: number[],
+  baseImageTitle?: any
 ) {
   try {
     const supabase = await createClient()
@@ -184,12 +223,17 @@ export async function saveGameData(
       await supabase.from('parts').delete().in('category_id', deletedSlotIds.map(s => -s)) // Requires proper mapping in real scenario
     }
 
+    // 2.5 Update base image title if provided
+    if (baseImageTitle) {
+      await supabase.from('base_images').update({ title: baseImageTitle }).eq('id', baseImageId)
+    }
+
     // 3. Upsert Slots
     for (const slot of slots) {
       if (slot.isNew) {
         // Insert into part_categories first to let the DB generate the ID
         const { data: catData, error: catError } = await supabase.from('part_categories').insert({
-          name: `새 파츠 그룹`
+          name: slot.name || { ko: '새 파츠 그룹' }
         }).select().single()
         
         if (catError) throw catError
@@ -223,6 +267,13 @@ export async function saveGameData(
         }).eq('id', slot.id)
         
         if (updateError) throw updateError
+        
+        if (slot.category_id) {
+          const { error: catUpdateError } = await supabase.from('part_categories').update({
+            name: slot.name
+          }).eq('id', slot.category_id)
+          if (catUpdateError) throw catUpdateError
+        }
       }
     }
 

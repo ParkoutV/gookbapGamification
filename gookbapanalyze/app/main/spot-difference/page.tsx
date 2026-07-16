@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { getBaseImages, uploadBaseImage, deleteBaseImage } from './actions'
+import { getBaseImages, uploadBaseImage, deleteBaseImage, getSupportedLanguages } from './actions'
 import { Image as ImageIcon, Plus, MoreVertical, Edit, Trash2, X, Upload } from 'lucide-react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import 'cropperjs/dist/cropper.css'
@@ -27,7 +27,8 @@ export default function SpotDifferenceListPage() {
   
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [uploadTitle, setUploadTitle] = useState('')
+  const [supportedLanguages, setSupportedLanguages] = useState<any[]>([])
+  const [uploadTitle, setUploadTitle] = useState<Record<string, string>>({})
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadFileUrl, setUploadFileUrl] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -50,6 +51,13 @@ export default function SpotDifferenceListPage() {
 
   useEffect(() => {
     fetchImages()
+    const loadLanguages = async () => {
+      const result = await getSupportedLanguages()
+      if (result.success) {
+        setSupportedLanguages(result.languages || [])
+      }
+    }
+    loadLanguages()
   }, [])
 
   const handleDelete = async (id: number) => {
@@ -69,15 +77,18 @@ export default function SpotDifferenceListPage() {
       const file = e.target.files[0]
       setUploadFile(file)
       setUploadFileUrl(URL.createObjectURL(file))
-      if (!uploadTitle) {
-        setUploadTitle(file.name.split('.')[0])
+      if (Object.keys(uploadTitle).length === 0) {
+        setUploadTitle({ ko: file.name.split('.')[0] })
       }
     }
   }
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!uploadFile || !uploadTitle) return
+    if (!uploadFile || !uploadTitle.ko) {
+      alert('한국어 이름과 파일을 반드시 입력해주세요.')
+      return
+    }
 
     setIsUploading(true)
 
@@ -99,7 +110,7 @@ export default function SpotDifferenceListPage() {
           const safeName = `upload.webp`
           const croppedFile = new File([blob], safeName, { type: 'image/webp' })
           formData.append('file', croppedFile)
-          formData.append('title', uploadTitle)
+          formData.append('title', JSON.stringify(uploadTitle))
 
           const result = await uploadBaseImage(formData)
           
@@ -111,7 +122,7 @@ export default function SpotDifferenceListPage() {
             setIsUploading(false)
             setUploadFile(null)
             setUploadFileUrl(null)
-            setUploadTitle('')
+            setUploadTitle({})
             
             // 바로 에디터 화면으로 이동
             router.push(`/main/spot-difference/edit/${result.baseImage.id}`)
@@ -180,7 +191,9 @@ export default function SpotDifferenceListPage() {
                 />
               </div>
               <div className="p-4">
-                <h3 className="font-bold text-gray-900 dark:text-white text-lg truncate pr-8">{image.title}</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white text-lg truncate pr-8">
+                  {typeof image.title === 'string' ? image.title : (image.title?.ko || '이름 없음')}
+                </h3>
                 <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">
                   등록일: {new Date(image.created_at).toLocaleDateString()}
                 </p>
@@ -252,14 +265,34 @@ export default function SpotDifferenceListPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
                       그림 이름 (설명)
                     </label>
-                    <input
-                      type="text"
-                      value={uploadTitle}
-                      onChange={(e) => setUploadTitle(e.target.value)}
-                      required
-                      placeholder="예: 카페 전경 (낮)"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                    />
+                    <div className="space-y-3">
+                      {supportedLanguages.map(lang => (
+                        <div key={lang.lang_code} className="flex items-center">
+                          <span className="w-20 text-xs font-semibold text-gray-500 uppercase">{lang.lang_name}</span>
+                          <input
+                            type="text"
+                            value={uploadTitle[lang.lang_code] || ''}
+                            onChange={(e) => setUploadTitle({ ...uploadTitle, [lang.lang_code]: e.target.value })}
+                            required={lang.lang_code === 'ko'}
+                            placeholder={lang.lang_code === 'ko' ? "예: 카페 전경 (낮)" : `${lang.lang_name} 이름`}
+                            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                          />
+                        </div>
+                      ))}
+                      {supportedLanguages.length === 0 && (
+                        <div className="flex items-center">
+                          <span className="w-20 text-xs font-semibold text-gray-500 uppercase">한국어</span>
+                          <input
+                            type="text"
+                            value={uploadTitle['ko'] || ''}
+                            onChange={(e) => setUploadTitle({ ...uploadTitle, ko: e.target.value })}
+                            required
+                            placeholder="예: 카페 전경 (낮)"
+                            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>

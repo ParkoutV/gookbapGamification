@@ -5,13 +5,49 @@
 import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { getGameData, saveGameData, uploadPartImage } from '../../actions'
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import { getGameData, saveGameData, uploadPartImage, getSupportedLanguages } from '../../actions'
+import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
 import { Rnd } from 'react-rnd'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import 'cropperjs/dist/cropper.css'
-import { Save, ArrowLeft, Plus, Image as ImageIcon, Trash2, X, Move, Maximize, Target, Upload, ChevronDown, ChevronUp } from 'lucide-react'
+import { Save, ArrowLeft, Plus, Minus, Image as ImageIcon, Trash2, X, Move, Maximize, Target, Upload, ChevronDown, ChevronUp, Edit } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
+
+const ZoomControls = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) => {
+  const { zoomIn, zoomOut, setTransform } = useControls()
+
+  const fitView = () => {
+    if (containerRef.current) {
+      const container = containerRef.current
+      const scaleX = container.clientWidth / 1200
+      const scaleY = container.clientHeight / 800
+      const targetScale = Math.min(scaleX, scaleY) * 0.95
+      const x = (container.clientWidth - 1200 * targetScale) / 2
+      const y = (container.clientHeight - 800 * targetScale) / 2
+      setTransform(x, y, targetScale, 300)
+    }
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(fitView, 100)
+    return () => clearTimeout(timer)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="absolute top-4 right-4 flex flex-col gap-2 z-50 bg-white dark:bg-zinc-800 p-1.5 rounded-lg shadow-lg border border-gray-200 dark:border-zinc-700">
+      <button onClick={() => zoomIn(0.5)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded text-gray-700 dark:text-zinc-300" title="확대">
+        <Plus className="w-5 h-5" />
+      </button>
+      <button onClick={() => zoomOut(0.5)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded text-gray-700 dark:text-zinc-300" title="축소">
+        <Minus className="w-5 h-5" />
+      </button>
+      <div className="h-px bg-gray-200 dark:bg-zinc-700 my-0.5" />
+      <button onClick={fitView} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded text-gray-700 dark:text-zinc-300" title="화면 맞춤">
+        <Maximize className="w-5 h-5" />
+      </button>
+    </div>
+  )
+}
 
 export default function SpotDifferenceEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -39,10 +75,24 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const [isUploading, setIsUploading] = useState(false)
   const [editingPartId, setEditingPartId] = useState<string | null>(null)
   const cropperRef = useRef<ReactCropperElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [cropData, setCropData] = useState({ x: 0, y: 0, width: 0, height: 0 })
 
   // Mobile Menu State
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(true)
+
+  // Name Edit Modal States
+  const [supportedLanguages, setSupportedLanguages] = useState<any[]>([])
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false)
+  const [nameModalType, setNameModalType] = useState<'slot' | 'part' | 'base' | null>(null)
+  const [nameModalTargetId, setNameModalTargetId] = useState<string | null>(null)
+  const [nameModalData, setNameModalData] = useState<Record<string, string>>({})
+
+  const getDisplayName = (nameObj: any, defaultName: string) => {
+    if (!nameObj) return defaultName;
+    if (typeof nameObj === 'string') return nameObj;
+    return nameObj.ko || defaultName;
+  }
 
   useEffect(() => {
     const fetchGameData = async () => {
@@ -66,15 +116,24 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       }))
       setParts(mappedParts)
       
+      
       setLoading(false)
+    }
+
+    const loadLanguages = async () => {
+      const result = await getSupportedLanguages()
+      if (result.success) {
+        setSupportedLanguages(result.languages || [])
+      }
     }
     
     fetchGameData()
+    loadLanguages()
   }, [baseImageId, router])
 
   const handleSave = async () => {
     setSaving(true)
-    const result = await saveGameData(baseImageId, slots, parts, deletedSlotIds, deletedPartIds)
+    const result = await saveGameData(baseImageId, slots, parts, deletedSlotIds, deletedPartIds, baseImage?.title)
     if (result.error) {
       alert(result.error)
     } else {
@@ -96,7 +155,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       z_index: 1,
       scale: 1.0,
       isNew: true,
-      name: '새 파츠' // Virtual field for UI
+      name: { ko: `새 파츠 그룹 ${slots.length + 1}` } // JSONB format for UI
     }
     setSlots([...slots, newSlot])
     setActiveSlotId(newSlot.tempId)
@@ -201,7 +260,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                 tempId: uuidv4(),
                 slotTempId: targetSlotId,
                 category_id: slot?.category_id || 0,
-                name: `이미지 ${parts.filter(p => p.slotTempId === targetSlotId).length + 1}`,
+                name: { ko: `이미지 ${parts.filter(p => p.slotTempId === targetSlotId).length + 1}` },
                 image_url: result.url,
                 offset_x: 0,
                 offset_y: 0,
@@ -239,8 +298,23 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           <button onClick={() => router.push('/main/spot-difference')} className="mr-4 text-gray-500 hover:text-gray-900 dark:hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            에디터: {baseImage?.title}
+          <h1 
+            className="text-xl font-bold text-gray-900 dark:text-white flex items-center cursor-pointer hover:text-blue-500 transition-colors"
+            onClick={() => {
+              setNameModalType('base')
+              setNameModalTargetId(null)
+              
+              let currentName = baseImage?.title
+              if (!currentName || typeof currentName === 'string') {
+                currentName = { ko: currentName || '제목 없음' }
+              }
+              setNameModalData({ ...currentName })
+              setIsNameModalOpen(true)
+            }}
+            title="대표 이미지 이름 수정"
+          >
+            에디터: {getDisplayName(baseImage?.title, '제목 없음')}
+            <Edit className="w-4 h-4 ml-2 text-gray-400" />
           </h1>
         </div>
         <button 
@@ -254,7 +328,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
 
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
         {/* Canvas Area (Top on mobile, Left on desktop) */}
-        <div className="flex-1 bg-gray-100 dark:bg-zinc-950 relative overflow-hidden flex items-center justify-center">
+        <div ref={containerRef} className="flex-1 bg-gray-100 dark:bg-zinc-950 relative overflow-hidden flex items-center justify-center">
           <TransformWrapper
             initialScale={1}
             minScale={0.1}
@@ -264,9 +338,11 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
             panning={{ excluded: ['rnd'] }} // Rnd 드래그 시 패닝 방지
           >
             {({ state }) => (
-              <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-                <div className="relative border border-gray-300 dark:border-zinc-800 shadow-2xl" style={{ width: 1200, height: 800 }}>
-                {baseImage && (
+              <>
+                <ZoomControls containerRef={containerRef} />
+                <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                  <div className="relative border border-gray-300 dark:border-zinc-800 shadow-2xl" style={{ width: 1200, height: 800 }}>
+                  {baseImage && (
                   <Image
                     src={baseImage.image_url}
                     alt="Base"
@@ -325,15 +401,16 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                         )}
                         {isActive && (
                           <div className="absolute top-1 left-1 bg-blue-600 text-white text-[10px] px-1.5 rounded">
-                            {slot.name || `파츠 ${slot.category_id}`}
+                            {getDisplayName(slot.name, `파츠 ${slot.category_id}`)}
                           </div>
                         )}
                       </div>
                     </Rnd>
                   )
                 })}
-                </div>
-              </TransformComponent>
+                  </div>
+                </TransformComponent>
+              </>
             )}
           </TransformWrapper>
           
@@ -389,12 +466,23 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                   >
                     {/* Slot Header */}
                     <div className={`p-3 border-b flex items-center justify-between ${isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30' : 'bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700'}`}>
-                      <input 
-                        type="text"
-                        value={slot.name || `파츠 그룹 ${index + 1}`}
-                        onChange={(e) => updateSlot(slot.tempId, { name: e.target.value })}
-                        className="bg-transparent font-bold text-sm text-gray-900 dark:text-white outline-none w-1/2"
-                      />
+                      <div 
+                        className="font-bold text-sm text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-500 w-2/3"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setNameModalType('slot')
+                          setNameModalTargetId(slot.tempId)
+                          
+                          let currentName = slot.name
+                          if (!currentName || typeof currentName === 'string') {
+                            currentName = { ko: currentName || `파츠 그룹 ${index + 1}` }
+                          }
+                          setNameModalData({ ...currentName })
+                          setIsNameModalOpen(true)
+                        }}
+                      >
+                        {getDisplayName(slot.name, `파츠 그룹 ${index + 1}`)}
+                      </div>
                       <button onClick={(e) => { e.stopPropagation(); deleteSlot(slot.tempId) }} className="text-red-500 hover:text-red-700 p-1">
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -479,13 +567,22 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                                   <Image src={part.image_url} alt="part" fill className="object-cover" unoptimized />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <input 
-                                    type="text" 
-                                    value={part.name}
-                                    onChange={(e) => updatePart(part.tempId, { name: e.target.value })}
-                                    className="w-full text-xs font-medium bg-transparent outline-none dark:text-white mb-1"
-                                    placeholder="이미지 이름"
-                                  />
+                                  <div 
+                                    className="w-full text-xs font-medium bg-transparent outline-none dark:text-white mb-1 truncate cursor-pointer hover:text-blue-500"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setNameModalType('part')
+                                      setNameModalTargetId(part.tempId)
+                                      let currentName = part.name
+                                      if (!currentName || typeof currentName === 'string') {
+                                        currentName = { ko: currentName || `이미지` }
+                                      }
+                                      setNameModalData({ ...currentName })
+                                      setIsNameModalOpen(true)
+                                    }}
+                                  >
+                                    {getDisplayName(part.name, '이미지')}
+                                  </div>
                                   <div className="text-[10px] text-gray-500">
                                     {pIdx === 0 ? '기준 이미지' : '상대 좌표/크기 적용 중'}
                                   </div>
@@ -600,6 +697,67 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                 className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg flex items-center"
               >
                 {isUploading ? '업로드 중...' : '크롭 완료 및 업로드'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-language Name Edit Modal */}
+      {isNameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsNameModalOpen(false)} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">이름 수정</h3>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-zinc-950 space-y-4">
+              {supportedLanguages.map(lang => (
+                <div key={lang.lang_code} className="flex items-center">
+                  <span className="w-20 text-xs font-semibold text-gray-500 uppercase">{lang.lang_name}</span>
+                  <input
+                    type="text"
+                    value={nameModalData[lang.lang_code] || ''}
+                    onChange={(e) => setNameModalData({ ...nameModalData, [lang.lang_code]: e.target.value })}
+                    placeholder={lang.lang_code === 'ko' ? "이름 입력" : `${lang.lang_name} 이름`}
+                    className="flex-1 px-3 py-2 rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              ))}
+              {supportedLanguages.length === 0 && (
+                <div className="flex items-center">
+                  <span className="w-20 text-xs font-semibold text-gray-500 uppercase">한국어</span>
+                  <input
+                    type="text"
+                    value={nameModalData['ko'] || ''}
+                    onChange={(e) => setNameModalData({ ...nameModalData, ko: e.target.value })}
+                    placeholder="이름 입력"
+                    className="flex-1 px-3 py-2 rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 dark:border-zinc-800 flex justify-end gap-2 bg-white dark:bg-zinc-900">
+              <button
+                onClick={() => setIsNameModalOpen(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 border rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (nameModalType === 'slot' && nameModalTargetId) {
+                    updateSlot(nameModalTargetId, { name: nameModalData })
+                  } else if (nameModalType === 'part' && nameModalTargetId) {
+                    updatePart(nameModalTargetId, { name: nameModalData })
+                  } else if (nameModalType === 'base') {
+                    setBaseImage({ ...baseImage, title: nameModalData })
+                  }
+                  setIsNameModalOpen(false)
+                }}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                저장
               </button>
             </div>
           </div>
