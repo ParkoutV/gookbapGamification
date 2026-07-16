@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -14,7 +11,7 @@ import 'cropperjs/dist/cropper.css'
 
 type BaseImage = {
   id: number
-  title: string
+  title: Record<string, string> | string
   image_url: string
   created_at: string
 }
@@ -185,7 +182,7 @@ export default function SpotDifferenceListPage() {
               <div className="aspect-video relative overflow-hidden bg-gray-100 dark:bg-zinc-800">
                 <Image 
                   src={image.image_url} 
-                  alt={image.title} 
+                  alt={typeof image.title === 'string' ? image.title : (image.title?.ko || '이름 없음')} 
                   fill
                   className="object-cover transition-transform group-hover:scale-105"
                 />
