@@ -1,6 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/utils/supabase/admin'
+import { createClient } from '@/utils/supabase/server'
 
 function generateShortId(length = 8) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
@@ -26,7 +26,7 @@ export type SupportedLanguage = {
 }
 
 export async function getSupportedLanguages() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('supported_languages')
     .select('*')
@@ -40,7 +40,7 @@ export async function getSupportedLanguages() {
 }
 
 export async function getTracksGrouped() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   
   // Fetch branches with their tracks
   const { data: branches, error } = await supabase
@@ -83,9 +83,15 @@ export async function getTracksGrouped() {
 }
 
 export async function createTrack(branchNameJson: string) {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '권한이 없습니다.' }
   
-  // Create branch first
+  // Verify permission
+  const { data: account } = await supabase.from('accounts').select('permission').eq('user_id', user.id).single()
+  if (account?.permission !== 0) {
+    return { error: '최고 관리자만 접근할 수 있습니다.' }
+  }
   const { data: branchData, error: branchError } = await supabase
     .from('branches')
     .insert([{ branch_name: branchNameJson }])
@@ -117,7 +123,15 @@ export async function createTrack(branchNameJson: string) {
 }
 
 export async function updateTrack(branchId: string, newBranchNameJson: string) {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '권한이 없습니다.' }
+
+  // Verify permission
+  const { data: account } = await supabase.from('accounts').select('permission').eq('user_id', user.id).single()
+  if (account?.permission !== 0) {
+    return { error: '최고 관리자만 수정할 수 있습니다.' }
+  }
   
   const { error } = await supabase
     .from('branches')

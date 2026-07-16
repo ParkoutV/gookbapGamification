@@ -6,9 +6,8 @@ import PasswordChangeForm from './PasswordChangeForm'
 export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const adminClient = createAdminClient()
   
-  const { data: account } = await adminClient
+  const { data: account } = await supabase
     .from('accounts')
     .select('permission, account_id')
     .eq('user_id', user?.id)

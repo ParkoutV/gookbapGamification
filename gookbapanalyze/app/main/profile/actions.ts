@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function changePassword(formData: FormData) {
   const currentPassword = formData.get('currentPassword') as string
@@ -29,9 +29,12 @@ export async function changePassword(formData: FormData) {
     return { error: '사용자 정보를 불러올 수 없습니다.' }
   }
 
-  // Verify current password using admin client (or a dummy client) 
-  // to avoid modifying SSR session unexpectedly, though signInWithPassword on regular client is also mostly fine.
-  const authCheckClient = createAdminClient()
+  // Verify current password using a dummy anon client 
+  // to avoid modifying SSR session unexpectedly.
+  const authCheckClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
   const { error: verifyError } = await authCheckClient.auth.signInWithPassword({
     email: user.email,
     password: currentPassword

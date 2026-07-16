@@ -7,6 +7,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 # Agent Documentation Rule (CRITICAL)
 - **자동 문서화 의무:** 만약 데이터베이스 스키마(테이블 생성/수정), RLS 권한, 보안 규칙, 또는 시스템 핵심 로직을 수정하거나 새로 생성하는 경우, **반드시 사용자의 명시적인 요청이 없더라도 이 `AGENTS.md` 파일도 함께 최신화**해야 합니다.
 
+# Security & Key Usage Rule (CRITICAL)
+- **SERVICE_ROLE_KEY 우회 금지:** 프론트엔드(게임 클라이언트 등) 환경에서 권한 부족 오류가 발생했을 때, 이를 해결하기 위해 `SERVICE_ROLE_KEY`를 사용하여 RLS를 강제로 우회하는 것은 **명시적으로 금지**됩니다.
+- 권한 문제가 발생할 경우, 단순히 RLS 설정 변경이나 RPC 함수 추가로 해결할 수 있는 문제인지 먼저 파악하고, **반드시 사용자에게 RLS 정책/함수 수정을 권장**한 뒤 프론트엔드에서는 오직 `ANON_KEY`만 사용하여 접근하도록 코드를 작성해야 합니다.
+
 
 # Dashboard Roles & Permissions
 이 프로젝트는 웹게임과 동일한 데이터베이스(동일한 anon key)를 사용하는 대시보드입니다. 접속자는 두 가지 역할로 나뉩니다:
@@ -59,5 +63,5 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 
 4. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
-   - `ranking_view`는 보안상 민감한 데이터를 제외하고 오직 `nickname`, `best_score`, `gookbap_score`만 제공하며, 자동으로 최고 점수순(내림차순)으로 정렬되어 반환됩니다.
+   - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname`, `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
    - ✅ `supabase.from('ranking_view').select('*')`

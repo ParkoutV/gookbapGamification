@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { Globe, MoreVertical, Edit2, CheckCircle2, XCircle, X } from 'lucide-react'
-import { getAllLanguages, updateLanguage } from './actions'
 import { SupportedLanguage } from '../tracks/actions'
+import { createClient } from '@/utils/supabase/client'
 
 export default function LanguagesPage() {
   const [languages, setLanguages] = useState<SupportedLanguage[]>([])
@@ -20,11 +20,16 @@ export default function LanguagesPage() {
 
   const fetchLanguages = async () => {
     setLoading(true)
-    const res = await getAllLanguages()
-    if (res.error) {
-      setError(res.error)
-    } else if (res.languages) {
-      setLanguages(res.languages)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('supported_languages')
+      .select('*')
+      .order('order_index')
+      
+    if (error) {
+      setError(error.message)
+    } else if (data) {
+      setLanguages(data as SupportedLanguage[])
     }
     setLoading(false)
   }
@@ -42,9 +47,14 @@ export default function LanguagesPage() {
     }
     
     setSubmitting(true)
-    const res = await updateLanguage(lang.lang_code, { is_active: newStatus })
-    if (res.error) {
-      alert(res.error)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('supported_languages')
+      .update({ is_active: newStatus })
+      .eq('lang_code', lang.lang_code)
+      
+    if (error) {
+      alert(error.message)
     } else {
       fetchLanguages()
     }
@@ -65,13 +75,17 @@ export default function LanguagesPage() {
     if (!editingLang) return
 
     setSubmitting(true)
-    const res = await updateLanguage(editingLang.lang_code, {
-      lang_name: formData.lang_name,
-      order_index: Number(formData.order_index)
-    })
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('supported_languages')
+      .update({
+        lang_name: formData.lang_name,
+        order_index: Number(formData.order_index)
+      })
+      .eq('lang_code', editingLang.lang_code)
     
-    if (res.error) {
-      alert(res.error)
+    if (error) {
+      alert(error.message)
     } else {
       setEditingLang(null)
       fetchLanguages()
