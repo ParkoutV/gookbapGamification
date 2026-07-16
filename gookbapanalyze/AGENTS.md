@@ -4,6 +4,10 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Agent Documentation Rule (CRITICAL)
+- **자동 문서화 의무:** 만약 데이터베이스 스키마(테이블 생성/수정), RLS 권한, 보안 규칙, 또는 시스템 핵심 로직을 수정하거나 새로 생성하는 경우, **반드시 사용자의 명시적인 요청이 없더라도 이 `AGENTS.md` 파일도 함께 최신화**해야 합니다.
+
+
 # Dashboard Roles & Permissions
 이 프로젝트는 웹게임과 동일한 데이터베이스(동일한 anon key)를 사용하는 대시보드입니다. 접속자는 두 가지 역할로 나뉩니다:
 1. **user 계정 (일반 관리자)**
@@ -28,7 +32,8 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **`branches` (지점 마스터)**: 지점 정의. 지점 구분을 `branch_id`(UUID)를 기반으로 구별하며, `branch_name`이 지점명 (다국어 지원 있음)입니다. (Admin: ALL, Everyone: SELECT)
 - **`tracks` (접속 링크 마스터)**: 트랙(track) 쿼리문을 정의하는 부분. 지점 ID(`branch_id`)와 공유 여부(`is_shared`)로 구분됩니다. (Admin: ALL, Everyone: SELECT)
 - **`track_logs` (접속 로그)**: 트랙 로그를 기반으로 유저 접속 기록을 표시합니다. 이 데이터를 기반으로 유저가 어느 지점에서 왔는지 조회 가능합니다. (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)
-- **`participants` (게임 참여자)**: 유저를 정의하는 키. 사용자가 이 데이터를 불러오기 위해서는 반드시 RPC 함수 사용이 필수입니다. 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. (Admin: ALL, Anon: INSERT, UPDATE. *조회는 RPC 함수 필수*)
+- **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. (Admin: ALL, Anon: INSERT, UPDATE. *조회는 RPC 함수 필수*)
+- **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`coupon_effects` (쿠폰 혜택)**: 쿠폰 정의. 쿠폰 설명은 텍스트로만 구성됩니다. (Admin: ALL, Everyone: SELECT)
 - **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. (Admin: ALL, User: UPDATE/SELECT, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
@@ -46,9 +51,13 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
    - ❌ `supabase.from('issued_coupons').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_coupons', { p_id: id })`
 
+3. **내 게임 점수 기록 조회 (`game_score_logs`)**
+   - ❌ `supabase.from('game_score_logs').select('*').eq('participant_id', id)`
+   - ✅ `supabase.rpc('get_my_score_logs', { p_id: id })`
+
 *(주의: 익명 유저의 점수를 갱신하는 `UPDATE`나, 최초 생성 시의 `INSERT` 로직은 기존처럼 테이블을 직접 호출해도 정상 작동합니다.)*
 
-3. **전체 랭킹 조회 (`ranking_view`)**
+4. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
    - `ranking_view`는 보안상 민감한 데이터를 제외하고 오직 `nickname`, `best_score`, `gookbap_score`만 제공하며, 자동으로 최고 점수순(내림차순)으로 정렬되어 반환됩니다.
    - ✅ `supabase.from('ranking_view').select('*')`
