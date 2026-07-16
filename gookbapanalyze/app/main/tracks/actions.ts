@@ -12,7 +12,8 @@ function generateShortId(length = 8) {
 }
 
 export type TrackGroup = {
-  track_type: string
+  branch_id: string
+  branch_name: string
   private_id: string | null
   shared_id: string | null
 }
@@ -40,101 +41,88 @@ export async function getSupportedLanguages() {
 
 export async function getTracksGrouped() {
   const supabase = createAdminClient()
-  const { data: tracks, error } = await supabase
-    .from('tracks')
-    .select('*')
+  
+  // Fetch branches with their tracks
+  const { data: branches, error } = await supabase
+    .from('branches')
+    .select(`
+      branch_id,
+      branch_name,
+      tracks (
+        track_id,
+        is_shared
+      )
+    `)
     .order('created_at', { ascending: false })
 
   if (error) {
     return { error: error.message }
   }
 
-  // Group by track_type
-  const grouped = tracks.reduce((acc: Record<string, TrackGroup>, track) => {
-    const key = track.track_type
-    if (!acc[key]) {
-      acc[key] = { track_type: key, private_id: null, shared_id: null }
-    }
-    if (track.is_shared) {
-      acc[key].shared_id = track.track_id
-    } else {
-      acc[key].private_id = track.track_id
-    }
-    return acc
-  }, {})
+  // Map to TrackGroup
+  const grouped: TrackGroup[] = branches.map((branch: any) => {
+    let private_id = null
+    let shared_id = null
 
-  return { tracks: Object.values(grouped) as TrackGroup[] }
+    if (branch.tracks) {
+      branch.tracks.forEach((track: any) => {
+        if (track.is_shared) shared_id = track.track_id
+        else private_id = track.track_id
+      })
+    }
+
+    return {
+      branch_id: branch.branch_id,
+      branch_name: branch.branch_name,
+      private_id,
+      shared_id
+    }
+  })
+
+  return { tracks: grouped }
 }
 
-export async function createTrack(trackTypeJson: string) {
+export async function createTrack(branchNameJson: string) {
   const supabase = createAdminClient()
   
-  // Check if it already exists
-  const { data: existing } = await supabase
-    .from('tracks')
-    .select('track_id')
-    .eq('track_type', trackTypeJson)
-    .limit(1)
+  // Create branch first
+  const { data: branchData, error: branchError } = await supabase
+    .from('branches')
+    .insert([{ branch_name: branchNameJson }])
+    .select('branch_id')
+    .single()
 
-  if (existing && existing.length > 0) {
-    return { error: '동일한 지점명이 이미 존재합니다.' }
+  if (branchError || !branchData) {
+    return { error: branchError?.message || '지점 생성에 실패했습니다.' }
   }
 
+  const branchId = branchData.branch_id
+
+  // Create tracks
   const privateId = generateShortId()
   const sharedId = generateShortId()
 
-  const { error } = await supabase
+  const { error: tracksError } = await supabase
     .from('tracks')
     .insert([
-      { track_id: privateId, track_type: trackTypeJson, is_shared: false },
-      { track_id: sharedId, track_type: trackTypeJson, is_shared: true }
+      { track_id: privateId, branch_id: branchId, is_shared: false },
+      { track_id: sharedId, branch_id: branchId, is_shared: true }
     ])
 
-  if (error) {
-    return { error: error.message }
+  if (tracksError) {
+    return { error: tracksError.message }
   }
 
   return { success: true }
 }
 
-export async function updateTrack(privateId: string | null, sharedId: string | null, newTrackTypeJson: string) {
+export async function updateTrack(branchId: string, newBranchNameJson: string) {
   const supabase = createAdminClient()
   
-  const idsToUpdate = []
-  if (privateId) idsToUpdate.push(privateId)
-  if (sharedId) idsToUpdate.push(sharedId)
-
-  if (idsToUpdate.length === 0) {
-    return { error: '업데이트할 ID가 없습니다.' }
-  }
-
   const { error } = await supabase
-    .from('tracks')
-    .update({ track_type: newTrackTypeJson })
-    .in('track_id', idsToUpdate)
-
-  if (error) {
-    return { error: error.message }
-  }
-
-  return { success: true }
-}
-
-export async function deleteTrack(privateId: string | null, sharedId: string | null) {
-  const supabase = createAdminClient()
-  
-  const idsToDelete = []
-  if (privateId) idsToDelete.push(privateId)
-  if (sharedId) idsToDelete.push(sharedId)
-
-  if (idsToDelete.length === 0) {
-    return { error: '삭제할 ID가 없습니다.' }
-  }
-
-  const { error } = await supabase
-    .from('tracks')
-    .delete()
-    .in('track_id', idsToDelete)
+    .from('branches')
+    .update({ branch_name: newBranchNameJson })
+    .eq('branch_id', branchId)
 
   if (error) {
     return { error: error.message }

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MapPin, Plus, MoreVertical, Edit2, Trash2, Link as LinkIcon, QrCode, X } from 'lucide-react'
-import { getTracksGrouped, getSupportedLanguages, createTrack, updateTrack, deleteTrack, TrackGroup, SupportedLanguage } from './actions'
+import { MapPin, Plus, MoreVertical, Edit2, Link as LinkIcon, QrCode, X } from 'lucide-react'
+import { getTracksGrouped, getSupportedLanguages, createTrack, updateTrack, TrackGroup, SupportedLanguage } from './actions'
 import { QRCodeCanvas } from 'qrcode.react'
 
 export default function TracksListPage() {
@@ -17,6 +17,7 @@ export default function TracksListPage() {
   const [editingTrack, setEditingTrack] = useState<TrackGroup | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [qrModalData, setQrModalData] = useState<{ id: string, name: string } | null>(null)
+  const [qrImageUrl, setQrImageUrl] = useState<string>('')
 
   // Form state for creating/editing
   const [formData, setFormData] = useState<Record<string, string>>({})
@@ -48,6 +49,21 @@ export default function TracksListPage() {
     fetchInitialData()
   }, [])
 
+  useEffect(() => {
+    if (qrModalData) {
+      // Allow canvas to render first
+      const timer = setTimeout(() => {
+        const canvas = document.getElementById('qr-canvas') as HTMLCanvasElement
+        if (canvas) {
+          setQrImageUrl(canvas.toDataURL('image/png'))
+        }
+      }, 50)
+      return () => clearTimeout(timer)
+    } else {
+      setQrImageUrl('')
+    }
+  }, [qrModalData])
+
   const parseTrackType = (jsonStr: string) => {
     try {
       return JSON.parse(jsonStr)
@@ -66,7 +82,7 @@ export default function TracksListPage() {
   }
 
   const handleOpenEdit = (track: TrackGroup) => {
-    const parsed = parseTrackType(track.track_type)
+    const parsed = parseTrackType(track.branch_name)
     const initialForm: Record<string, string> = {}
     languages.forEach(lang => {
       initialForm[lang.lang_code] = parsed[lang.lang_code] || ''
@@ -76,40 +92,38 @@ export default function TracksListPage() {
     setActiveDropdown(null)
   }
 
-  const handleDelete = async (track: TrackGroup) => {
-    if (!confirm('정말로 이 지점을 삭제하시겠습니까? 관련 데이터가 모두 삭제됩니다.')) return
-    
-    const result = await deleteTrack(track.private_id, track.shared_id)
-    if (result.error) {
-      alert(result.error)
-    } else {
-      fetchInitialData()
-    }
-    setActiveDropdown(null)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     
-    // Clean empty values
-    const cleanedData: Record<string, string> = {}
-    for (const [key, value] of Object.entries(formData)) {
-      if (value.trim() !== '') {
-        cleanedData[key] = value.trim()
-      }
+    let finalData: Record<string, string> = {}
+    
+    if (editingTrack) {
+      // 기존 데이터 불러오기 (비활성화된 언어 포함)
+      finalData = parseTrackType(editingTrack.branch_name)
     }
 
-    if (Object.keys(cleanedData).length === 0) {
+    // 현재 폼에 있는(활성화된) 언어 값으로 덮어쓰거나 빈 값이면 삭제
+    languages.forEach(lang => {
+      const code = lang.lang_code
+      const val = formData[code]
+      if (val && val.trim() !== '') {
+        finalData[code] = val.trim()
+      } else {
+        delete finalData[code]
+      }
+    })
+
+    if (Object.keys(finalData).length === 0) {
       alert('최소 하나 이상의 언어로 지점명을 입력해주세요.')
       setSubmitting(false)
       return
     }
 
-    const jsonStr = JSON.stringify(cleanedData)
+    const jsonStr = JSON.stringify(finalData)
 
     if (editingTrack) {
-      const res = await updateTrack(editingTrack.private_id, editingTrack.shared_id, jsonStr)
+      const res = await updateTrack(editingTrack.branch_id, jsonStr)
       if (res.error) alert(res.error)
       else {
         setEditingTrack(null)
@@ -160,14 +174,14 @@ export default function TracksListPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 rounded-xl overflow-visible relative">
-        <div className="overflow-x-auto">
+      <div className="bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 rounded-xl overflow-visible relative pb-16">
+        <div className="w-full overflow-visible">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 uppercase">
               <tr>
                 <th className="px-6 py-4 font-semibold">지점명</th>
-                <th className="px-6 py-4 font-semibold">개인용 (Private)</th>
-                <th className="px-6 py-4 font-semibold">공용 (Shared)</th>
+                <th className="px-6 py-4 font-semibold">가게 링크</th>
+                <th className="px-6 py-4 font-semibold">공유 링크</th>
                 <th className="px-6 py-4 font-semibold text-right">관리</th>
               </tr>
             </thead>
@@ -186,7 +200,7 @@ export default function TracksListPage() {
                 </tr>
               ) : (
                 tracks.map((track, idx) => {
-                  const parsed = parseTrackType(track.track_type)
+                  const parsed = parseTrackType(track.branch_name)
                   const displayName = parsed['ko'] || Object.values(parsed)[0] || '이름 없음'
                   
                   return (
@@ -213,7 +227,7 @@ export default function TracksListPage() {
                               <button onClick={() => copyToClipboard(track.private_id!)} className="text-gray-500 hover:text-blue-600 transition-colors p-1" title="링크 공유">
                                 <LinkIcon className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setQrModalData({ id: track.private_id!, name: `${displayName} (개인용)` })} className="text-gray-500 hover:text-blue-600 transition-colors p-1" title="QR 코드">
+                              <button onClick={() => setQrModalData({ id: track.private_id!, name: `${displayName} (가게 링크)` })} className="text-gray-500 hover:text-blue-600 transition-colors p-1" title="QR 코드">
                                 <QrCode className="w-4 h-4" />
                               </button>
                             </div>
@@ -228,14 +242,6 @@ export default function TracksListPage() {
                             <code className="text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded block w-max max-w-[200px] truncate">
                               {track.shared_id}
                             </code>
-                            <div className="flex gap-2">
-                              <button onClick={() => copyToClipboard(track.shared_id!)} className="text-gray-500 hover:text-purple-600 transition-colors p-1" title="링크 공유">
-                                <LinkIcon className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => setQrModalData({ id: track.shared_id!, name: `${displayName} (공용)` })} className="text-gray-500 hover:text-purple-600 transition-colors p-1" title="QR 코드">
-                                <QrCode className="w-4 h-4" />
-                              </button>
-                            </div>
                           </div>
                         ) : (
                           <span className="text-gray-400 text-xs">없음</span>
@@ -244,13 +250,13 @@ export default function TracksListPage() {
                       <td className="px-6 py-4 text-right relative">
                         <div className="relative inline-block text-left">
                           <button 
-                            onClick={() => setActiveDropdown(activeDropdown === track.track_type ? null : track.track_type)}
+                            onClick={() => setActiveDropdown(activeDropdown === track.branch_id ? null : track.branch_id)}
                             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
                           
-                          {activeDropdown === track.track_type && (
+                          {activeDropdown === track.branch_id && (
                             <>
                               <div 
                                 className="fixed inset-0 z-10" 
@@ -264,13 +270,6 @@ export default function TracksListPage() {
                                   >
                                     <Edit2 className="w-4 h-4 mr-2" />
                                     수정하기
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(track)}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    삭제하기
                                   </button>
                                 </div>
                               </div>
@@ -358,17 +357,23 @@ export default function TracksListPage() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">QR 코드</h3>
             <p className="text-sm text-gray-500 dark:text-zinc-400 mb-8">{qrModalData.name}</p>
             
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <QRCodeCanvas 
-                value={`https://game.gookbap.com/?track_id=${qrModalData.id}`} 
-                size={200}
-                level="H"
-                includeMargin={false}
-              />
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[232px]">
+              <div style={{ display: qrImageUrl ? 'none' : 'block' }}>
+                <QRCodeCanvas 
+                  id="qr-canvas"
+                  value={`https://1953-brother-gookbap.vercel.app/?q=${qrModalData.id}`} 
+                  size={200}
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+              {qrImageUrl && (
+                <img src={qrImageUrl} alt="QR Code" width={200} height={200} className="w-[200px] h-[200px]" />
+              )}
             </div>
             
             <p className="mt-6 text-xs text-gray-400 break-all w-full bg-gray-50 dark:bg-zinc-950 p-3 rounded-lg border border-gray-100 dark:border-zinc-800">
-              https://game.gookbap.com/?track_id={qrModalData.id}
+              https://1953-brother-gookbap.vercel.app/?q={qrModalData.id}
             </p>
 
             <button

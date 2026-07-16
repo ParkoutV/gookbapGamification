@@ -1,14 +1,27 @@
 'use client'
 
-import { useState } from 'react'
-import { createAccount } from '../actions'
-import { Copy, CheckCircle2, UserPlus, Shield, Mail, Key } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { createAccount, getBranches } from '../actions'
+import { Copy, CheckCircle2, UserPlus, Shield, Mail, Key, MapPin } from 'lucide-react'
 
 export default function CreateAccountPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [setupLink, setSetupLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  
+  const [permission, setPermission] = useState<string>("1")
+  const [branches, setBranches] = useState<{branch_id: string, branch_name_ko: string}[]>([])
+
+  useEffect(() => {
+    async function loadBranches() {
+      const result = await getBranches()
+      if (result.success && result.branches) {
+        setBranches(result.branches)
+      }
+    }
+    loadBranches()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -108,12 +121,35 @@ export default function CreateAccountPage() {
                 id="permission"
                 name="permission"
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                defaultValue="1"
+                value={permission}
+                onChange={(e) => setPermission(e.target.value)}
               >
                 <option value="1">일반 관리자 (대시보드 조회만 가능)</option>
                 <option value="0">최고 관리자 (모든 권한 및 설정 수정 가능)</option>
               </select>
             </div>
+
+            {permission === "1" && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                <label className="flex items-center text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1" htmlFor="assignedBranchId">
+                  <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                  소속 지점 (선택사항)
+                </label>
+                <select
+                  id="assignedBranchId"
+                  name="assignedBranchId"
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  defaultValue=""
+                >
+                  <option value="">선택안함</option>
+                  {branches.map(branch => (
+                    <option key={branch.branch_id} value={branch.branch_id}>
+                      {branch.branch_name_ko}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <button

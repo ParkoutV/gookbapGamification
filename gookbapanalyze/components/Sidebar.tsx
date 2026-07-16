@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, LayoutDashboard, Image as ImageIcon, LogOut, Users, Settings, MapPin } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Image as ImageIcon, LogOut, Users, Settings, MapPin, Globe } from 'lucide-react'
 import { logoutUser } from '@/app/login/actions'
 
 interface SidebarProps {
@@ -22,6 +22,7 @@ export default function Sidebar({ permission, email }: SidebarProps) {
 
   if (permission === 0) {
     links.push({ href: '/main/tracks', label: '지점 관리', icon: MapPin })
+    links.push({ href: '/main/languages', label: '언어 관리', icon: Globe })
     links.push({ href: '/main/spot-difference', label: '다른그림찾기 수정', icon: ImageIcon })
     links.push({ href: '/main/accounts', label: '계정 관리', icon: Users })
   }

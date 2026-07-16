@@ -4,8 +4,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getAccountsList, deleteAccount, updatePermission } from './actions'
-import { Users, Plus, MoreVertical, Shield, Trash2, CheckCircle2, XCircle } from 'lucide-react'
+import { getAccountsList, deleteAccount, updatePermission, getBranches } from './actions'
+import { Users, Plus, MoreVertical, Shield, Trash2, CheckCircle2, XCircle, MapPin } from 'lucide-react'
 
 type Account = {
   user_id: string
@@ -15,6 +15,7 @@ type Account = {
   is_setup_completed: boolean
   created_at: string
   is_current_user: boolean
+  assigned_branch_id?: string | null
 }
 
 export default function AccountsListPage() {
@@ -26,6 +27,8 @@ export default function AccountsListPage() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [updating, setUpdating] = useState(false)
+  const [branches, setBranches] = useState<{branch_id: string, branch_name_ko: string}[]>([])
+  const [editPermission, setEditPermission] = useState<string>("1")
 
   const fetchAccounts = async () => {
     setLoading(true)
@@ -40,6 +43,13 @@ export default function AccountsListPage() {
 
   useEffect(() => {
     fetchAccounts()
+    async function loadBranches() {
+      const result = await getBranches()
+      if (result.success && result.branches) {
+        setBranches(result.branches)
+      }
+    }
+    loadBranches()
   }, [])
 
   const handleDelete = async (userId: string) => {
@@ -61,8 +71,10 @@ export default function AccountsListPage() {
     setUpdating(true)
     const formData = new FormData(e.currentTarget)
     const newPermission = parseInt(formData.get('permission') as string, 10)
+    let assignedBranchId = formData.get('assignedBranchId') as string | null
+    if (assignedBranchId === '') assignedBranchId = null
 
-    const result = await updatePermission(editingAccount.user_id, newPermission)
+    const result = await updatePermission(editingAccount.user_id, newPermission, assignedBranchId)
     if (result.error) {
       alert(result.error)
     } else {
@@ -99,28 +111,29 @@ export default function AccountsListPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 rounded-xl overflow-visible relative">
-        <div className="overflow-x-auto">
+      <div className="bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 rounded-xl overflow-visible relative min-h-[300px]">
+        <div className="w-full overflow-visible">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 uppercase">
               <tr>
                 <th className="px-6 py-4 font-semibold">아이디</th>
                 <th className="px-6 py-4 font-semibold">이메일</th>
                 <th className="px-6 py-4 font-semibold">권한</th>
-                <th className="px-6 py-4 font-semibold text-center">상태</th>
+                <th className="px-6 py-4 font-semibold">소속 지점</th>
+                <th className="px-6 py-4 font-semibold text-center">회원가입 상태</th>
                 <th className="px-6 py-4 font-semibold text-right">관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-zinc-800">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-zinc-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-zinc-400">
                     로딩 중...
                   </td>
                 </tr>
               ) : accounts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-zinc-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-zinc-400">
                     등록된 계정이 없습니다.
                   </td>
                 </tr>
@@ -148,6 +161,17 @@ export default function AccountsListPage() {
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-zinc-800 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700">
                           일반 관리자
                         </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {acc.permission === 1 ? (
+                        <span className="text-gray-600 dark:text-zinc-300">
+                          {acc.assigned_branch_id 
+                            ? branches.find(b => b.branch_id === acc.assigned_branch_id)?.branch_name_ko || '알 수 없음'
+                            : '선택안함'}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 dark:text-zinc-500">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -182,6 +206,7 @@ export default function AccountsListPage() {
                                   <button
                                     onClick={() => {
                                       setEditingAccount(acc)
+                                      setEditPermission(acc.permission.toString())
                                       setActiveDropdown(null)
                                     }}
                                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800 flex items-center"
@@ -230,13 +255,36 @@ export default function AccountsListPage() {
                 </label>
                 <select
                   name="permission"
-                  defaultValue={editingAccount.permission}
+                  value={editPermission}
+                  onChange={(e) => setEditPermission(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 >
                   <option value="1">일반 관리자 (대시보드 조회만)</option>
                   <option value="0">최고 관리자 (모든 권한 허용)</option>
                 </select>
               </div>
+
+              {editPermission === "1" && (
+                <div className="mb-6 animate-in fade-in slide-in-from-top-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2" htmlFor="assignedBranchId">
+                    <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                    소속 지점 (선택사항)
+                  </label>
+                  <select
+                    id="assignedBranchId"
+                    name="assignedBranchId"
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                    defaultValue={editingAccount.assigned_branch_id || ""}
+                  >
+                    <option value="">선택안함</option>
+                    {branches.map(branch => (
+                      <option key={branch.branch_id} value={branch.branch_id}>
+                        {branch.branch_name_ko}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               
               <div className="flex gap-3 justify-end">
                 <button

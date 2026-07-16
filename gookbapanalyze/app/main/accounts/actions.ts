@@ -6,6 +6,47 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import crypto from 'crypto'
 
+export async function getBranches() {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { error: '권한이 없습니다.', branches: [] }
+    }
+
+    const adminClient = createAdminClient()
+    const { data: branches, error } = await adminClient
+      .from('branches')
+      .select('branch_id, branch_name')
+
+    if (error) {
+      return { error: '지점 목록을 불러오지 못했습니다.', branches: [] }
+    }
+
+    // Parse branch names for frontend consumption
+    const parsedBranches = branches.map((b: any) => {
+      try {
+        const nameObj = typeof b.branch_name === 'string' ? JSON.parse(b.branch_name) : b.branch_name
+        return {
+          branch_id: b.branch_id,
+          branch_name_ko: nameObj?.ko || '이름 없음'
+        }
+      } catch (e) {
+        return {
+          branch_id: b.branch_id,
+          branch_name_ko: String(b.branch_name)
+        }
+      }
+    })
+
+    return { success: true, branches: parsedBranches }
+  } catch (error) {
+    console.error('getBranches error:', error)
+    return { error: '서버 오류가 발생했습니다.', branches: [] }
+  }
+}
+
 export async function createAccount(formData: FormData) {
   try {
     const supabase = await createClient()
@@ -31,6 +72,11 @@ export async function createAccount(formData: FormData) {
     const accountId = formData.get('accountId') as string
     const email = formData.get('email') as string
     const permission = parseInt(formData.get('permission') as string, 10)
+    let assignedBranchId = formData.get('assignedBranchId') as string | null
+    
+    if (assignedBranchId === '') {
+      assignedBranchId = null
+    }
 
     if (!accountId || !email || isNaN(permission)) {
       return { error: '모든 필드를 올바르게 입력해주세요.' }
@@ -72,7 +118,8 @@ export async function createAccount(formData: FormData) {
         user_id: authData.user.id,
         account_id: accountId,
         permission: permission,
-        is_setup_completed: false
+        is_setup_completed: false,
+        assigned_branch_id: permission === 1 ? assignedBranchId : null
       })
 
     if (dbError) {
@@ -145,7 +192,7 @@ export async function getAccountsList() {
   }
 }
 
-export async function updatePermission(userId: string, newPermission: number) {
+export async function updatePermission(userId: string, newPermission: number, assignedBranchId?: string | null) {
   try {
     const adminClient = createAdminClient()
     const supabase = await createClient()
@@ -167,7 +214,10 @@ export async function updatePermission(userId: string, newPermission: number) {
 
     const { error: updateError } = await adminClient
       .from('accounts')
-      .update({ permission: newPermission })
+      .update({ 
+        permission: newPermission,
+        assigned_branch_id: newPermission === 1 ? (assignedBranchId || null) : null
+      })
       .eq('user_id', userId)
 
     if (updateError) {
