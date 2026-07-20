@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computePlacement } from "./composeScene";
+import { computePlacement } from "./composeScene.ts";
 
 test("정사각형 파츠, scale 1, offset 0 - 슬롯 박스에 꽉 참", () => {
   const result = computePlacement({
