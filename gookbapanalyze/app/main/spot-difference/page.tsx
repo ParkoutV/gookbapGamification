@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { getBaseImages, uploadBaseImage, deleteBaseImage, getSupportedLanguages } from './actions'
+import { getBaseImages, uploadBaseImage, deleteBaseImage, getSupportedLanguages, updateBaseImageLevel } from './actions'
 import { Image as ImageIcon, Plus, MoreVertical, Edit, Trash2, X, Upload } from 'lucide-react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import 'cropperjs/dist/cropper.css'
@@ -13,6 +13,7 @@ type BaseImage = {
   id: number
   title: Record<string, string> | string
   image_url: string
+  level: number
   created_at: string
 }
 
@@ -30,8 +31,16 @@ export default function SpotDifferenceListPage() {
   const [uploadFileUrl, setUploadFileUrl] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   
+  const [uploadLevel, setUploadLevel] = useState<number>(1)
+  const [isDragOver, setIsDragOver] = useState(false)
+  
   // Dropdown states
   const [activeDropdown, setActiveDropdown] = useState<number | null>(null)
+  
+  // Level Modal states
+  const [isLevelModalOpen, setIsLevelModalOpen] = useState(false)
+  const [levelModalTargetId, setLevelModalTargetId] = useState<number | null>(null)
+  const [levelModalLevel, setLevelModalLevel] = useState<number>(1)
 
   const cropperRef = useRef<ReactCropperElement>(null)
 
@@ -80,6 +89,33 @@ export default function SpotDifferenceListPage() {
     }
   }
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0]
+      if (file.type.startsWith('image/')) {
+        setUploadFile(file)
+        setUploadFileUrl(URL.createObjectURL(file))
+        if (Object.keys(uploadTitle).length === 0) {
+          setUploadTitle({ ko: file.name.split('.')[0] })
+        }
+      } else {
+        alert('이미지 파일만 업로드 가능합니다.')
+      }
+    }
+  }
+
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!uploadFile || !uploadTitle.ko) {
@@ -108,6 +144,7 @@ export default function SpotDifferenceListPage() {
           const croppedFile = new File([blob], safeName, { type: 'image/webp' })
           formData.append('file', croppedFile)
           formData.append('title', JSON.stringify(uploadTitle))
+          formData.append('level', String(uploadLevel))
 
           const result = await uploadBaseImage(formData)
           
@@ -120,6 +157,7 @@ export default function SpotDifferenceListPage() {
             setUploadFile(null)
             setUploadFileUrl(null)
             setUploadTitle({})
+            setUploadLevel(1)
             
             // 바로 에디터 화면으로 이동
             router.push(`/main/spot-difference/edit/${result.baseImage.id}`)
@@ -135,6 +173,17 @@ export default function SpotDifferenceListPage() {
       console.error(err)
       alert('업로드 준비 중 오류가 발생했습니다.')
       setIsUploading(false)
+    }
+  }
+
+  const handleUpdateLevel = async () => {
+    if (levelModalTargetId === null) return
+    const result = await updateBaseImageLevel(levelModalTargetId, levelModalLevel)
+    if (result.error) {
+      alert(result.error)
+    } else {
+      setImages(images.map(img => img.id === levelModalTargetId ? { ...img, level: levelModalLevel } : img))
+      setIsLevelModalOpen(false)
     }
   }
 
@@ -186,6 +235,11 @@ export default function SpotDifferenceListPage() {
                   fill
                   className="object-cover transition-transform group-hover:scale-105"
                 />
+                {image.level && (
+                  <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded">
+                    Level {image.level}
+                  </div>
+                )}
               </div>
               <div className="p-4">
                 <h3 className="font-bold text-gray-900 dark:text-white text-lg truncate pr-8">
@@ -221,6 +275,18 @@ export default function SpotDifferenceListPage() {
                             <Edit className="w-4 h-4 mr-2" />
                             수정
                           </Link>
+                          <button
+                            onClick={() => {
+                              setLevelModalTargetId(image.id)
+                              setLevelModalLevel(image.level || 1)
+                              setIsLevelModalOpen(true)
+                              setActiveDropdown(null)
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800 flex items-center"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            레벨 수정
+                          </button>
                           <button
                             onClick={() => handleDelete(image.id)}
                             className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center"
@@ -258,37 +324,53 @@ export default function SpotDifferenceListPage() {
             <form onSubmit={handleUploadSubmit} className="flex flex-col flex-1 overflow-hidden">
               <div className="p-4 sm:p-6 overflow-y-auto">
                 <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
-                      그림 이름 (설명)
-                    </label>
-                    <div className="space-y-3">
-                      {supportedLanguages.map(lang => (
-                        <div key={lang.lang_code} className="flex items-center">
-                          <span className="w-20 text-xs font-semibold text-gray-500 uppercase">{lang.lang_name}</span>
-                          <input
-                            type="text"
-                            value={uploadTitle[lang.lang_code] || ''}
-                            onChange={(e) => setUploadTitle({ ...uploadTitle, [lang.lang_code]: e.target.value })}
-                            required={lang.lang_code === 'ko'}
-                            placeholder={lang.lang_code === 'ko' ? "예: 카페 전경 (낮)" : `${lang.lang_name} 이름`}
-                            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                          />
-                        </div>
-                      ))}
-                      {supportedLanguages.length === 0 && (
-                        <div className="flex items-center">
-                          <span className="w-20 text-xs font-semibold text-gray-500 uppercase">한국어</span>
-                          <input
-                            type="text"
-                            value={uploadTitle['ko'] || ''}
-                            onChange={(e) => setUploadTitle({ ...uploadTitle, ko: e.target.value })}
-                            required
-                            placeholder="예: 카페 전경 (낮)"
-                            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                          />
-                        </div>
-                      )}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="md:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
+                        그림 이름 (설명)
+                      </label>
+                      <div className="space-y-3">
+                        {supportedLanguages.map(lang => (
+                          <div key={lang.lang_code} className="flex items-center">
+                            <span className="w-20 text-xs font-semibold text-gray-500 uppercase">{lang.lang_name}</span>
+                            <input
+                              type="text"
+                              value={uploadTitle[lang.lang_code] || ''}
+                              onChange={(e) => setUploadTitle({ ...uploadTitle, [lang.lang_code]: e.target.value })}
+                              required={lang.lang_code === 'ko'}
+                              placeholder={lang.lang_code === 'ko' ? "예: 카페 전경 (낮)" : `${lang.lang_name} 이름`}
+                              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            />
+                          </div>
+                        ))}
+                        {supportedLanguages.length === 0 && (
+                          <div className="flex items-center">
+                            <span className="w-20 text-xs font-semibold text-gray-500 uppercase">한국어</span>
+                            <input
+                              type="text"
+                              value={uploadTitle['ko'] || ''}
+                              onChange={(e) => setUploadTitle({ ...uploadTitle, ko: e.target.value })}
+                              required
+                              placeholder="예: 카페 전경 (낮)"
+                              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
+                        난이도 (레벨 1~9)
+                      </label>
+                      <select
+                        value={uploadLevel}
+                        onChange={(e) => setUploadLevel(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(lv => (
+                          <option key={lv} value={lv}>Level {lv}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -297,16 +379,26 @@ export default function SpotDifferenceListPage() {
                       원본 이미지 선택
                     </label>
                     {!uploadFileUrl ? (
-                      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-zinc-700 border-dashed rounded-xl hover:border-blue-500 dark:hover:border-blue-500 transition-colors bg-gray-50 dark:bg-zinc-950/50">
+                      <div 
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`flex justify-center px-6 pt-10 pb-10 border-2 border-dashed rounded-xl transition-colors bg-gray-50 dark:bg-zinc-950/50 ${
+                          isDragOver 
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                            : 'border-gray-300 dark:border-zinc-700 hover:border-blue-500 dark:hover:border-blue-500'
+                        }`}
+                      >
                         <div className="space-y-1 text-center">
-                          <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                          <div className="flex text-sm text-gray-600 dark:text-gray-400 mt-4 justify-center">
-                            <label className="relative cursor-pointer bg-transparent rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none">
-                              <span>파일 업로드</span>
+                          <Upload className={`mx-auto h-12 w-12 ${isDragOver ? 'text-blue-500' : 'text-gray-400'}`} />
+                          <div className="flex flex-col text-sm text-gray-600 dark:text-gray-400 mt-4 justify-center items-center">
+                            <span className="mb-2 font-medium">여기로 이미지를 드래그하여 드롭하거나</span>
+                            <label className="relative cursor-pointer bg-white dark:bg-zinc-800 px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-md font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors focus-within:outline-none">
+                              <span>컴퓨터에서 파일 선택</span>
                               <input type="file" className="sr-only" accept="image/*" onChange={handleFileSelect} />
                             </label>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">PNG, JPG, GIF 최대 10MB</p>
+                          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-4">PNG, JPG, WEBP 최대 10MB</p>
                         </div>
                       </div>
                     ) : (
@@ -366,6 +458,44 @@ export default function SpotDifferenceListPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Level Edit Modal */}
+      {isLevelModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsLevelModalOpen(false)} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-sm p-6 overflow-hidden border border-gray-100 dark:border-zinc-800">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">레벨 수정</h3>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
+                난이도 (레벨 1~9)
+              </label>
+              <select
+                value={levelModalLevel}
+                onChange={(e) => setLevelModalLevel(Number(e.target.value))}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(lv => (
+                  <option key={lv} value={lv}>Level {lv}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsLevelModalOpen(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleUpdateLevel}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                저장
+              </button>
+            </div>
           </div>
         </div>
       )}

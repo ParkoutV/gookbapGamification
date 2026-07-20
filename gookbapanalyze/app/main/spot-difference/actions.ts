@@ -48,9 +48,15 @@ export async function uploadBaseImage(formData: FormData) {
 
     const file = formData.get('file') as File
     const titleStr = formData.get('title') as string
+    const levelStr = formData.get('level') as string
 
     if (!file) return { error: '파일이 없습니다.' }
     if (!titleStr) return { error: '제목을 입력해주세요.' }
+
+    let level = parseInt(levelStr, 10)
+    if (isNaN(level) || level < 1 || level > 9) {
+      level = 1
+    }
 
     let titleObj;
     try {
@@ -77,7 +83,8 @@ export async function uploadBaseImage(formData: FormData) {
       .from('base_images')
       .insert({
         title: titleObj,
-        image_url: publicUrlData.publicUrl
+        image_url: publicUrlData.publicUrl,
+        level: level
       })
       .select()
       .single()
@@ -112,6 +119,26 @@ export async function deleteBaseImage(id: number) {
   } catch (error: any) {
     console.error('Error deleting base image:', error)
     return { error: '이미지 삭제 중 오류가 발생했습니다.' }
+  }
+}
+
+export async function updateBaseImageLevel(id: number, level: number) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: '권한이 없습니다.' }
+
+    if (level < 1 || level > 9) {
+      return { error: '레벨은 1에서 9 사이여야 합니다.' }
+    }
+
+    const { error } = await supabase.from('base_images').update({ level }).eq('id', id)
+    if (error) throw error
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error updating base image level:', error)
+    return { error: '레벨 수정 중 오류가 발생했습니다.' }
   }
 }
 
