@@ -196,6 +196,59 @@ test("composeScene - partScale 2배로 확대된 파츠는 슬롯 박스 밖으�
   // (박스 정중앙(550,450)은 WebP 손실 압축의 블록 경계 아티팩트가 강하게 끼는
   // 지점이라 피하고, 경계에서 충분히 떨어진 지점을 샘플링한다)
   assertColorClose(px(570, 470), { r: 255, g: 0, b: 0 }, "확대된 파츠 내부 픽셀");
-  // 박스 밖(499, 400)은 배경(파란색) 그대로 - 확대된 파츠가 넘치지 않음
-  assertColorClose(px(499, 400), { r: 0, g: 0, b: 255 }, "박스 밖 배경 픽셀 (확대 케이스)");
+  // 박스 밖(495, 395)은 배경(파란색) 그대로 - 확대된 파츠가 넘치지 않음
+  // (박스 경계 바로 옆(499,400)은 WebP 블록 아티팩트가 끼는 지점이라 피하고
+  // 경계에서 살짝 더 떨어진 지점을 샘플링한다)
+  assertColorClose(px(495, 395), { r: 0, g: 0, b: 255 }, "박스 밖 배경 픽셀 (확대 케이스)");
+
+  // 판별 포인트 (좌표계 혼동 버그 검출용):
+  // 버그 코드는 clipLeft+extractLeft(=550)에 배치해 박스 밖 (620,520)까지 파츠가
+  // 튀어나가고, 박스 왼쪽 위 구석 (510,410)은 비어서 배경이 보인다.
+  // 올바른 코드는 partLeft+extractLeft(=500)에 배치해 정반대가 된다.
+  assertColorClose(px(620, 520), { r: 0, g: 0, b: 255 }, "박스 밖 판별 픽셀 - 버그라면 빨간색 튀어나옴");
+  assertColorClose(px(510, 410), { r: 255, g: 0, b: 0 }, "박스 구석 판별 픽셀 - 버그라면 배경 비침");
+});
+
+test("composeScene - offset이 있으면 박스 중앙이 아니라 offset만큼 이동한 위치에 그려진다 (클리핑 없음)", async () => {
+  const baseImageBuffer = await sharp({
+    create: { width: 1200, height: 800, channels: 4, background: { r: 0, g: 0, b: 255, alpha: 1 } },
+  })
+    .png()
+    .toBuffer();
+
+  const redPartBuffer = await sharp({
+    create: { width: 50, height: 50, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } },
+  })
+    .png()
+    .toBuffer();
+
+  // B = 100*1 = 100, part 50x50, fit = min(100/50,100/50) = 2, partScale = 1
+  // -> w = h = 50*2*1 = 100 = box, 클리핑 불필요 (딱 맞음)
+  // left = x + (100-100)/2 + offsetX = x + offsetX = 300 + 20 = 320
+  // top  = y + (100-100)/2 + offsetY = y + offsetY = 200 - 10 = 190
+  const result = await composeScene(baseImageBuffer, [
+    {
+      slotId: 1,
+      x: 300,
+      y: 200,
+      slotScale: 1,
+      offsetX: 20,
+      offsetY: -10,
+      partScale: 1,
+      imageBuffer: redPartBuffer,
+      zIndex: 1,
+    },
+  ]);
+
+  const { data, info } = await sharp(result).raw().toBuffer({ resolveWithObject: true });
+  const px = (x: number, y: number) => {
+    const idx = (y * info.width + x) * info.channels;
+    return { r: data[idx], g: data[idx + 1], b: data[idx + 2] };
+  };
+
+  // 파츠 배치 영역은 (320,190)-(420,290). 내부 안쪽 지점은 빨간색이어야 한다.
+  assertColorClose(px(370, 240), { r: 255, g: 0, b: 0 }, "offset 이동된 파츠 내부 픽셀");
+  // offset을 반영하지 않았다면(즉 박스 중앙 (300,200)-(400,300)) 채워졌을 좌상단 구석
+  // (310,200)은 offset 반영 시 배경(파란색)이어야 한다 - offset 미적용 버그를 잡아냄.
+  assertColorClose(px(310, 200), { r: 0, g: 0, b: 255 }, "offset 미반영이라면 빨간색이었을 구석 - 배경 확인");
 });

@@ -124,8 +124,8 @@ export async function composeScene(
 
         return {
           input: visiblePart,
-          left: clipLeft + extractLeft,
-          top: clipTop + extractTop,
+          left: partLeft + extractLeft,
+          top: partTop + extractTop,
         };
       })
     )
