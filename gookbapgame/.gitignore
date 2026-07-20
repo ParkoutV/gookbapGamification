@@ -45,3 +45,6 @@ db.properties
 
 # Scripts (Database init & check)
 /scripts/
+
+# pipeline-visual.test.ts가 매 실행마다 재생성하는 diff 시각화 산출물
+test/fixtures/diff-output-*.png
