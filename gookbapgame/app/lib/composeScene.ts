@@ -131,5 +131,5 @@ export async function composeScene(
     )
   ).filter((overlay): overlay is { input: Buffer; left: number; top: number } => overlay !== null);
 
-  return base.composite(overlays).webp({ lossless: true }).toBuffer();
+  return base.composite(overlays).webp().toBuffer();
 }
