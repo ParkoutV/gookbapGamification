@@ -223,9 +223,12 @@ test("composeScene - offset이 있으면 박스 중앙이 아니라 offset만큼
     .toBuffer();
 
   // B = 100*1 = 100, part 50x50, fit = min(100/50,100/50) = 2, partScale = 1
-  // -> w = h = 50*2*1 = 100 = box, 클리핑 불필요 (딱 맞음)
+  // -> w = h = 50*2*1 = 100 = box 크기와 같지만, offset이 있어 박스와 어긋나
+  //    실제로는 위쪽/오른쪽이 클립된다 (클리핑 자체는 여전히 발생).
   // left = x + (100-100)/2 + offsetX = x + offsetX = 300 + 20 = 320
   // top  = y + (100-100)/2 + offsetY = y + offsetY = 200 - 10 = 190
+  // 클립 박스 (300,200)-(400,300) 와 파츠 (320,190)-(420,290)의 교집합은
+  // (320,200)-(400,290) — 이 범위 안쪽만 실제로 보인다.
   const result = await composeScene(baseImageBuffer, [
     {
       slotId: 1,
