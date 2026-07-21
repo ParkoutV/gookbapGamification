@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; }
+  body { width: 1200px; height: 800px; }
+  .scene { position: relative; width: 1200px; height: 800px; overflow: hidden; }
+  .base { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; }
+  .slot { position: absolute; overflow: hidden; }
+  .part { width: 100%; height: 100%; object-fit: contain; }
+</style>
+</head>
+<body>
+  <div class="scene">
+    <img class="base" src="dummy-base.png" />
+    <!-- 슬롯: x=500, y=300, slotScale=1.2 -> box = 100*1.2 = 120x120 (GameScreen.tsx의 100*part.slotScale*scale 계산과 동일, scale=1).
+         파트는 80x80 정사각형이라 object-fit:contain 시 박스(120x120)를 꽉 채우도록 확대되므로
+         (fit = min(120/80, 120/80) = 1.5), partScale=1이면 여백이 전혀 없어 중심 보정항
+         (box-width)/2가 0이 되어버려 중심기준/좌상단기준 배치 오차를 구분하지 못한다.
+         partScale=0.5로 렌더 크기를 60x60(<120)으로 줄여 x/y 양쪽 축 모두에 여백을 남긴다.
+         offset(12px, -7px)까지 준 것은 중심-기준 배치가 틀리면 마커 위치가 눈에 띄게 어긋나게 하기 위함. -->
+    <div class="slot" style="left: 500px; top: 300px; width: 120px; height: 120px;">
+      <img class="part" src="dummy-part-a.png" style="transform: translate(12px, -7px) scale(0.5); transform-origin: center;" />
+    </div>
+  </div>
+</body>
+</html>
