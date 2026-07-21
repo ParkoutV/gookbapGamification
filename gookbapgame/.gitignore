@@ -48,3 +48,9 @@ db.properties
 
 # pipeline-visual.test.ts가 매 실행마다 재생성하는 diff 시각화 산출물
 test/fixtures/diff-output-*.png
+
+# 로컬 개발 전용 Supabase 스택 (supabase init으로 생성, 팀 공유 대상 아님)
+/supabase/
+
+# playwright MCP 세션 산출물 (콘솔 로그, 스냅샷)
+.playwright-mcp/
