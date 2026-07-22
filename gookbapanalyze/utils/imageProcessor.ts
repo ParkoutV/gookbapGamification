@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import sharp, { OverlayOptions } from 'sharp';
 
 interface PartOverlay {
   imageUrl: string;
@@ -39,7 +39,7 @@ export async function generateUnifiedImageBuffer(
     })
     .toBuffer();
 
-  const composites: sharp.OverlayOptions[] = [
+  const composites: OverlayOptions[] = [
     { input: resizedBase, left: 0, top: 0 }
   ];
 
