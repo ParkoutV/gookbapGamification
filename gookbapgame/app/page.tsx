@@ -1,88 +1,81 @@
 "use client";
 
-import { useState } from "react";
 import StartScreen from "./components/StartScreen";
 import GameScreen from "./components/GameScreen";
-import Modal from "./components/Modal";
-import { fetchGameData, GameSession } from "./actions";
-
-type GameState = "start" | "playing" | "success" | "fail";
+import StageTransitionModal from "./components/StageTransitionModal";
+import GameResultScreen from "./components/GameResultScreen";
+import WheelScreen from "./components/WheelScreen";
+import DailyResultScreen from "./components/DailyResultScreen";
+import { useGameProgress } from "./hooks/useGameProgress";
 
 export default function Home() {
-  const [gameState, setGameState] = useState<GameState>("start");
-  const [session, setSession] = useState<GameSession | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [timeElapsed, setTimeElapsed] = useState(0);
-
-  const startGame = async () => {
-    setIsLoading(true);
-    try {
-      const data = await fetchGameData();
-      if (data) {
-        setSession(data);
-        setGameState("playing");
-      } else {
-        alert("게임 데이터를 불러오는데 실패했습니다.");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("오류가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSuccess = (time: number) => {
-    setTimeElapsed(time);
-    setGameState("success");
-  };
-
-  const handleFail = () => {
-    setGameState("fail");
-  };
-
-  const handleRestart = () => {
-    startGame();
-  };
-
-  const handleMainMenu = () => {
-    setGameState("start");
-    setSession(null);
-  };
+  const game = useGameProgress();
 
   return (
     <div className="min-h-screen bg-black">
-      {gameState === "start" && (
-        <StartScreen onStart={startGame} isLoading={isLoading} />
-      )}
-      
-      {gameState === "playing" && session && (
-        <GameScreen 
-          session={session} 
-          onSuccess={handleSuccess} 
-          onFail={handleFail} 
+      {game.phase === "start" && (
+        <StartScreen
+          nickname={game.nickname}
+          onRegenerateNickname={game.regenerateNickname}
+          onStart={game.startGame}
+          isLoading={game.isLoading}
+          loadError={game.loadError}
         />
       )}
 
-      {(gameState === "success" || gameState === "fail") && (
-        <>
-          {/* Keep the game screen in the background blurred */}
-          {session && (
-            <div className="blur-sm pointer-events-none fixed inset-0">
-              <GameScreen 
-                session={session} 
-                onSuccess={() => {}} 
-                onFail={() => {}} 
-              />
-            </div>
-          )}
-          <Modal 
-            type={gameState} 
-            timeElapsed={timeElapsed} 
-            onRestart={handleRestart} 
-            onMainMenu={handleMainMenu} 
-          />
-        </>
+      {(game.phase === "playing" ||
+        game.phase === "stageClear" ||
+        game.phase === "stageFail") &&
+        game.session && (
+          <div className={game.phase !== "playing" ? "blur-sm pointer-events-none" : undefined}>
+            <GameScreen
+              key={`${game.stageNumber}-${game.loadNonce}`}
+              session={game.session}
+              stageNumber={game.stageNumber}
+              totalStages={game.totalStages}
+              timeLimitSec={game.timeLimitSec}
+              onStageClear={game.handleStageClear}
+              onStageTimeout={game.handleStageTimeout}
+              onWrongTouch={game.recordWrongTouch}
+            />
+          </div>
+        )}
+
+      {game.phase === "stageClear" && (
+        <StageTransitionModal
+          type="stageClear"
+          onNext={game.advanceToNextStage}
+          isLoading={game.isLoading}
+          loadError={game.loadError}
+        />
+      )}
+
+      {game.phase === "stageFail" && (
+        <StageTransitionModal
+          type="stageFail"
+          onNext={game.retryFromStageOne}
+          isLoading={game.isLoading}
+          loadError={game.loadError}
+        />
+      )}
+
+      {game.phase === "gameResult" && game.scoreBreakdown && game.gukbapTier && (
+        <GameResultScreen
+          scoreBreakdown={game.scoreBreakdown}
+          gukbapTier={game.gukbapTier}
+          onNext={game.proceedToWheel}
+        />
+      )}
+
+      {game.phase === "wheel" && <WheelScreen onNext={game.proceedToDailyResult} />}
+
+      {game.phase === "dailyResult" && game.scoreBreakdown && game.gukbapTier && (
+        <DailyResultScreen
+          nickname={game.nickname}
+          gukbapTier={game.gukbapTier}
+          totalScore={game.scoreBreakdown.total}
+          onRestart={game.resetToStart}
+        />
       )}
     </div>
   );

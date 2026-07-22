@@ -1,6 +1,7 @@
 "use server";
 
 import { supabase } from "./lib/db";
+import { clampDifferenceCount } from "./lib/gameSelection";
 
 export type GameSlot = {
   slotId: number;
@@ -11,20 +12,25 @@ export type GameSlot = {
 };
 
 export type GameSession = {
+  level: number;
   leftSceneUrl: string;
   rightSceneUrl: string;
   slots: GameSlot[];
 };
 
-export async function fetchGameData(): Promise<GameSession | null> {
+export async function fetchGameData(
+  level: number,
+  targetDiffCount: number
+): Promise<GameSession | null> {
   try {
-    // 1. Fetch all base_images and shuffle them
+    // 1. Fetch base_images registered for this stage's level and shuffle them
     const { data: baseImages, error: baseErr } = await supabase
       .from("base_images")
-      .select("*");
+      .select("*")
+      .eq("level", level);
 
     if (baseErr || !baseImages || baseImages.length === 0) {
-      console.error("Failed to fetch base_images:", baseErr);
+      console.error(`Failed to fetch base_images for level=${level}:`, baseErr);
       return null;
     }
 
@@ -70,9 +76,15 @@ export async function fetchGameData(): Promise<GameSession | null> {
       return null;
     }
 
-    // 3. Determine differences
+    // 3. Determine differences — GDD 7.2가 정한 스테이지별 고정 목표치를 우선하되,
+    // 콘텐츠(유효 슬롯)가 그보다 적으면 있는 만큼만 차이로 지정한다(조용히 스킵하지 않음).
     const N = validSlots.length;
-    const numDifferences = Math.max(1, Math.round(N * (2 / 3)));
+    const numDifferences = clampDifferenceCount(targetDiffCount, N);
+    if (numDifferences < targetDiffCount) {
+      console.warn(
+        `[fetchGameData] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${targetDiffCount})보다 적어 ${numDifferences}개로 축소함`
+      );
+    }
 
     const diffIndices = [...Array(N).keys()].sort(() => 0.5 - Math.random()).slice(0, numDifferences);
 
@@ -115,6 +127,7 @@ export async function fetchGameData(): Promise<GameSession | null> {
     const rightSceneUrl = `/api/scene?base=${baseImageId}&side=right&parts=${rightPairs.join(",")}`;
 
     return {
+      level,
       leftSceneUrl,
       rightSceneUrl,
       slots,
