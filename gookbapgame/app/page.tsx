@@ -29,7 +29,7 @@ export default function Home() {
         game.session && (
           <div className={game.phase !== "playing" ? "blur-sm pointer-events-none" : undefined}>
             <GameScreen
-              key={game.stageNumber}
+              key={`${game.stageNumber}-${game.loadNonce}`}
               session={game.session}
               stageNumber={game.stageNumber}
               totalStages={game.totalStages}
@@ -42,11 +42,21 @@ export default function Home() {
         )}
 
       {game.phase === "stageClear" && (
-        <StageTransitionModal type="stageClear" onNext={game.advanceToNextStage} />
+        <StageTransitionModal
+          type="stageClear"
+          onNext={game.advanceToNextStage}
+          isLoading={game.isLoading}
+          loadError={game.loadError}
+        />
       )}
 
       {game.phase === "stageFail" && (
-        <StageTransitionModal type="stageFail" onNext={game.retryFromStageOne} />
+        <StageTransitionModal
+          type="stageFail"
+          onNext={game.retryFromStageOne}
+          isLoading={game.isLoading}
+          loadError={game.loadError}
+        />
       )}
 
       {game.phase === "gameResult" && game.scoreBreakdown && game.gukbapTier && (

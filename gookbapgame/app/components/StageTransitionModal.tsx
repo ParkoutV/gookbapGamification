@@ -5,9 +5,16 @@ import React from "react";
 interface StageTransitionModalProps {
   type: "stageClear" | "stageFail";
   onNext: () => void;
+  isLoading?: boolean;
+  loadError?: string | null;
 }
 
-export default function StageTransitionModal({ type, onNext }: StageTransitionModalProps) {
+export default function StageTransitionModal({
+  type,
+  onNext,
+  isLoading,
+  loadError,
+}: StageTransitionModalProps) {
   const isClear = type === "stageClear";
 
   return (
@@ -22,11 +29,13 @@ export default function StageTransitionModal({ type, onNext }: StageTransitionMo
         <p className="text-zinc-600 dark:text-zinc-300 mb-6 text-lg">
           {isClear ? "이번 단계를 통과하셨습니다." : "시간이 종료되었습니다."}
         </p>
+        {loadError && <p className="text-red-400 mb-4">{loadError}</p>}
         <button
           onClick={onNext}
-          className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl font-bold shadow-md transition-all active:scale-95"
+          disabled={isLoading}
+          className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isClear ? "다음" : "재도전"}
+          {isLoading ? "로딩 중..." : isClear ? "다음" : "재도전"}
         </button>
       </div>
     </div>

@@ -29,6 +29,7 @@ export function useGameProgress() {
   const [stageIndex, setStageIndex] = useState(0);
   const [session, setSession] = useState<GameSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadNonce, setLoadNonce] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [remainingTimeByStage, setRemainingTimeByStage] = useState<number[]>([]);
   const [hadWrongTouch, setHadWrongTouch] = useState(false);
@@ -41,6 +42,7 @@ export function useGameProgress() {
 
   const loadStage = useCallback(async (index: number) => {
     setIsLoading(true);
+    setLoadNonce((n) => n + 1);
     setLoadError(null);
     const cfg = STAGE_CONFIG[index];
     const data = await fetchGameData(cfg.level, cfg.diffCount);
@@ -120,6 +122,7 @@ export function useGameProgress() {
     nickname,
     regenerateNickname,
     stageNumber: stageIndex + 1,
+    loadNonce,
     totalStages: STAGE_CONFIG.length,
     timeLimitSec: STAGE_CONFIG[stageIndex].timeLimitSec,
     session,
