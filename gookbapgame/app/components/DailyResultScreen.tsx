@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { GukbapTier } from "../lib/stageConfig";
+import { GukbapTier, MAX_TOTAL_SCORE } from "../lib/stageConfig";
 
 interface DailyResultScreenProps {
   nickname: string;
@@ -27,7 +27,7 @@ export default function DailyResultScreen({
         <p className="text-zinc-300 mb-1">국밥력</p>
         <p className="text-xl font-bold mb-4">{gukbapTier}</p>
         <p className="text-zinc-300 mb-1">최종점수</p>
-        <p className="text-xl font-bold mb-6">{totalScore} / 1953</p>
+        <p className="text-xl font-bold mb-6">{totalScore} / {MAX_TOTAL_SCORE}</p>
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {stubAchievements.map((label) => (
             <span

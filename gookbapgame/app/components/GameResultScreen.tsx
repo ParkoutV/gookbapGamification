@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ScoreBreakdown, GukbapTier } from "../lib/stageConfig";
+import { ScoreBreakdown, GukbapTier, MAX_TOTAL_SCORE } from "../lib/stageConfig";
 
 interface GameResultScreenProps {
   scoreBreakdown: ScoreBreakdown;
@@ -36,7 +36,7 @@ export default function GameResultScreen({
         <div className="border-t border-white/20 pt-4 mb-2">
           <div className="flex justify-between text-xl font-extrabold">
             <span>총점</span>
-            <span>{scoreBreakdown.total} / 1953</span>
+            <span>{scoreBreakdown.total} / {MAX_TOTAL_SCORE}</span>
           </div>
         </div>
         <p className="text-yellow-300 font-bold mb-8">국밥력: {gukbapTier}</p>
