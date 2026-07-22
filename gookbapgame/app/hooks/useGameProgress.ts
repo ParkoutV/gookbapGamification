@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchGameData, GameSession } from "../actions";
 import {
   STAGE_CONFIG,
@@ -25,7 +25,7 @@ export type GamePhase =
 
 export function useGameProgress() {
   const [phase, setPhase] = useState<GamePhase>("start");
-  const [nickname, setNickname] = useState<string>(() => loadOrCreateNickname());
+  const [nickname, setNickname] = useState<string>("");
   const [stageIndex, setStageIndex] = useState(0);
   const [session, setSession] = useState<GameSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +34,10 @@ export function useGameProgress() {
   const [hadWrongTouch, setHadWrongTouch] = useState(false);
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
   const [gukbapTier, setGukbapTier] = useState<GukbapTier | null>(null);
+
+  useEffect(() => {
+    setNickname(loadOrCreateNickname());
+  }, []);
 
   const loadStage = useCallback(async (index: number) => {
     setIsLoading(true);
