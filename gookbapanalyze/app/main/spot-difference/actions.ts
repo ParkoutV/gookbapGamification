@@ -4,6 +4,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
+import { cookies } from 'next/headers'
 
 export async function getSupportedLanguages() {
   try {
@@ -31,6 +32,37 @@ export async function getBaseImages() {
       .order('created_at', { ascending: false })
 
     if (error) throw error
+
+    // Fetch unified_images for preview logic
+    const { data: unifiedImages, error: unifiedError } = await supabase
+      .from('unified_images')
+      .select('base_image_id, image_slots, unified_image_url')
+
+    if (!unifiedError && unifiedImages) {
+      // For each base image, find the best unified image preview
+      data.forEach(img => {
+        const matches = unifiedImages.filter(u => u.base_image_id === img.id)
+        if (matches.length > 0) {
+          let minSum = Infinity
+          let bestUrl = img.image_url
+          
+          matches.forEach(match => {
+            let sum = 0
+            for (const key in match.image_slots) {
+              sum += parseInt(match.image_slots[key]) || 0
+            }
+            if (sum < minSum) {
+              minSum = sum
+              bestUrl = match.unified_image_url
+            }
+          })
+          
+          // Override image_url for preview purposes
+          img.image_url = bestUrl
+        }
+      })
+    }
+
     return { success: true, baseImages: data }
   } catch (error: any) {
     console.error('Error fetching base images:', error)
@@ -327,6 +359,20 @@ export async function saveGameData(
         if (updateError) throw updateError
       }
     }
+
+    // Trigger background cache rendering
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const cookieStore = await cookies()
+    const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+    
+    fetch(`${appUrl}/api/generate-unified`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Cookie': allCookies
+      },
+      body: JSON.stringify({ baseImageId })
+    }).catch(e => console.error('Failed to trigger cache rendering:', e))
 
     return { success: true }
   } catch (error: any) {
