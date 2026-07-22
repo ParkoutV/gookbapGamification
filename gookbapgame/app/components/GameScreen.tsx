@@ -5,12 +5,24 @@ import { GameSession } from "../actions";
 
 interface GameScreenProps {
   session: GameSession;
-  onSuccess: (timeElapsed: number) => void;
-  onFail: () => void;
+  stageNumber: number;
+  totalStages: number;
+  timeLimitSec: number;
+  onStageClear: (remainingTimeSec: number) => void;
+  onStageTimeout: () => void;
+  onWrongTouch: () => void;
 }
 
-export default function GameScreen({ session, onSuccess, onFail }: GameScreenProps) {
-  const [timeLeft, setTimeLeft] = useState(30);
+export default function GameScreen({
+  session,
+  stageNumber,
+  totalStages,
+  timeLimitSec,
+  onStageClear,
+  onStageTimeout,
+  onWrongTouch,
+}: GameScreenProps) {
+  const [timeLeft, setTimeLeft] = useState(timeLimitSec);
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
   const [scale, setScale] = useState(1);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -34,16 +46,14 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
     updateScale();
   };
 
-  const timeElapsed = 30 - timeLeft;
-
   useEffect(() => {
     if (timeLeft <= 0) {
-      onFail();
+      onStageTimeout();
       return;
     }
 
     if (totalDifferences > 0 && foundSlots.size >= totalDifferences) {
-      onSuccess(timeElapsed);
+      onStageClear(timeLeft);
       return;
     }
 
@@ -52,7 +62,7 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, foundSlots.size, onFail, onSuccess, timeElapsed]);
+  }, [timeLeft, foundSlots.size, totalDifferences, onStageTimeout, onStageClear]);
 
   const handleSlotClick = (slotId: number, isDifference: boolean) => {
     if (isDifference && !foundSlots.has(slotId)) {
@@ -61,7 +71,9 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
         newSet.add(slotId);
         return newSet;
       });
+      return;
     }
+    onWrongTouch();
   };
 
   const renderClickOverlays = () =>
@@ -88,22 +100,14 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
   return (
     <div className="flex flex-col min-h-screen bg-zinc-900 text-white font-sans">
       <header className="flex justify-between items-center p-4 md:px-8 bg-zinc-800 shadow-lg border-b border-zinc-700 z-10 sticky top-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xl md:text-2xl font-bold">찾은 개수:</span>
-          <div className="flex gap-1">
-            {Array.from({ length: totalDifferences }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 border-indigo-500 flex items-center justify-center ${i < foundSlots.size ? "bg-indigo-500 text-white" : "bg-transparent text-transparent"}`}
-              >
-                ✓
-              </div>
-            ))}
-          </div>
-        </div>
+        <span className="text-lg md:text-xl font-bold">
+          {stageNumber} / {totalStages} 단계
+        </span>
         <div className="flex items-center gap-2">
           <span className="text-xl md:text-2xl font-bold">남은 시간:</span>
-          <span className={`text-2xl md:text-3xl font-extrabold ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-green-400"}`}>
+          <span
+            className={`text-2xl md:text-3xl font-extrabold ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-green-400"}`}
+          >
             {timeLeft}초
           </span>
         </div>
@@ -136,6 +140,18 @@ export default function GameScreen({ session, onSuccess, onFail }: GameScreenPro
           {renderClickOverlays()}
         </div>
       </main>
+
+      <footer className="flex justify-between items-center p-4 md:px-8 bg-zinc-800 border-t border-zinc-700">
+        <button
+          type="button"
+          className="px-4 py-2 rounded-full bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/40"
+        >
+          힌트
+        </button>
+        <span className="text-lg font-bold">
+          남은 개수: {totalDifferences - foundSlots.size}/{totalDifferences}
+        </span>
+      </footer>
     </div>
   );
 }
