@@ -8,24 +8,24 @@ import { v4 as uuidv4 } from 'uuid'
 // For now, we will fire and forget the processing.
 export async function POST(req: NextRequest) {
   try {
-    const { baseImageId } = await req.json()
+    const { baseImageId, skip = 0 } = await req.json()
+    const cookieHeader = req.headers.get('cookie') || ''
 
     if (!baseImageId) {
       return NextResponse.json({ error: 'Missing baseImageId' }, { status: 400 })
     }
 
     // Start background processing without waiting for it to finish
-    // Fire and forget
-    processCombinations(baseImageId).catch(err => console.error("Background task error:", err))
+    processCombinations(baseImageId, skip, cookieHeader).catch(err => console.error("Background task error:", err))
 
-    return NextResponse.json({ success: true, message: 'Background processing started' })
+    return NextResponse.json({ success: true, message: `Background processing started for skip: ${skip}` })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-async function processCombinations(baseImageId: number) {
-  console.log(`[Unified Generator] Starting for baseImageId: ${baseImageId}`)
+async function processCombinations(baseImageId: number, skip: number, cookieHeader: string) {
+  console.log(`[Unified Generator] Starting for baseImageId: ${baseImageId}, skip: ${skip}`)
   const supabase = await createClient()
 
   // 1. Fetch base image
@@ -111,116 +111,144 @@ async function processCombinations(baseImageId: number) {
     })
   }
 
-  const processedCombos = new Set<string>()
+  const BATCH_SIZE = 20
+  const batch = combinations.slice(skip, skip + BATCH_SIZE)
 
-  for (let i = 0; i < combinations.length; i++) {
-    const combo = combinations[i] as any[]
-    
-    const imageSlotsJson: Record<string, string> = {}
-    combo.forEach(part => {
-      imageSlotsJson[part.category_id.toString()] = part.id.toString()
-    })
-    
-    const sortedComboJson = Object.keys(imageSlotsJson).sort().reduce((acc, key) => {
-      acc[key] = imageSlotsJson[key]
-      return acc
-    }, {} as Record<string, string>)
-    
-    const comboKey = JSON.stringify(sortedComboJson)
-    processedCombos.add(comboKey)
-    
-    // Prepare parts overlay data
-    const overlays = combo.map(part => {
-      const slot = slots.find(s => s.category_id === part.category_id)
-      return {
-        imageUrl: part.image_url,
-        slotX: slot.x_coordinate,
-        slotY: slot.y_coordinate,
-        slotScale: slot.scale,
-        offsetX: part.offset_x,
-        offsetY: part.offset_y,
-        partScale: part.scale,
-      }
-    })
+  console.log(`[Unified Generator] Processing batch ${skip} to ${skip + batch.length - 1}...`)
 
-    try {
-      // Create unified image
-      const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
+  await Promise.all(batch.map(async (combo: any[]) => {
+      const imageSlotsJson: Record<string, string> = {}
+      combo.forEach(part => {
+        imageSlotsJson[part.category_id.toString()] = part.id.toString()
+      })
       
-      // Upload to Supabase Storage (assuming 'game_assets' bucket, folder 'unified_cache')
-      const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
-      const { error: uploadError } = await supabase.storage
-        .from('game_assets')
-        .upload(fileName, buffer, { contentType: 'image/webp' })
-        
-      if (uploadError) {
-        console.error("Upload error for combo", i, uploadError)
-        continue
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('game_assets')
-        .getPublicUrl(fileName)
-
-      // Insert or Update unified_images table
-      const existingRow = existingMap.get(comboKey)
+      const sortedComboJson = Object.keys(imageSlotsJson).sort().reduce((acc, key) => {
+        acc[key] = imageSlotsJson[key]
+        return acc
+      }, {} as Record<string, string>)
       
-      if (existingRow) {
-        // Update existing row
-        const { error: updateError } = await supabase.from('unified_images')
-          .update({ unified_image_url: publicUrlData.publicUrl })
-          .eq('id', existingRow.id)
-          
-        if (updateError) {
-          console.error("Update error for unified_images", updateError)
+      const comboKey = JSON.stringify(sortedComboJson)
+      
+      // Prepare parts overlay data
+      const overlays = combo.map(part => {
+        const slot = slots.find(s => s.category_id === part.category_id)
+        return {
+          imageUrl: part.image_url,
+          slotX: slot.x_coordinate,
+          slotY: slot.y_coordinate,
+          slotScale: slot.scale,
+          offsetX: part.offset_x,
+          offsetY: part.offset_y,
+          partScale: part.scale,
         }
+      })
+
+      try {
+        // Create unified image
+        const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
         
-        // Delete old file from Storage
-        if (existingRow.unified_image_url) {
-          const oldUrl = existingRow.unified_image_url
+        // Upload to Supabase Storage
+        const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
+        const { error: uploadError } = await supabase.storage
+          .from('game_assets')
+          .upload(fileName, buffer, { contentType: 'image/webp' })
+          
+        if (uploadError) {
+          console.error("Upload error", uploadError)
+          return
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('game_assets')
+          .getPublicUrl(fileName)
+
+        // Insert or Update unified_images table
+        const existingRow = existingMap.get(comboKey)
+        
+        if (existingRow) {
+          // Update existing row
+          const { error: updateError } = await supabase.from('unified_images')
+            .update({ unified_image_url: publicUrlData.publicUrl })
+            .eq('id', existingRow.id)
+            
+          if (updateError) {
+            console.error("Update error for unified_images", updateError)
+          }
+          
+          // Delete old file from Storage
+          if (existingRow.unified_image_url) {
+            const oldUrl = existingRow.unified_image_url
+            const match = oldUrl.match(/game_assets\/(.+)$/)
+            if (match && match[1]) {
+              await supabase.storage.from('game_assets').remove([match[1]])
+            }
+          }
+        } else {
+          // Insert new row
+          const { error: insertError } = await supabase.from('unified_images').insert({
+            base_image_id: baseImageId,
+            image_slots: imageSlotsJson,
+            unified_image_url: publicUrlData.publicUrl
+          })
+
+          if (insertError) {
+            console.error("Insert error for unified_images", insertError)
+          }
+        }
+      } catch (e) {
+        console.error(`Error processing combination:`, e)
+      }
+    }))
+
+  // Trigger next batch if available
+  if (skip + BATCH_SIZE < combinations.length) {
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    console.log(`[Unified Generator] Triggering next batch (skip: ${skip + BATCH_SIZE})`)
+    fetch(`${appUrl}/api/generate-unified`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookieHeader
+      },
+      body: JSON.stringify({ baseImageId, skip: skip + BATCH_SIZE })
+    }).catch(e => console.error('Failed to trigger next batch:', e))
+  } else {
+    // 6. Delete orphaned unified_images (Run only on the very last batch)
+    console.log(`[Unified Generator] All batches finished. Cleaning up orphaned records...`)
+    
+    // Create a Set of all valid combination JSON strings
+    const validCombos = new Set<string>()
+    combinations.forEach(combo => {
+      const c = combo as any[]
+      const slotsJson: Record<string, string> = {}
+      c.forEach(part => { slotsJson[part.category_id.toString()] = part.id.toString() })
+      const sortedJson = Object.keys(slotsJson).sort().reduce((acc, key) => {
+        acc[key] = slotsJson[key]
+        return acc
+      }, {} as Record<string, string>)
+      validCombos.add(JSON.stringify(sortedJson))
+    })
+    
+    if (existingUnified) {
+      for (const row of existingUnified) {
+        const sortedObj = Object.keys(row.image_slots).sort().reduce((acc, key) => {
+          acc[key] = row.image_slots[key]
+          return acc
+        }, {} as Record<string, string>)
+        
+        if (!validCombos.has(JSON.stringify(sortedObj))) {
+          // Delete from DB
+          await supabase.from('unified_images').delete().eq('id', row.id)
+          
+          // Delete from Storage
+          const oldUrl = row.unified_image_url
           const match = oldUrl.match(/game_assets\/(.+)$/)
           if (match && match[1]) {
             await supabase.storage.from('game_assets').remove([match[1]])
           }
         }
-      } else {
-        // Insert new row
-        const { error: insertError } = await supabase.from('unified_images').insert({
-          base_image_id: baseImageId,
-          image_slots: imageSlotsJson,
-          unified_image_url: publicUrlData.publicUrl
-        })
-
-        if (insertError) {
-          console.error("Insert error for unified_images", insertError)
-        }
-      }
-    } catch (e) {
-      console.error(`Error processing combination ${i}:`, e)
-    }
-  }
-
-  // 6. Delete orphaned unified_images (those not in the current permutations, e.g. a part was deleted)
-  if (existingUnified) {
-    for (const row of existingUnified) {
-      const sortedObj = Object.keys(row.image_slots).sort().reduce((acc, key) => {
-        acc[key] = row.image_slots[key]
-        return acc
-      }, {} as Record<string, string>)
-      
-      if (!processedCombos.has(JSON.stringify(sortedObj))) {
-        // Delete from DB
-        await supabase.from('unified_images').delete().eq('id', row.id)
-        
-        // Delete from Storage
-        const oldUrl = row.unified_image_url
-        const match = oldUrl.match(/game_assets\/(.+)$/)
-        if (match && match[1]) {
-          await supabase.storage.from('game_assets').remove([match[1]])
-        }
       }
     }
+    console.log(`[Unified Generator] Completely finished processing for baseImageId: ${baseImageId}`)
   }
-
-  console.log(`[Unified Generator] Finished processing for baseImageId: ${baseImageId}`)
 }

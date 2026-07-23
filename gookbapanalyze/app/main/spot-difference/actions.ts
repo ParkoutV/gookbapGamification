@@ -138,14 +138,68 @@ export async function deleteBaseImage(id: number) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: '권한이 없습니다.' }
 
-    // 삭제 전 URL 확인 및 스토리지 삭제 (선택적)
+    // 1. Fetch URLs to delete from Storage
+    const pathsToDelete: string[] = []
+
+    // Base image URL
     const { data: baseImage } = await supabase.from('base_images').select('image_url').eq('id', id).single()
+    if (baseImage && baseImage.image_url) {
+      const match = baseImage.image_url.match(/game_assets\/(.+)$/)
+      if (match && match[1]) pathsToDelete.push(match[1])
+    }
+
+    // Unified images URLs
+    const { data: unifiedImages } = await supabase.from('unified_images').select('unified_image_url').eq('base_image_id', id)
+    if (unifiedImages) {
+      unifiedImages.forEach(ui => {
+        const match = ui.unified_image_url?.match(/game_assets\/(.+)$/)
+        if (match && match[1]) pathsToDelete.push(match[1])
+      })
+    }
+
+    // Parts URLs (we need to find slots first)
+    const { data: slots } = await supabase.from('image_slots').select('category_id').eq('base_image_id', id)
+    const categoryIds = slots ? slots.map(s => s.category_id) : []
     
-    // CASCADE 삭제로 image_slots도 삭제될 수 있으나, 만약 안 걸려있다면 직접 삭제
+    if (categoryIds.length > 0) {
+      const { data: parts } = await supabase.from('parts').select('image_url').in('category_id', categoryIds)
+      if (parts) {
+        parts.forEach(p => {
+          const match = p.image_url?.match(/game_assets\/(.+)$/)
+          if (match && match[1]) pathsToDelete.push(match[1])
+        })
+      }
+    }
+
+    // 2. Delete from DB (The UI updates instantly after this)
+    // Note: unified_images should cascade from base_images. If not, delete it manually just in case.
+    await supabase.from('unified_images').delete().eq('base_image_id', id)
+    
+    // Parts and Part Categories (delete manually to keep DB clean)
+    if (categoryIds.length > 0) {
+      await supabase.from('parts').delete().in('category_id', categoryIds)
+      await supabase.from('part_categories').delete().in('id', categoryIds)
+    }
+    
     await supabase.from('image_slots').delete().eq('base_image_id', id)
-    
     const { error } = await supabase.from('base_images').delete().eq('id', id)
     if (error) throw error
+
+    // 3. Trigger background Storage Cleanup
+    if (pathsToDelete.length > 0) {
+      const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      const cookieStore = await cookies()
+      const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+      
+      fetch(`${appUrl}/api/cleanup-storage`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cookie': allCookies
+        },
+        body: JSON.stringify({ paths: pathsToDelete })
+      }).catch(e => console.error('Failed to trigger storage cleanup:', e))
+    }
 
     return { success: true }
   } catch (error: any) {
