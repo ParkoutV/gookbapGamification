@@ -154,7 +154,8 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
         const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
         
         // Convert Node.js Buffer to Web Blob to prevent Vercel's fetch from corrupting it into UTF-8 strings
-        const blob = new Blob([buffer], { type: 'image/webp' })
+        // Wrap in Uint8Array to satisfy TypeScript's BlobPart type constraints
+        const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
         
         // Upload to Supabase Storage
         const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
