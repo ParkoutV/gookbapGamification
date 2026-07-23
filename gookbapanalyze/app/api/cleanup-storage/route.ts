@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const { paths = [], skip = 0 } = await req.json()
     const cookieHeader = req.headers.get('cookie') || ''
+    const appUrl = req.nextUrl.origin
 
     if (!Array.isArray(paths) || paths.length === 0) {
       return NextResponse.json({ success: true, message: 'No paths to delete' })
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     // Fire and forget, but keep Vercel alive until it finishes
     after(async () => {
-      await processCleanup(paths, skip, cookieHeader).catch(err => console.error("Cleanup task error:", err))
+      await processCleanup(paths, skip, cookieHeader, appUrl).catch(err => console.error("Cleanup task error:", err))
     })
 
     return NextResponse.json({ success: true, message: `Cleanup processing started for skip: ${skip}` })
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function processCleanup(paths: string[], skip: number, cookieHeader: string) {
+async function processCleanup(paths: string[], skip: number, cookieHeader: string, appUrl: string) {
   console.log(`[Storage Cleanup] Starting chunk skip: ${skip}, total paths: ${paths.length}`)
   const supabase = createAdminClient()
 
@@ -42,8 +43,7 @@ async function processCleanup(paths: string[], skip: number, cookieHeader: strin
 
   // Trigger next batch if available
   if (skip + BATCH_SIZE < paths.length) {
-    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    console.log(`[Storage Cleanup] Triggering next batch (skip: ${skip + BATCH_SIZE})`)
+    console.log(`[Storage Cleanup] Triggering next batch (skip: ${skip + BATCH_SIZE}) at ${appUrl}`)
     fetch(`${appUrl}/api/cleanup-storage`, {
       method: 'POST',
       headers: {

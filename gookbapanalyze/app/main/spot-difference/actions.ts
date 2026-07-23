@@ -4,7 +4,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { after } from 'next/server'
 
 export async function getSupportedLanguages() {
@@ -188,7 +188,11 @@ export async function deleteBaseImage(id: number) {
 
     // 3. Trigger background Storage Cleanup
     if (pathsToDelete.length > 0) {
-      const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      const headersList = await headers()
+      const host = headersList.get('host') || 'localhost:3000'
+      const protocol = headersList.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+      const appUrl = `${protocol}://${host}`
+      
       const cookieStore = await cookies()
       const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
       
@@ -418,7 +422,11 @@ export async function saveGameData(
     }))
 
     // Trigger background cache rendering
-    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    const protocol = headersList.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+    const appUrl = `${protocol}://${host}`
+    
     const cookieStore = await cookies()
     const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
     

@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   try {
     const { baseImageId, skip = 0 } = await req.json()
     const cookieHeader = req.headers.get('cookie') || ''
+    const appUrl = req.nextUrl.origin
 
     if (!baseImageId) {
       return NextResponse.json({ error: 'Missing baseImageId' }, { status: 400 })
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     // Start background processing and tell Vercel to keep the container alive until it finishes
     after(async () => {
-      await processCombinations(baseImageId, skip, cookieHeader).catch(err => console.error("Background task error:", err))
+      await processCombinations(baseImageId, skip, cookieHeader, appUrl).catch(err => console.error("Background task error:", err))
     })
 
     return NextResponse.json({ success: true, message: `Background processing started for skip: ${skip}` })
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function processCombinations(baseImageId: number, skip: number, cookieHeader: string) {
+async function processCombinations(baseImageId: number, skip: number, cookieHeader: string, appUrl: string) {
   console.log(`[Unified Generator] Starting for baseImageId: ${baseImageId}, skip: ${skip}`)
   const supabase = await createClient()
 
@@ -205,8 +206,7 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
 
   // Trigger next batch if available
   if (skip + BATCH_SIZE < combinations.length) {
-    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    console.log(`[Unified Generator] Triggering next batch (skip: ${skip + BATCH_SIZE})`)
+    console.log(`[Unified Generator] Triggering next batch (skip: ${skip + BATCH_SIZE}) at ${appUrl}`)
     fetch(`${appUrl}/api/generate-unified`, {
       method: 'POST',
       headers: {
