@@ -98,9 +98,14 @@ export async function generateUnifiedImageBuffer(
   }
 
   // 4. Composite all
-  const finalBuffer = await sharp(resizedBase)
-    .ensureAlpha()
+  // 4. Composite all and export as PNG to ensure 100% correct RGBA alpha rasterization
+  const pngBuffer = await sharp(resizedBase)
     .composite(composites)
+    .png()
+    .toBuffer();
+
+  // 5. Convert the pristine PNG buffer into a WebP. This forces libwebp to see a true RGBA image, bypassing any VP8/VP8X header bugs on Vercel's linux environment.
+  const finalBuffer = await sharp(pngBuffer)
     .webp({ quality: 90 })
     .toBuffer();
 
