@@ -153,14 +153,11 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
         // Create unified image
         const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
         
-        // Convert Node.js Buffer to ArrayBuffer for reliable fetch API behavior on Vercel
-        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
-
         // Upload to Supabase Storage
         const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
         const { error: uploadError } = await supabase.storage
           .from('game_assets')
-          .upload(fileName, arrayBuffer, { contentType: 'image/webp' })
+          .upload(fileName, buffer, { contentType: 'image/webp' })
           
         if (uploadError) {
           console.error("Upload error", uploadError)
