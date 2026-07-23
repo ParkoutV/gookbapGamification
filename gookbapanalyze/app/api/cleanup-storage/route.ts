@@ -42,7 +42,7 @@ async function processCleanup(paths: string[], skip: number, cookieHeader: strin
 
   // Trigger next batch if available
   if (skip + BATCH_SIZE < paths.length) {
-    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
     console.log(`[Storage Cleanup] Triggering next batch (skip: ${skip + BATCH_SIZE})`)
     fetch(`${appUrl}/api/cleanup-storage`, {
       method: 'POST',

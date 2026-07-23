@@ -188,7 +188,7 @@ export async function deleteBaseImage(id: number) {
 
     // 3. Trigger background Storage Cleanup
     if (pathsToDelete.length > 0) {
-      const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
       const cookieStore = await cookies()
       const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
       
@@ -418,7 +418,7 @@ export async function saveGameData(
     }))
 
     // Trigger background cache rendering
-    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
     const cookieStore = await cookies()
     const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
     
