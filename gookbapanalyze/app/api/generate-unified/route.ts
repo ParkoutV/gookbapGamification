@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { generateUnifiedImageBuffer } from '@/utils/imageProcessor'
 import { v4 as uuidv4 } from 'uuid'
+import { after } from 'next/server'
 
-// Background execution via unstable_after (Next.js 15+) or standard Promises if older
-// Vercel might kill non-awaited promises, but since Next 15 it's supported via unstable_after if configured.
-// For now, we will fire and forget the processing.
+// Vercel Pro allows up to 300s. We set 60s to be safe for each batch.
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   try {
     const { baseImageId, skip = 0 } = await req.json()
@@ -15,8 +16,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing baseImageId' }, { status: 400 })
     }
 
-    // Start background processing without waiting for it to finish
-    processCombinations(baseImageId, skip, cookieHeader).catch(err => console.error("Background task error:", err))
+    // Start background processing and tell Vercel to keep the container alive until it finishes
+    after(async () => {
+      await processCombinations(baseImageId, skip, cookieHeader).catch(err => console.error("Background task error:", err))
+    })
 
     return NextResponse.json({ success: true, message: `Background processing started for skip: ${skip}` })
   } catch (error: any) {

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { after } from 'next/server'
+
+export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,8 +13,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'No paths to delete' })
     }
 
-    // Fire and forget
-    processCleanup(paths, skip, cookieHeader).catch(err => console.error("Cleanup task error:", err))
+    // Fire and forget, but keep Vercel alive until it finishes
+    after(async () => {
+      await processCleanup(paths, skip, cookieHeader).catch(err => console.error("Cleanup task error:", err))
+    })
 
     return NextResponse.json({ success: true, message: `Cleanup processing started for skip: ${skip}` })
   } catch (error: any) {

@@ -5,6 +5,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 import { cookies } from 'next/headers'
+import { after } from 'next/server'
 
 export async function getSupportedLanguages() {
   try {
@@ -191,14 +192,16 @@ export async function deleteBaseImage(id: number) {
       const cookieStore = await cookies()
       const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
       
-      fetch(`${appUrl}/api/cleanup-storage`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cookie': allCookies
-        },
-        body: JSON.stringify({ paths: pathsToDelete })
-      }).catch(e => console.error('Failed to trigger storage cleanup:', e))
+      after(async () => {
+        await fetch(`${appUrl}/api/cleanup-storage`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Cookie': allCookies
+          },
+          body: JSON.stringify({ paths: pathsToDelete })
+        }).catch(e => console.error('Failed to trigger storage cleanup:', e))
+      })
     }
 
     return { success: true }
@@ -419,14 +422,16 @@ export async function saveGameData(
     const cookieStore = await cookies()
     const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
     
-    fetch(`${appUrl}/api/generate-unified`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cookie': allCookies
-      },
-      body: JSON.stringify({ baseImageId })
-    }).catch(e => console.error('Failed to trigger cache rendering:', e))
+    after(async () => {
+      await fetch(`${appUrl}/api/generate-unified`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cookie': allCookies
+        },
+        body: JSON.stringify({ baseImageId })
+      }).catch(e => console.error('Failed to trigger cache rendering:', e))
+    })
 
     return { success: true }
   } catch (error: any) {
