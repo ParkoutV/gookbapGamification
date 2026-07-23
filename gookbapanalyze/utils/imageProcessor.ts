@@ -99,6 +99,7 @@ export async function generateUnifiedImageBuffer(
 
   // 4. Composite all
   const finalBuffer = await sharp(resizedBase)
+    .ensureAlpha()
     .composite(composites)
     .webp({ quality: 90 })
     .toBuffer();
