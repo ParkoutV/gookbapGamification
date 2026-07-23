@@ -154,7 +154,7 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
         const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
         
         // Convert Node.js Buffer to ArrayBuffer for reliable fetch API behavior on Vercel
-        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
 
         // Upload to Supabase Storage
         const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
