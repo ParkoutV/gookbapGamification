@@ -341,8 +341,8 @@ export async function saveGameData(
       await supabase.from('base_images').update({ title: baseImageTitle }).eq('id', baseImageId)
     }
 
-    // 3. Upsert Slots
-    for (const slot of slots) {
+    // 3. Upsert Slots (Concurrent)
+    await Promise.all(slots.map(async (slot) => {
       if (slot.isNew) {
         // Insert into part_categories first to let the DB generate the ID
         const { data: catData, error: catError } = await supabase.from('part_categories').insert({
@@ -388,10 +388,10 @@ export async function saveGameData(
           if (catUpdateError) throw catUpdateError
         }
       }
-    }
+    }))
 
-    // 4. Upsert Parts
-    for (const part of parts) {
+    // 4. Upsert Parts (Concurrent)
+    await Promise.all(parts.map(async (part) => {
       if (part.isNew) {
         const { error: insertError } = await supabase.from('parts').insert({
           category_id: part.category_id,
@@ -412,7 +412,7 @@ export async function saveGameData(
         }).eq('id', part.id)
         if (updateError) throw updateError
       }
-    }
+    }))
 
     // Trigger background cache rendering
     const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
