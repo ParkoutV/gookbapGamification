@@ -22,16 +22,6 @@ export async function generateUnifiedImageBuffer(
   if (!baseRes.ok) throw new Error(`Failed to fetch base image: ${baseRes.statusText}`);
   const baseBuffer = await baseRes.arrayBuffer();
 
-  // 2. Prepare the base canvas with object-contain of the base image
-  let canvas = sharp({
-    create: {
-      width: CANVAS_WIDTH,
-      height: CANVAS_HEIGHT,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 }
-    }
-  });
-
   const resizedBase = await sharp(Buffer.from(baseBuffer))
     .resize(CANVAS_WIDTH, CANVAS_HEIGHT, {
       fit: 'contain',
@@ -39,9 +29,7 @@ export async function generateUnifiedImageBuffer(
     })
     .toBuffer();
 
-  const composites: OverlayOptions[] = [
-    { input: resizedBase, left: 0, top: 0 }
-  ];
+  const composites: OverlayOptions[] = [];
 
   // 3. Prepare each part overlay
   for (const part of parts) {
@@ -110,7 +98,7 @@ export async function generateUnifiedImageBuffer(
   }
 
   // 4. Composite all
-  const finalBuffer = await canvas
+  const finalBuffer = await sharp(resizedBase)
     .composite(composites)
     .webp({ quality: 90 })
     .toBuffer();

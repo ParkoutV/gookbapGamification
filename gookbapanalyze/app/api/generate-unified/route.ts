@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { generateUnifiedImageBuffer } from '@/utils/imageProcessor'
 import { v4 as uuidv4 } from 'uuid'
 import { after } from 'next/server'
+import { revalidatePath } from 'next/cache'
 
 // Vercel Pro allows up to 300s. We set 60s to be safe for each batch.
 export const maxDuration = 60
@@ -144,8 +145,9 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
           offsetX: part.offset_x,
           offsetY: part.offset_y,
           partScale: part.scale,
+          zIndex: slot.z_index
         }
-      })
+      }).sort((a, b) => a.zIndex - b.zIndex)
 
       try {
         // Create unified image
@@ -253,5 +255,6 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
       }
     }
     console.log(`[Unified Generator] Completely finished processing for baseImageId: ${baseImageId}`)
+    revalidatePath('/main/spot-difference')
   }
 }
