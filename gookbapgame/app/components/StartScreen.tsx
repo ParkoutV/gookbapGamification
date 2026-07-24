@@ -19,7 +19,7 @@ export default function StartScreen({
 }: StartScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
-      <PixelPanel size="card" className="max-w-md w-full">
+      <PixelPanel size="card" className="max-w-md w-full text-center">
         <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "var(--font-pixel)" }}>
           다른그림찾기
         </h1>
@@ -38,7 +38,7 @@ export default function StartScreen({
         <button
           onClick={onStart}
           disabled={isLoading}
-          className="pixel-mask-btn-solid w-full py-4 px-6 bg-accent text-accent-ink text-xl font-bold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+          className="pixel-mask-btn-solid w-full py-4 px-6 bg-accent text-accent-ink text-xl font-bold transition-opacity active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
         >
           {isLoading ? "로딩 중..." : "게임 시작"}
         </button>

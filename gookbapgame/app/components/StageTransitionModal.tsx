@@ -34,7 +34,7 @@ export default function StageTransitionModal({
         <button
           onClick={onNext}
           disabled={isLoading}
-          className="pixel-mask-btn-solid w-full py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="pixel-mask-btn-solid w-full py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "로딩 중..." : isClear ? "다음" : "재도전"}
         </button>

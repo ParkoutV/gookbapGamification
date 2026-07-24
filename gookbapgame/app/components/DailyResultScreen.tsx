@@ -21,7 +21,7 @@ export default function DailyResultScreen({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
-      <PixelPanel size="card" className="max-w-sm w-full">
+      <PixelPanel size="card" className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">오늘의 결과</h1>
         <p className="text-muted mb-1">오늘의 별명</p>
         <p className="text-xl text-ink font-bold mb-4">{nickname}</p>
