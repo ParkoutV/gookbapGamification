@@ -10,6 +10,7 @@
   --ink: #F3E9DC;
   --muted: #8A7A64;
   --amber: #E28A3D;
+  --error: #E2685A;
 }
 
 @theme inline {
@@ -22,6 +23,7 @@
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-amber: var(--amber);
+  --color-error: var(--error);
   --font-body: var(--font-noto-sans-kr);
   --font-pixel: var(--font-galmuri);
 }

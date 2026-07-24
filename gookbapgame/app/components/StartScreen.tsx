@@ -34,7 +34,7 @@ export default function StartScreen({
             🔄
           </button>
         </div>
-        {loadError && <p className="text-red-400 mb-4">{loadError}</p>}
+        {loadError && <p className="text-error mb-4">{loadError}</p>}
         <button
           onClick={onStart}
           disabled={isLoading}
