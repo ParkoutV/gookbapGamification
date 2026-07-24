@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #1C1510;
+  --surface: #29201A;
+  --wood: #B98A54;
+  --wood-dark: #D9BC8E;
+  --accent: #E9B94A;
+  --accent-ink: #2E2620;
+  --ink: #F3E9DC;
+  --muted: #8A7A64;
+  --amber: #E28A3D;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-wood: var(--wood);
+  --color-wood-dark: var(--wood-dark);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-amber: var(--amber);
+  --font-body: var(--font-noto-sans-kr);
+  --font-pixel: var(--font-galmuri);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body), -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
