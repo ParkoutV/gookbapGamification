@@ -1,3 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="100%" height="100%" preserveAspectRatio="none">
   <polygon shape-rendering="crispEdges" fill="#fff" points="0,234 1.5,234 1.5,237.5 2.5,237.5 2.5,238.5 6,238.5 6,240 354,240 354,238.5 357.5,238.5 357.5,237.5 358.5,237.5 358.5,234 360,234 360,6 358.5,6 358.5,2.5 357.5,2.5 357.5,1.5 354,1.5 354,0 6,0 6,1.5 2.5,1.5 2.5,2.5 1.5,2.5 1.5,6 0,6"/>
 </svg>
