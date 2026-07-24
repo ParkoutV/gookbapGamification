@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
+import PixelPanel from "./PixelPanel";
 
 interface GameScreenProps {
   session: GameSession;
@@ -98,15 +99,15 @@ export default function GameScreen({
     ));
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-900 text-white font-sans">
-      <header className="flex justify-between items-center p-4 md:px-8 bg-zinc-800 shadow-lg border-b border-zinc-700 z-10 sticky top-0">
+    <div className="flex flex-col min-h-screen bg-bg-deep text-ink">
+      <header className="flex justify-between items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
         <span className="text-lg md:text-xl font-bold">
           {stageNumber} / {totalStages} 단계
         </span>
         <div className="flex items-center gap-2">
           <span className="text-xl md:text-2xl font-bold">남은 시간:</span>
           <span
-            className={`text-2xl md:text-3xl font-extrabold ${timeLeft <= 10 ? "text-red-500 animate-pulse" : "text-green-400"}`}
+            className={`text-2xl md:text-3xl font-extrabold ${timeLeft <= 10 ? "text-error animate-pulse" : "text-amber"}`}
           >
             {timeLeft}초
           </span>
@@ -116,7 +117,7 @@ export default function GameScreen({
       <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-6 overflow-auto">
         <div
           ref={containerRef}
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-zinc-800 hover:border-indigo-500 transition-colors w-full max-w-[1200px]"
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px]"
           style={{ aspectRatio: "1200 / 800" }}
         >
           <img
@@ -129,7 +130,7 @@ export default function GameScreen({
         </div>
 
         <div
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-zinc-800 hover:border-indigo-500 transition-colors w-full max-w-[1200px]"
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px]"
           style={{ aspectRatio: "1200 / 800" }}
         >
           <img
@@ -141,13 +142,12 @@ export default function GameScreen({
         </div>
       </main>
 
-      <footer className="flex justify-between items-center p-4 md:px-8 bg-zinc-800 border-t border-zinc-700">
-        <button
-          type="button"
-          className="px-4 py-2 rounded-full bg-yellow-500/20 text-yellow-300 font-bold border border-yellow-500/40"
-        >
-          힌트
-        </button>
+      <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
+        <PixelPanel size="btn">
+          <button type="button" className="w-full font-bold text-ink">
+            힌트
+          </button>
+        </PixelPanel>
         <span className="text-lg font-bold">
           남은 개수: {totalDifferences - foundSlots.size}/{totalDifferences}
         </span>
