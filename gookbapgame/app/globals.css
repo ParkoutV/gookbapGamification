@@ -31,3 +31,55 @@ body {
   color: var(--ink);
   font-family: var(--font-body), -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
+
+.pixel-frame {
+  background: var(--wood);
+}
+.pixel-frame--card {
+  padding: 2px;
+  mask-image: url(/masks/pixel-card.svg);
+  -webkit-mask-image: url(/masks/pixel-card.svg);
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+}
+.pixel-frame--btn {
+  padding: 1.5px;
+  mask-image: url(/masks/pixel-btn.svg);
+  -webkit-mask-image: url(/masks/pixel-btn.svg);
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+}
+.pixel-frame-inner {
+  background: var(--surface);
+  height: 100%;
+}
+.pixel-frame-inner--card {
+  mask-image: url(/masks/pixel-card-inner.svg);
+  -webkit-mask-image: url(/masks/pixel-card-inner.svg);
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  padding: 1.5rem 1.25rem;
+}
+.pixel-frame-inner--btn {
+  mask-image: url(/masks/pixel-btn-inner.svg);
+  -webkit-mask-image: url(/masks/pixel-btn-inner.svg);
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  padding: .7rem .6rem;
+}
+.pixel-mask-btn-solid {
+  mask-image: url(/masks/pixel-btn-solid.svg);
+  -webkit-mask-image: url(/masks/pixel-btn-solid.svg);
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+}

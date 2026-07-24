@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import PixelPanel from "./PixelPanel";
 
 interface StartScreenProps {
   nickname: string;
@@ -18,14 +18,13 @@ export default function StartScreen({
   loadError,
 }: StartScreenProps) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-black text-white p-6">
-      <div className="max-w-md w-full bg-white/10 backdrop-blur-md p-8 rounded-3xl shadow-2xl border border-white/20 text-center">
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-indigo-400">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
+      <PixelPanel size="card" className="max-w-md w-full">
+        <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "var(--font-pixel)" }}>
           다른그림찾기
         </h1>
-        <p className="text-lg text-gray-300 mb-2">게임 제목</p>
         <div className="flex items-center justify-center gap-2 mb-8">
-          <span className="text-zinc-300">{nickname} 님 환영합니다</span>
+          <span className="text-ink">{nickname} 님 환영합니다</span>
           <button
             type="button"
             onClick={onRegenerateNickname}
@@ -39,19 +38,19 @@ export default function StartScreen({
         <button
           onClick={onStart}
           disabled={isLoading}
-          className="w-full py-4 px-6 bg-gradient-to-r from-pink-500 to-indigo-500 hover:from-pink-600 hover:to-indigo-600 rounded-full text-xl font-bold transition-all shadow-lg hover:shadow-pink-500/50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+          className="pixel-mask-btn-solid w-full py-4 px-6 bg-accent text-accent-ink text-xl font-bold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4"
         >
           {isLoading ? "로딩 중..." : "게임 시작"}
         </button>
-        <div className="flex gap-3">
-          <button type="button" className="flex-1 py-2 px-4 bg-white/10 rounded-full font-bold">
-            내 결과
-          </button>
-          <button type="button" className="flex-1 py-2 px-4 bg-white/10 rounded-full font-bold">
-            랭킹
-          </button>
+        <div className="flex gap-3 w-full">
+          <PixelPanel size="btn" className="flex-1">
+            <button type="button" className="w-full font-bold text-ink">내 결과</button>
+          </PixelPanel>
+          <PixelPanel size="btn" className="flex-1">
+            <button type="button" className="w-full font-bold text-ink">랭킹</button>
+          </PixelPanel>
         </div>
-      </div>
+      </PixelPanel>
     </div>
   );
 }
