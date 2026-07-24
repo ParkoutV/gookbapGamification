@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --bg-deep: #150F0B;
   --bg: #1C1510;
   --surface: #29201A;
   --wood: #B98A54;
@@ -14,6 +15,7 @@
 }
 
 @theme inline {
+  --color-bg-deep: var(--bg-deep);
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-wood: var(--wood);
