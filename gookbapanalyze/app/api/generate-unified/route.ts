@@ -213,16 +213,15 @@ async function processCombinations(baseImageId: number, skip: number, cookieHead
   // Trigger next batch if available
   if (skip + BATCH_SIZE < combinations.length) {
     console.log(`[Unified Generator] Triggering next batch (skip: ${skip + BATCH_SIZE}) at ${appUrl}`)
-    after(async () => {
-      await fetch(`${appUrl}/api/generate-unified`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': cookieHeader
-        },
-        body: JSON.stringify({ baseImageId, skip: skip + BATCH_SIZE })
-      }).catch(e => console.error('Failed to trigger next batch:', e))
-    })
+    // We can await the fetch because the target endpoint returns 200 immediately (it puts its heavy work in its own after() block).
+    await fetch(`${appUrl}/api/generate-unified`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookieHeader
+      },
+      body: JSON.stringify({ baseImageId, skip: skip + BATCH_SIZE })
+    }).catch(e => console.error('Failed to trigger next batch:', e))
   } else {
     // 6. Delete orphaned unified_images (Run only on the very last batch)
     console.log(`[Unified Generator] All batches finished. Cleaning up orphaned records...`)
