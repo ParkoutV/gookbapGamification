@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 import { cookies, headers } from 'next/headers'
 import { after } from 'next/server'
+import { generateUnifiedImageBuffer } from '@/utils/imageProcessor'
 
 export async function getSupportedLanguages() {
   try {
@@ -324,7 +325,8 @@ export async function saveGameData(
   parts: any[], 
   deletedSlotIds: number[], 
   deletedPartIds: number[],
-  baseImageTitle?: any
+  baseImageTitle?: any,
+  questionsCount?: number
 ) {
   try {
     const supabase = await createClient()
@@ -343,10 +345,12 @@ export async function saveGameData(
       await supabase.from('parts').delete().in('category_id', deletedSlotIds.map(s => -s)) // Requires proper mapping in real scenario
     }
 
-    // 2.5 Update base image title if provided
-    if (baseImageTitle) {
-      await supabase.from('base_images').update({ title: baseImageTitle }).eq('id', baseImageId)
-    }
+    // 2.5 Update base image title and questions_count if provided
+    // This happens later in the flow so that slots are fully inserted first, 
+    // to satisfy the DB trigger `validate_base_image_questions_count`.
+    const baseImageUpdates: any = {}
+    if (baseImageTitle !== undefined) baseImageUpdates.title = baseImageTitle
+    if (questionsCount !== undefined) baseImageUpdates.questions_count = questionsCount
 
     // 3. Upsert Slots (Concurrent)
     await Promise.all(slots.map(async (slot) => {
@@ -421,29 +425,104 @@ export async function saveGameData(
       }
     }))
 
-    // Trigger background cache rendering
-    const headersList = await headers()
-    const host = headersList.get('host') || 'localhost:3000'
-    const protocol = headersList.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
-    const appUrl = `${protocol}://${host}`
+    // 5. Update base_images
+    if (Object.keys(baseImageUpdates).length > 0) {
+      const { error: baseUpdateErr } = await supabase.from('base_images').update(baseImageUpdates).eq('id', baseImageId)
+      if (baseUpdateErr) {
+        console.error("base_images update error:", baseUpdateErr)
+        throw baseUpdateErr
+      }
+    }
+
+    // 6. Delete old unified_images cache
+    const { data: existingUnified } = await supabase
+      .from('unified_images')
+      .select('image_url')
+      .eq('base_image_id', baseImageId)
     
-    const cookieStore = await cookies()
-    const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
-    
-    after(async () => {
-      await fetch(`${appUrl}/api/generate-unified`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cookie': allCookies
-        },
-        body: JSON.stringify({ baseImageId })
-      }).catch(e => console.error('Failed to trigger cache rendering:', e))
-    })
+    if (existingUnified && existingUnified.length > 0) {
+      const pathsToDelete = existingUnified.map(u => {
+        try {
+          const urlObj = new URL(u.image_url)
+          const partsArr = urlObj.pathname.split('/game_assets/')
+          return partsArr.length > 1 ? partsArr[1] : null
+        } catch { return null }
+      }).filter(Boolean) as string[]
+
+      if (pathsToDelete.length > 0) {
+        // chunk deletion if necessary (Supabase limit is usually 100 per request, but we'll just try all for now)
+        // If there are many, we should chunk it. For safety, chunk by 100
+        for (let i = 0; i < pathsToDelete.length; i += 100) {
+          const chunk = pathsToDelete.slice(i, i + 100)
+          await supabase.storage.from('game_assets').remove(chunk)
+        }
+      }
+    }
+    await supabase.from('unified_images').delete().eq('base_image_id', baseImageId)
+
+    // 7. Generate a single Preview Image (Smallest part IDs)
+    // Fetch slots and parts again to get their true DB IDs
+    const { data: freshSlots } = await supabase.from('image_slots').select('*').eq('base_image_id', baseImageId)
+    if (freshSlots && freshSlots.length > 0) {
+      const { data: freshBase } = await supabase.from('base_images').select('*').eq('id', baseImageId).single()
+      const categoryIds = freshSlots.map(s => s.category_id)
+      const { data: freshParts } = await supabase.from('parts').select('*').in('category_id', categoryIds)
+      
+      if (freshParts && freshParts.length > 0) {
+        // Pick the part with the smallest ID per category
+        const previewParts = freshSlots.map(slot => {
+          const slotParts = freshParts.filter(p => p.category_id === slot.category_id)
+          if (slotParts.length === 0) return null
+          // sort by id asc
+          slotParts.sort((a, b) => a.id - b.id)
+          return slotParts[0]
+        }).filter(Boolean)
+
+        const imageSlotsJson: Record<number, number> = {}
+        previewParts.forEach(p => {
+          if (p) imageSlotsJson[p.category_id] = p.id
+        })
+
+        const overlays = previewParts.map(part => {
+          if (!part) return null
+          const slot = freshSlots.find(s => s.category_id === part.category_id)
+          if (!slot) return null
+          return {
+            imageUrl: part.image_url,
+            slotX: slot.x_coordinate,
+            slotY: slot.y_coordinate,
+            slotScale: slot.scale,
+            offsetX: part.offset_x,
+            offsetY: part.offset_y,
+            partScale: part.scale,
+            zIndex: slot.z_index
+          }
+        }).filter(Boolean) as any[]
+        overlays.sort((a: any, b: any) => a.zIndex - b.zIndex)
+
+        // Generate buffer
+        const buffer = await generateUnifiedImageBuffer(freshBase.image_url, overlays)
+        if (buffer) {
+          // Wrap in Uint8Array for Vercel fetch compatibility
+          const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
+          const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
+          const { error: uploadError } = await supabase.storage.from('game_assets').upload(fileName, blob, { contentType: 'image/webp' })
+          
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage.from('game_assets').getPublicUrl(fileName)
+            await supabase.from('unified_images').insert({
+              base_image_id: baseImageId,
+              image_url: publicUrlData.publicUrl,
+              image_slots: imageSlotsJson
+            })
+          }
+        }
+      }
+    }
 
     return { success: true }
   } catch (error: any) {
     console.error('Error saving game data:', error)
-    return { error: '게임 데이터 저장 중 오류가 발생했습니다.' }
+    return { error: '게임 데이터 저장 중 오류가 발생했습니다. ' + (error.message || '') }
   }
 }

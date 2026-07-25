@@ -57,6 +57,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [baseImage, setBaseImage] = useState<any>(null)
+  const [questionsCount, setQuestionsCount] = useState<number>(3)
   
   // States for slots and parts
   const [slots, setSlots] = useState<any[]>([])
@@ -104,6 +105,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       }
       
       setBaseImage(result.baseImage)
+      setQuestionsCount(result.baseImage.questions_count || 3)
       
       // Ensure we have unique string IDs for frontend tracking
       const mappedSlots = (result.slots || []).map((s: any) => ({ ...s, tempId: s.id.toString() }))
@@ -132,8 +134,13 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   }, [baseImageId, router])
 
   const handleSave = async () => {
+    if (questionsCount > slots.length) {
+      alert(`문제 개수(${questionsCount}개)는 파츠 그룹의 개수(${slots.length}개)보다 클 수 없습니다. 파츠 그룹을 더 추가하거나 문제 개수를 줄여주세요.`)
+      return
+    }
+
     setSaving(true)
-    const result = await saveGameData(baseImageId, slots, parts, deletedSlotIds, deletedPartIds, baseImage?.title)
+    const result = await saveGameData(baseImageId, slots, parts, deletedSlotIds, deletedPartIds, baseImage?.title, questionsCount)
     if (result.error) {
       alert(result.error)
     } else {
@@ -440,12 +447,26 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                 {isMobileMenuExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </span>
             </h2>
-            <button
-              onClick={(e) => { e.stopPropagation(); addSlot(); setIsMobileMenuExpanded(true); }}
-              className="p-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded transition-colors text-xs font-medium flex items-center"
-            >
-              <Plus className="w-3 h-3 mr-1" /> 슬롯 추가
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-gray-700 dark:text-zinc-300">문제 개수</label>
+                <select
+                  value={questionsCount}
+                  onChange={(e) => setQuestionsCount(parseInt(e.target.value))}
+                  className="bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 text-sm rounded px-2 py-1 outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(num => (
+                    <option key={num} value={num}>{num}개</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); addSlot(); setIsMobileMenuExpanded(true); }}
+                className="p-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded transition-colors text-xs font-medium flex items-center"
+              >
+                <Plus className="w-3 h-3 mr-1" /> 슬롯 추가
+              </button>
+            </div>
           </div>
           
           <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isMobileMenuExpanded ? 'block' : 'hidden md:block'}`}>

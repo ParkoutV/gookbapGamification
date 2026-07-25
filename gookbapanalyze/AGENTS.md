@@ -33,7 +33,9 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 
 - **`supported_languages` (지원 언어)**: 언어 정의. `lang_code`를 기반으로 구동되며, `lang_name`은 언어를 나타내는 항목입니다. 텍스트 항목에서는 `{"ko": "기본 얼굴", "en": "Base Face"}`와 같은 방식으로 다국어를 저장합니다.
 - **`base_images` (기본 이미지 마스터)**: 게임에 사용되는 원본(Base) 이미지. `level` (INT, 1~9 제한) 컬럼을 통해 난이도 레벨을 지정합니다. (중복 레벨 허용)
-- **`unified_images` (통합 렌더링 이미지 캐시)**: `base_images`와 덧씌워진 `parts` 조합의 결과물을 저장하는 테이블. `image_slots` 컬럼(JSONB)에 `{"카테고리ID": "파츠ID"}` 형태로 조합을 저장하며, 트리거를 통해 파츠의 존재 여부 및 카테고리 일치 여부를 DB 차원에서 강력하게 검증합니다. `ID` 의 경우 파츠 이미지가 갱신되거나 이미지 값을 수정하더라도 그대로 유지됩니다. (이미지 삭제시 초기화) (Admin: ALL, Everyone: SELECT) 
+  - **`questions_count` (INT)**: 유저에게 요구할 다른 그림의 개수. 반드시 연결된 `image_slots`의 개수 이하이어야 하며, DB 트리거(`validate_base_image_questions_count`)를 통해 유효성이 검증됩니다.
+- **`unified_images` (통합 렌더링 이미지 캐시)**: `base_images`와 덧씌워진 `parts` 조합의 결과물을 저장하는 테이블. `image_slots` 컬럼(JSONB)에 `{"카테고리ID": "파츠ID"}` 형태로 조합을 저장하며, 트리거를 통해 파츠의 존재 여부 및 카테고리 일치 여부를 DB 차원에서 강력하게 검증합니다. `ID` 의 경우 파츠 이미지가 갱신되거나 이미지 값을 수정하더라도 그대로 유지됩니다. (이미지 삭제시 초기화) (Admin: ALL, Everyone: SELECT)
+  - **Lazy Loading (온디맨드) 정책:** `/api/generate-unified` API는 요청된 조합이 `unified_images`에 존재하면 즉시 반환하고, 없을 경우에만 1장을 실시간으로 합성(JIT)하여 DB와 스토리지에 저장한 뒤 반환합니다. 관리자가 편집 내용을 저장할 때, 기존의 캐시(`unified_images`)는 모두 삭제되며 프리뷰를 위한 1장의 이미지(파츠 ID가 가장 작은 조합)만 동기적으로 재생성됩니다.
 - **`branches` (지점 마스터)**: 지점 정의. 지점 구분을 `branch_id`(UUID)를 기반으로 구별하며, `branch_name`이 지점명 (다국어 지원 있음)입니다. (Admin: ALL, Everyone: SELECT)
 - **`tracks` (접속 링크 마스터)**: 트랙(track) 쿼리문을 정의하는 부분. 지점 ID(`branch_id`)와 공유 여부(`is_shared`)로 구분됩니다. (Admin: ALL, Everyone: SELECT)
 - **`track_logs` (접속 로그)**: 트랙 로그를 기반으로 유저 접속 기록을 표시합니다. 이 데이터를 기반으로 유저가 어느 지점에서 왔는지 조회 가능합니다. (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)
@@ -80,3 +82,35 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 # Script Organization
 - 프로젝트 관리를 위해 작성되는 `.mjs` 및 `.js` 형태의 유틸리티/관리 스크립트(DB 스키마 확인, RLS 셋업 스크립트 등)는 루트 폴더가 아닌 **`scripts/`** 폴더에 모아서 관리합니다.
 - 단, `eslint.config.mjs`, `postcss.config.mjs` 등 프레임워크 구동을 위한 필수 환경 설정 파일은 루트 폴더에 유지합니다.
+
+# Unified Image Generation API Guide
+게임 클라이언트에서 퍼즐(다른그림찾기) 이미지를 요청할 때 사용하는 온디맨드 렌더링 API 명세입니다.
+이 API는 CORS가 허용되어 있어 외부 게임 클라이언트에서도 안전하게 호출할 수 있습니다. 
+내부적으로 캐싱을 수행하며 캐시가 없을 경우에만 합성합니다 (Lazy Loading).
+
+- **Endpoint**: `POST /api/generate-unified`
+- **Headers**: `Content-Type: application/json`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "baseImageId": 1,
+    "imageSlots": {
+      "1": 2, // "카테고리ID": "요청할 파츠ID"
+      "2": 5,
+      "3": 12
+    }
+  }
+  ```
+- **Response (Success - 200 OK)**:
+  ```json
+  {
+    "success": true,
+    "url": "https://[SUPABASE_PROJECT].supabase.co/storage/v1/object/public/game_assets/unified_cache/base1_uuid.webp"
+  }
+  ```
+- **Response (Error - 400/404/500)**:
+  ```json
+  {
+    "error": "오류 메세지"
+  }
+  ```

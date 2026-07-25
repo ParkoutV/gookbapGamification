@@ -1,265 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { generateUnifiedImageBuffer } from '@/utils/imageProcessor'
 import { v4 as uuidv4 } from 'uuid'
-import { after } from 'next/server'
-import { revalidatePath } from 'next/cache'
 
-// Vercel Pro allows up to 300s. We set 60s to be safe for each batch.
+// Vercel Pro allows up to 300s. We set 60s as this should take ~2 seconds now.
 export const maxDuration = 60
+
+// Configure CORS for the external game client
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', // You can restrict this to the specific game client domain (e.g., 'https://your-game-client.com')
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders })
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { baseImageId, skip = 0 } = await req.json()
-    const cookieHeader = req.headers.get('cookie') || ''
-    const appUrl = req.nextUrl.origin
+    const { baseImageId, imageSlots } = await req.json()
 
-    if (!baseImageId) {
-      return NextResponse.json({ error: 'Missing baseImageId' }, { status: 400 })
+    if (!baseImageId || !imageSlots || typeof imageSlots !== 'object') {
+      return NextResponse.json({ error: 'Missing or invalid baseImageId or imageSlots' }, { status: 400, headers: corsHeaders })
     }
 
-    // Start background processing and tell Vercel to keep the container alive until it finishes
-    after(async () => {
-      await processCombinations(baseImageId, skip, cookieHeader, appUrl).catch(err => console.error("Background task error:", err))
-    })
+    // Initialize Supabase Admin Client with SERVICE_ROLE_KEY to bypass RLS and allow Storage uploads
+    // This is SAFE here because this Serverless Function completely controls WHAT is uploaded (only strictly validated synthesized images)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    return NextResponse.json({ success: true, message: `Background processing started for skip: ${skip}` })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-}
+    // 1. Sort the keys to ensure consistent JSON matching
+    const sortedSlotsJson = Object.keys(imageSlots).sort().reduce((acc, key) => {
+      acc[key] = imageSlots[key].toString()
+      return acc
+    }, {} as Record<string, string>)
 
-async function processCombinations(baseImageId: number, skip: number, cookieHeader: string, appUrl: string) {
-  console.log(`[Unified Generator] Starting for baseImageId: ${baseImageId}, skip: ${skip}`)
-  const supabase = await createClient()
-
-  // 1. Fetch base image
-  const { data: baseImage, error: baseErr } = await supabase
-    .from('base_images')
-    .select('*')
-    .eq('id', baseImageId)
-    .single()
-  
-  if (baseErr || !baseImage) {
-    console.error("Failed to fetch base image", baseErr)
-    return
-  }
-
-  // 2. Fetch slots
-  const { data: slots, error: slotsErr } = await supabase
-    .from('image_slots')
-    .select('*')
-    .eq('base_image_id', baseImageId)
-
-  if (slotsErr || !slots) {
-    console.error("Failed to fetch slots", slotsErr)
-    return
-  }
-
-  // 3. Fetch parts for these slots
-  const categoryIds = slots.map(s => s.category_id)
-  let parts: any[] = []
-  if (categoryIds.length > 0) {
-    const { data: p, error: partsErr } = await supabase
-      .from('parts')
+    // 2. Check if this exact combination already exists in the database
+    // Supabase JSONB contains operator @> can be used, but since we are looking for exact match,
+    // we can query all for this base_image_id and filter in memory, or use JSONB query.
+    // For safety and performance, we'll fetch exact matches if possible.
+    const { data: existingUnified, error: existingErr } = await supabaseAdmin
+      .from('unified_images')
       .select('*')
-      .in('category_id', categoryIds)
-    if (partsErr) {
-      console.error("Failed to fetch parts", partsErr)
-      return
+      .eq('base_image_id', baseImageId)
+      .contains('image_slots', sortedSlotsJson)
+      
+    if (existingErr) {
+      console.error("DB Error checking existing unified images:", existingErr)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
-    parts = p || []
-  }
 
-  // If no slots, nothing to composite. But maybe they just want the base image?
-  // Usually this is for spot difference parts.
-  if (slots.length === 0 || parts.length === 0) {
-    console.log("No slots or parts to process.")
-    return
-  }
-
-  // 4. Generate all permutations
-  // Group parts by category_id
-  const partsByCategory: Record<number, any[]> = {}
-  for (const catId of categoryIds) {
-    partsByCategory[catId] = parts.filter(p => p.category_id === catId)
-  }
-
-  // Helper to get cartesian product of arrays
-  const cartesian = (...a: any[][]) => a.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
-
-  const categories = Object.keys(partsByCategory).map(Number)
-  const partArrays = categories.map(cat => partsByCategory[cat])
-  
-  const allCombinations = partArrays.length > 0 ? cartesian(...partArrays) : []
-
-  // Ensure it's an array of arrays
-  const combinations = Array.isArray(allCombinations[0]) ? allCombinations : allCombinations.map(c => [c])
-
-  console.log(`[Unified Generator] Found ${combinations.length} combinations to process.`)
-
-  // 5. Fetch existing unified_images to prevent duplicate IDs and delete old files
-  const { data: existingUnified, error: existingErr } = await supabase
-    .from('unified_images')
-    .select('*')
-    .eq('base_image_id', baseImageId)
-    
-  const existingMap = new Map<string, any>()
-  if (existingUnified) {
-    existingUnified.forEach(row => {
-      // Sort keys to ensure consistent JSON stringification
-      const sortedObj = Object.keys(row.image_slots).sort().reduce((acc, key) => {
-        acc[key] = row.image_slots[key]
-        return acc
-      }, {} as Record<string, string>)
-      existingMap.set(JSON.stringify(sortedObj), row)
+    // Double check exact match in memory
+    const existingRow = existingUnified?.find(row => {
+      const dbSlots = row.image_slots as Record<string, string>
+      const dbKeys = Object.keys(dbSlots).sort()
+      const reqKeys = Object.keys(sortedSlotsJson).sort()
+      
+      if (dbKeys.length !== reqKeys.length) return false
+      return dbKeys.every(k => dbSlots[k] === sortedSlotsJson[k])
     })
-  }
 
-  const BATCH_SIZE = 20
-  const batch = combinations.slice(skip, skip + BATCH_SIZE)
-
-  console.log(`[Unified Generator] Processing batch ${skip} to ${skip + batch.length - 1}...`)
-
-  await Promise.all(batch.map(async (combo: any[]) => {
-      const imageSlotsJson: Record<string, string> = {}
-      combo.forEach(part => {
-        imageSlotsJson[part.category_id.toString()] = part.id.toString()
-      })
-      
-      const sortedComboJson = Object.keys(imageSlotsJson).sort().reduce((acc, key) => {
-        acc[key] = imageSlotsJson[key]
-        return acc
-      }, {} as Record<string, string>)
-      
-      const comboKey = JSON.stringify(sortedComboJson)
-      
-      // Prepare parts overlay data
-      const overlays = combo.map(part => {
-        const slot = slots.find(s => s.category_id === part.category_id)
-        return {
-          imageUrl: part.image_url,
-          slotX: slot.x_coordinate,
-          slotY: slot.y_coordinate,
-          slotScale: slot.scale,
-          offsetX: part.offset_x,
-          offsetY: part.offset_y,
-          partScale: part.scale,
-          zIndex: slot.z_index
-        }
-      }).sort((a, b) => a.zIndex - b.zIndex)
-
-      try {
-        // Create unified image
-        const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
-        
-        // Convert Node.js Buffer to Web Blob to prevent Vercel's fetch from corrupting it into UTF-8 strings
-        // Wrap in Uint8Array to satisfy TypeScript's BlobPart type constraints
-        const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
-        
-        // Upload to Supabase Storage
-        const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
-        const { error: uploadError } = await supabase.storage
-          .from('game_assets')
-          .upload(fileName, blob, { contentType: 'image/webp' })
-          
-        if (uploadError) {
-          console.error("Upload error", uploadError)
-          return
-        }
-
-        const { data: publicUrlData } = supabase.storage
-          .from('game_assets')
-          .getPublicUrl(fileName)
-
-        // Insert or Update unified_images table
-        const existingRow = existingMap.get(comboKey)
-        
-        if (existingRow) {
-          // Update existing row
-          const { error: updateError } = await supabase.from('unified_images')
-            .update({ unified_image_url: publicUrlData.publicUrl })
-            .eq('id', existingRow.id)
-            
-          if (updateError) {
-            console.error("Update error for unified_images", updateError)
-          }
-          
-          // Delete old file from Storage
-          if (existingRow.unified_image_url) {
-            const oldUrl = existingRow.unified_image_url
-            const match = oldUrl.match(/game_assets\/(.+)$/)
-            if (match && match[1]) {
-              await supabase.storage.from('game_assets').remove([match[1]])
-            }
-          }
-        } else {
-          // Insert new row
-          const { error: insertError } = await supabase.from('unified_images').insert({
-            base_image_id: baseImageId,
-            image_slots: imageSlotsJson,
-            unified_image_url: publicUrlData.publicUrl
-          })
-
-          if (insertError) {
-            console.error("Insert error for unified_images", insertError)
-          }
-        }
-      } catch (e) {
-        console.error(`Error processing combination:`, e)
-      }
-    }))
-
-  // Trigger next batch if available
-  if (skip + BATCH_SIZE < combinations.length) {
-    console.log(`[Unified Generator] Triggering next batch (skip: ${skip + BATCH_SIZE}) at ${appUrl}`)
-    // We can await the fetch because the target endpoint returns 200 immediately (it puts its heavy work in its own after() block).
-    await fetch(`${appUrl}/api/generate-unified`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': cookieHeader
-      },
-      body: JSON.stringify({ baseImageId, skip: skip + BATCH_SIZE })
-    }).catch(e => console.error('Failed to trigger next batch:', e))
-  } else {
-    // 6. Delete orphaned unified_images (Run only on the very last batch)
-    console.log(`[Unified Generator] All batches finished. Cleaning up orphaned records...`)
-    
-    // Create a Set of all valid combination JSON strings
-    const validCombos = new Set<string>()
-    combinations.forEach(combo => {
-      const c = combo as any[]
-      const slotsJson: Record<string, string> = {}
-      c.forEach(part => { slotsJson[part.category_id.toString()] = part.id.toString() })
-      const sortedJson = Object.keys(slotsJson).sort().reduce((acc, key) => {
-        acc[key] = slotsJson[key]
-        return acc
-      }, {} as Record<string, string>)
-      validCombos.add(JSON.stringify(sortedJson))
-    })
-    
-    if (existingUnified) {
-      for (const row of existingUnified) {
-        const sortedObj = Object.keys(row.image_slots).sort().reduce((acc, key) => {
-          acc[key] = row.image_slots[key]
-          return acc
-        }, {} as Record<string, string>)
-        
-        if (!validCombos.has(JSON.stringify(sortedObj))) {
-          // Delete from DB
-          await supabase.from('unified_images').delete().eq('id', row.id)
-          
-          // Delete from Storage
-          const oldUrl = row.unified_image_url
-          const match = oldUrl.match(/game_assets\/(.+)$/)
-          if (match && match[1]) {
-            await supabase.storage.from('game_assets').remove([match[1]])
-          }
-        }
-      }
+    if (existingRow) {
+      console.log(`[Unified Generator JIT] Cache hit for baseImageId: ${baseImageId}`)
+      return NextResponse.json({ success: true, url: existingRow.image_url })
     }
-    console.log(`[Unified Generator] Completely finished processing for baseImageId: ${baseImageId}`)
-    revalidatePath('/main/spot-difference')
+
+    console.log(`[Unified Generator JIT] Cache miss. Generating for baseImageId: ${baseImageId}`)
+
+    // 3. Fetch necessary components to build the image
+    const { data: baseImage } = await supabaseAdmin.from('base_images').select('*').eq('id', baseImageId).single()
+    if (!baseImage) {
+      return NextResponse.json({ error: 'Base image not found' }, { status: 404 })
+    }
+
+    const { data: slots } = await supabaseAdmin.from('image_slots').select('*').eq('base_image_id', baseImageId)
+    if (!slots || slots.length === 0) {
+      return NextResponse.json({ error: 'Slots not found' }, { status: 404 })
+    }
+
+    const partIds = Object.values(sortedSlotsJson).map(id => parseInt(id, 10))
+    const { data: parts } = await supabaseAdmin.from('parts').select('*').in('id', partIds)
+    
+    if (!parts || parts.length === 0) {
+      return NextResponse.json({ error: 'Parts not found' }, { status: 404 })
+    }
+
+    // 4. Prepare overlays
+    const overlays = parts.map(part => {
+      const slot = slots.find(s => s.category_id === part.category_id)
+      if (!slot) return null
+      return {
+        imageUrl: part.image_url,
+        slotX: slot.x_coordinate,
+        slotY: slot.y_coordinate,
+        slotScale: slot.scale,
+        offsetX: part.offset_x,
+        offsetY: part.offset_y,
+        partScale: part.scale,
+        zIndex: slot.z_index
+      }
+    }).filter(Boolean) as any[]
+    overlays.sort((a: any, b: any) => a.zIndex - b.zIndex)
+
+    // 5. Generate image
+    const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
+    if (!buffer) {
+      return NextResponse.json({ error: 'Failed to generate image buffer' }, { status: 500 })
+    }
+
+    // Convert to blob and upload
+    const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
+    const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
+    
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('game_assets')
+      .upload(fileName, blob, { contentType: 'image/webp' })
+      
+    if (uploadError) {
+      console.error("Upload error", uploadError)
+      return NextResponse.json({ error: 'Failed to upload generated image' }, { status: 500 })
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from('game_assets')
+      .getPublicUrl(fileName)
+    
+    const newImageUrl = publicUrlData.publicUrl
+
+    // 6. Save to database
+    const { error: insertError } = await supabaseAdmin.from('unified_images').insert({
+      base_image_id: baseImageId,
+      image_url: newImageUrl,
+      image_slots: sortedSlotsJson
+    })
+
+    if (insertError) {
+      console.error("DB Insert error", insertError)
+      // Even if DB insert fails slightly after upload, we can still return the generated image URL
+    }
+
+    return NextResponse.json({ success: true, url: newImageUrl }, { headers: corsHeaders })
+  } catch (error: any) {
+    console.error("Unhandled error in generator:", error)
+    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders })
   }
 }
