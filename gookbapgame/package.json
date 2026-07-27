@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test app/lib/composeScene.test.ts app/lib/stageConfig.test.ts app/lib/nickname.test.ts app/lib/gameSelection.test.ts app/lib/fetchImageBuffer.test.ts app/lib/concurrencyLimit.test.ts test/pipeline-visual.test.ts"
+    "test": "node --experimental-strip-types --test app/lib/composeScene.test.ts app/lib/stageConfig.test.ts app/lib/nickname.test.ts app/lib/gameSelection.test.ts app/lib/fetchImageBuffer.test.ts app/lib/concurrencyLimit.test.ts app/lib/preloadGame.test.ts test/pipeline-visual.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
