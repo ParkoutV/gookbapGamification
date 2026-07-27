@@ -2,6 +2,8 @@
 
 import React from "react";
 import { GukbapTier, MAX_TOTAL_SCORE } from "../lib/stageConfig";
+import { gukbapTierKey } from "../lib/i18n/gukbapTierKey";
+import { useLocale } from "../lib/i18n/LocaleContext";
 import PixelPanel from "./PixelPanel";
 
 interface DailyResultScreenProps {
@@ -17,19 +19,20 @@ export default function DailyResultScreen({
   totalScore,
   onRestart,
 }: DailyResultScreenProps) {
+  const { t } = useLocale();
   const stubAchievements = ["첫 만남", "형제의 눈썰미"];
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
       <PixelPanel size="card" className="max-w-sm w-full text-center">
-        <h1 className="text-2xl font-extrabold mb-6 text-ink">오늘의 결과</h1>
-        <p className="text-muted mb-1">오늘의 별명</p>
+        <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("dailyResult.title")}</h1>
+        <p className="text-muted mb-1">{t("dailyResult.nicknameLabel")}</p>
         <p className="text-xl text-ink font-bold mb-4">{nickname}</p>
-        <p className="text-muted mb-1">국밥력</p>
+        <p className="text-muted mb-1">{t("dailyResult.gukbapPowerLabel")}</p>
         <p className="text-xl text-amber font-bold mb-4" style={{ fontFamily: "var(--font-pixel)" }}>
-          {gukbapTier}
+          {t(gukbapTierKey(gukbapTier))}
         </p>
-        <p className="text-muted mb-1">최종점수</p>
+        <p className="text-muted mb-1">{t("dailyResult.finalScoreLabel")}</p>
         <p className="text-xl text-amber font-bold mb-6" style={{ fontFamily: "var(--font-pixel)" }}>
           {totalScore} / {MAX_TOTAL_SCORE}
         </p>
@@ -45,7 +48,7 @@ export default function DailyResultScreen({
         </div>
         <PixelPanel size="btn">
           <button onClick={onRestart} className="w-full font-bold text-ink">
-            처음으로
+            {t("dailyResult.restartButton")}
           </button>
         </PixelPanel>
       </PixelPanel>
