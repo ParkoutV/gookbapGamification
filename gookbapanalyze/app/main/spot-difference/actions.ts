@@ -334,6 +334,14 @@ export async function saveGameData(
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: '권한이 없습니다.' }
 
+    // 0. Backend Validation
+    if (questionsCount !== undefined) {
+      const finalSlotCount = slots.length
+      if (questionsCount > finalSlotCount) {
+        return { error: `서버 검증 실패: 문제 개수(${questionsCount}개)는 파츠 그룹의 개수(${finalSlotCount}개)보다 클 수 없습니다.` }
+      }
+    }
+
     // 1. Delete parts
     if (deletedPartIds.length > 0) {
       await supabase.from('parts').delete().in('id', deletedPartIds)

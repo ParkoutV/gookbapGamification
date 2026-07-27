@@ -133,6 +133,13 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
     loadLanguages()
   }, [baseImageId, router])
 
+  // Automatically cap questions count if slots are deleted
+  useEffect(() => {
+    if (slots.length > 0 && questionsCount > slots.length) {
+      setQuestionsCount(slots.length)
+    }
+  }, [slots.length, questionsCount])
+
   const handleSave = async () => {
     if (questionsCount > slots.length) {
       alert(`문제 개수(${questionsCount}개)는 파츠 그룹의 개수(${slots.length}개)보다 클 수 없습니다. 파츠 그룹을 더 추가하거나 문제 개수를 줄여주세요.`)
@@ -455,7 +462,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                   onChange={(e) => setQuestionsCount(parseInt(e.target.value))}
                   className="bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 text-sm rounded px-2 py-1 outline-none"
                 >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(num => (
+                  {Array.from({ length: Math.max(1, slots.length) }, (_, i) => i + 1).map(num => (
                     <option key={num} value={num}>{num}개</option>
                   ))}
                 </select>
