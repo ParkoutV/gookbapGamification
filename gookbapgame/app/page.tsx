@@ -1,6 +1,7 @@
 "use client";
 
 import StartScreen from "./components/StartScreen";
+import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
 import StageTransitionModal from "./components/StageTransitionModal";
 import GameResultScreen from "./components/GameResultScreen";
@@ -18,9 +19,11 @@ export default function Home() {
           nickname={game.nickname}
           onRegenerateNickname={game.regenerateNickname}
           onStart={game.startGame}
-          isLoading={game.isLoading}
-          loadError={game.loadError}
         />
+      )}
+
+      {game.phase === "loading" && (
+        <PreloadScreen loadError={game.loadError} onRetry={game.retryPreload} />
       )}
 
       {(game.phase === "playing" ||
@@ -42,21 +45,11 @@ export default function Home() {
         )}
 
       {game.phase === "stageClear" && (
-        <StageTransitionModal
-          type="stageClear"
-          onNext={game.advanceToNextStage}
-          isLoading={game.isLoading}
-          loadError={game.loadError}
-        />
+        <StageTransitionModal type="stageClear" onNext={game.advanceToNextStage} />
       )}
 
       {game.phase === "stageFail" && (
-        <StageTransitionModal
-          type="stageFail"
-          onNext={game.retryFromStageOne}
-          isLoading={game.isLoading}
-          loadError={game.loadError}
-        />
+        <StageTransitionModal type="stageFail" onNext={game.retryFromStageOne} />
       )}
 
       {game.phase === "gameResult" && game.scoreBreakdown && game.gukbapTier && (

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/app/lib/db";
 import { composeScene, ScenePart } from "@/app/lib/composeScene";
+import { fetchImageBuffer } from "@/app/lib/fetchImageBuffer";
 
 export async function GET(request: NextRequest) {
   const baseImageId = request.nextUrl.searchParams.get("base");
@@ -55,43 +56,46 @@ export async function GET(request: NextRequest) {
     return new Response("One or more parts not found", { status: 404 });
   }
 
-  const baseImageBuffer = await fetchImageBuffer(baseImage.image_url);
+  try {
+    const baseImageBuffer = await fetchImageBuffer(
+      baseImage.image_url,
+      `base_image(${baseImageId})`
+    );
 
-  const sceneParts: ScenePart[] = await Promise.all(
-    slotPartPairs.map(async ({ slotId, partId }) => {
-      const slot = slots.find((s) => s.id === slotId)!;
-      const part = partRows.find((p) => p.id === partId)!;
-      const imageBuffer = await fetchImageBuffer(part.image_url);
+    const sceneParts: ScenePart[] = await Promise.all(
+      slotPartPairs.map(async ({ slotId, partId }) => {
+        const slot = slots.find((s) => s.id === slotId)!;
+        const part = partRows.find((p) => p.id === partId)!;
+        const imageBuffer = await fetchImageBuffer(
+          part.image_url,
+          `part(slot=${slotId}, part=${partId})`
+        );
 
-      return {
-        slotId,
-        x: slot.x_coordinate,
-        y: slot.y_coordinate,
-        slotScale: slot.scale ?? 1.0,
-        offsetX: part.offset_x ?? 0,
-        offsetY: part.offset_y ?? 0,
-        partScale: part.scale ?? 1.0,
-        imageBuffer,
-        zIndex: slot.z_index ?? 1,
-      };
-    })
-  );
+        return {
+          slotId,
+          x: slot.x_coordinate,
+          y: slot.y_coordinate,
+          slotScale: slot.scale ?? 1.0,
+          offsetX: part.offset_x ?? 0,
+          offsetY: part.offset_y ?? 0,
+          partScale: part.scale ?? 1.0,
+          imageBuffer,
+          zIndex: slot.z_index ?? 1,
+        };
+      })
+    );
 
-  const composed = await composeScene(baseImageBuffer, sceneParts);
+    const composed = await composeScene(baseImageBuffer, sceneParts);
 
-  return new Response(new Uint8Array(composed), {
-    headers: {
-      "Content-Type": "image/webp",
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
-}
-
-async function fetchImageBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch image: ${url}`);
+    return new Response(new Uint8Array(composed), {
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown image composition error";
+    console.error(`[/api/scene] Failed to compose scene (base=${baseImageId}):`, message);
+    return new Response(`Failed to compose scene: ${message}`, { status: 502 });
   }
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }
