@@ -87,6 +87,7 @@ export default function GameScreen({
           top: `${slot.y * scale}px`,
           width: `${100 * slot.slotScale * scale}px`,
           height: `${100 * slot.slotScale * scale}px`,
+          clipPath: "circle(50%)",
         }}
         onClick={() => handleSlotClick(slot.slotId, slot.isDifference)}
       >

@@ -6,16 +6,12 @@ interface StartScreenProps {
   nickname: string;
   onRegenerateNickname: () => void;
   onStart: () => void;
-  isLoading: boolean;
-  loadError: string | null;
 }
 
 export default function StartScreen({
   nickname,
   onRegenerateNickname,
   onStart,
-  isLoading,
-  loadError,
 }: StartScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
@@ -34,13 +30,11 @@ export default function StartScreen({
             🔄
           </button>
         </div>
-        {loadError && <p className="text-error mb-4">{loadError}</p>}
         <button
           onClick={onStart}
-          disabled={isLoading}
-          className="pixel-mask-btn-solid w-full py-4 px-6 bg-accent text-accent-ink text-xl font-bold transition-opacity active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+          className="pixel-mask-btn-solid w-full py-4 px-6 bg-accent text-accent-ink text-xl font-bold transition-opacity active:scale-95 mb-4"
         >
-          {isLoading ? "로딩 중..." : "게임 시작"}
+          게임 시작
         </button>
         <div className="flex gap-3 w-full">
           <PixelPanel size="btn" className="flex-1">

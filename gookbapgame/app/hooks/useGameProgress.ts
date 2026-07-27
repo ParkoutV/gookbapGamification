@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchGameData, GameSession } from "../actions";
+import { preloadAllStages } from "../lib/preloadGame";
 import {
   STAGE_CONFIG,
   calcFinalScore,
@@ -16,6 +17,7 @@ import {
 
 export type GamePhase =
   | "start"
+  | "loading"
   | "playing"
   | "stageClear"
   | "stageFail"
@@ -27,8 +29,7 @@ export function useGameProgress() {
   const [phase, setPhase] = useState<GamePhase>("start");
   const [nickname, setNickname] = useState<string>("");
   const [stageIndex, setStageIndex] = useState(0);
-  const [session, setSession] = useState<GameSession | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loadNonce, setLoadNonce] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [remainingTimeByStage, setRemainingTimeByStage] = useState<number[]>([]);
@@ -36,34 +37,37 @@ export function useGameProgress() {
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
   const [gukbapTier, setGukbapTier] = useState<GukbapTier | null>(null);
 
+  const session = sessions[stageIndex] ?? null;
+
   useEffect(() => {
     setNickname(loadOrCreateNickname());
   }, []);
 
-  const loadStage = useCallback(async (index: number) => {
-    setIsLoading(true);
-    setLoadNonce((n) => n + 1);
+  const runPreload = useCallback(async () => {
     setLoadError(null);
-    const cfg = STAGE_CONFIG[index];
-    const data = await fetchGameData(cfg.level, cfg.diffCount);
-    setIsLoading(false);
-    if (!data) {
-      setLoadError("게임 데이터를 불러오는데 실패했습니다.");
-      return false;
+    const result = await preloadAllStages(fetchGameData);
+    if (result.ok) {
+      setSessions(result.sessions);
+      setLoadNonce((n) => n + 1);
+      setPhase("playing");
+    } else {
+      setLoadError(result.error);
     }
-    setSession(data);
-    return true;
   }, []);
 
-  const startGame = useCallback(async () => {
+  const startGame = useCallback(() => {
+    setPhase("loading");
     setStageIndex(0);
     setRemainingTimeByStage([]);
     setHadWrongTouch(false);
     setScoreBreakdown(null);
     setGukbapTier(null);
-    const ok = await loadStage(0);
-    if (ok) setPhase("playing");
-  }, [loadStage]);
+    void runPreload();
+  }, [runPreload]);
+
+  const retryPreload = useCallback(() => {
+    void runPreload();
+  }, [runPreload]);
 
   const regenerateNickname = useCallback(() => {
     setNickname(regenerateStoredNickname());
@@ -82,27 +86,27 @@ export function useGameProgress() {
     setPhase("stageFail");
   }, []);
 
-  const advanceToNextStage = useCallback(async () => {
+  const advanceToNextStage = useCallback(() => {
     const nextIndex = stageIndex + 1;
     if (nextIndex < STAGE_CONFIG.length) {
       setStageIndex(nextIndex);
-      const ok = await loadStage(nextIndex);
-      if (ok) setPhase("playing");
+      setLoadNonce((n) => n + 1);
+      setPhase("playing");
       return;
     }
     const breakdown = calcFinalScore(remainingTimeByStage, hadWrongTouch);
     setScoreBreakdown(breakdown);
     setGukbapTier(calcGukbapTier(breakdown.total));
     setPhase("gameResult");
-  }, [stageIndex, remainingTimeByStage, hadWrongTouch, loadStage]);
+  }, [stageIndex, remainingTimeByStage, hadWrongTouch]);
 
-  const retryFromStageOne = useCallback(async () => {
+  const retryFromStageOne = useCallback(() => {
     setStageIndex(0);
     setRemainingTimeByStage([]);
     setHadWrongTouch(false);
-    const ok = await loadStage(0);
-    if (ok) setPhase("playing");
-  }, [loadStage]);
+    setLoadNonce((n) => n + 1);
+    setPhase("playing");
+  }, []);
 
   const proceedToWheel = useCallback(() => setPhase("wheel"), []);
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
@@ -110,7 +114,7 @@ export function useGameProgress() {
   const resetToStart = useCallback(() => {
     setPhase("start");
     setStageIndex(0);
-    setSession(null);
+    setSessions([]);
     setRemainingTimeByStage([]);
     setHadWrongTouch(false);
     setScoreBreakdown(null);
@@ -126,11 +130,11 @@ export function useGameProgress() {
     totalStages: STAGE_CONFIG.length,
     timeLimitSec: STAGE_CONFIG[stageIndex].timeLimitSec,
     session,
-    isLoading,
     loadError,
     scoreBreakdown,
     gukbapTier,
     startGame,
+    retryPreload,
     recordWrongTouch,
     handleStageClear,
     handleStageTimeout,
