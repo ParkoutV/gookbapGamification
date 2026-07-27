@@ -39,6 +39,23 @@ test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 �
   }
 });
 
+test("세션 조회 중 네트워크 오류로 reject되면 예외를 던지지 않고 실패로 처리한다", async () => {
+  const result = await preloadAllStages(
+    async (level) => {
+      if (level === 2) {
+        throw new Error("network unreachable");
+      }
+      return { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [] };
+    },
+    async () => {}
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error, /네트워크/);
+  }
+});
+
 test("이미지 로드가 실패하면 실패로 처리한다", async () => {
   const result = await preloadAllStages(
     async (level) => ({ level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [] }),

@@ -30,7 +30,6 @@ export function useGameProgress() {
   const [nickname, setNickname] = useState<string>("");
   const [stageIndex, setStageIndex] = useState(0);
   const [sessions, setSessions] = useState<GameSession[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [loadNonce, setLoadNonce] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [remainingTimeByStage, setRemainingTimeByStage] = useState<number[]>([]);
@@ -45,10 +44,8 @@ export function useGameProgress() {
   }, []);
 
   const runPreload = useCallback(async () => {
-    setIsLoading(true);
     setLoadError(null);
     const result = await preloadAllStages(fetchGameData);
-    setIsLoading(false);
     if (result.ok) {
       setSessions(result.sessions);
       setLoadNonce((n) => n + 1);
@@ -133,7 +130,6 @@ export function useGameProgress() {
     totalStages: STAGE_CONFIG.length,
     timeLimitSec: STAGE_CONFIG[stageIndex].timeLimitSec,
     session,
-    isLoading,
     loadError,
     scoreBreakdown,
     gukbapTier,

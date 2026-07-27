@@ -28,9 +28,17 @@ export async function preloadAllStages(
   fetchSession: FetchSessionFn,
   loadImage: LoadImageFn = loadImageInBrowser
 ): Promise<PreloadResult> {
-  const sessions = await Promise.all(
-    STAGE_CONFIG.map((cfg) => fetchSession(cfg.level, cfg.diffCount))
-  );
+  let sessions: (GameSession | null)[];
+  try {
+    sessions = await Promise.all(
+      STAGE_CONFIG.map((cfg) => fetchSession(cfg.level, cfg.diffCount))
+    );
+  } catch {
+    return {
+      ok: false,
+      error: "게임 데이터를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
+    };
+  }
 
   const missingIndex = sessions.findIndex((s) => s === null);
   if (missingIndex !== -1) {
