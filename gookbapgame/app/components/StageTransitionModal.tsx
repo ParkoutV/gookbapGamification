@@ -1,13 +1,15 @@
 "use client";
 
 import React from "react";
+import { useLocale } from "../lib/i18n/LocaleContext";
+import type { LoadError } from "../lib/preloadGame";
 import PixelPanel from "./PixelPanel";
 
 interface StageTransitionModalProps {
   type: "stageClear" | "stageFail";
   onNext: () => void;
   isLoading?: boolean;
-  loadError?: string | null;
+  loadError?: LoadError | null;
 }
 
 export default function StageTransitionModal({
@@ -16,6 +18,7 @@ export default function StageTransitionModal({
   isLoading,
   loadError,
 }: StageTransitionModalProps) {
+  const { t } = useLocale();
   const isClear = type === "stageClear";
 
   return (
@@ -25,18 +28,22 @@ export default function StageTransitionModal({
         <h2
           className={`text-2xl font-extrabold mb-4 ${isClear ? "text-amber" : "text-error"}`}
         >
-          {isClear ? "축하합니다!!" : "아쉽게도"}
+          {isClear ? t("stageTransition.clearTitle") : t("stageTransition.failTitle")}
         </h2>
         <p className="text-ink mb-6 text-lg">
-          {isClear ? "이번 단계를 통과하셨습니다." : "시간이 종료되었습니다."}
+          {isClear ? t("stageTransition.clearMessage") : t("stageTransition.failMessage")}
         </p>
-        {loadError && <p className="text-error mb-4">{loadError}</p>}
+        {loadError && <p className="text-error mb-4">{t(loadError.key, loadError.params)}</p>}
         <button
           onClick={onNext}
           disabled={isLoading}
           className="pixel-mask-btn-solid w-full py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? "로딩 중..." : isClear ? "다음" : "재도전"}
+          {isLoading
+            ? t("stageTransition.loading")
+            : isClear
+              ? t("stageTransition.nextButton")
+              : t("stageTransition.retryButton")}
         </button>
       </PixelPanel>
     </div>

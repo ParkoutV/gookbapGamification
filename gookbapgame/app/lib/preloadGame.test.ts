@@ -26,7 +26,7 @@ test("모든 레벨/이미지가 성공하면 세션 7개를 반환하고 이미
   assert.equal(loadedUrls.length, STAGE_CONFIG.length * 2);
 });
 
-test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 레벨을 메시지에 포함한다", async () => {
+test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 레벨을 파라미터에 포함한다", async () => {
   const result = await preloadAllStages(
     async (level) =>
       level === 3 ? null : { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [] },
@@ -35,7 +35,8 @@ test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 �
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.match(result.error, /3단계/);
+    assert.equal(result.key, "preload.levelSessionError");
+    assert.equal(result.params?.level, 3);
   }
 });
 
@@ -52,7 +53,7 @@ test("세션 조회 중 네트워크 오류로 reject되면 예외를 던지지 
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.match(result.error, /게임 데이터/);
+    assert.equal(result.key, "preload.sessionError");
   }
 });
 
@@ -65,4 +66,7 @@ test("이미지 로드가 실패하면 실패로 처리한다", async () => {
   );
 
   assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.key, "preload.imageError");
+  }
 });

@@ -9,9 +9,11 @@ export type FetchSessionFn = (
 
 export type LoadImageFn = (url: string) => Promise<void>;
 
+export type LoadError = { key: string; params?: Record<string, string | number> };
+
 export type PreloadResult =
   | { ok: true; sessions: GameSession[] }
-  | { ok: false; error: string };
+  | ({ ok: false } & LoadError);
 
 const PRELOAD_IMAGE_CONCURRENCY = 4;
 
@@ -19,7 +21,7 @@ export function loadImageInBrowser(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve();
-    img.onerror = () => reject(new Error(`이미지 로드 실패: ${url}`));
+    img.onerror = () => reject(new Error(`image load failed: ${url}`));
     img.src = url;
   });
 }
@@ -34,17 +36,15 @@ export async function preloadAllStages(
       STAGE_CONFIG.map((cfg) => fetchSession(cfg.level, cfg.diffCount))
     );
   } catch {
-    return {
-      ok: false,
-      error: "게임 데이터를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
-    };
+    return { ok: false, key: "preload.sessionError" };
   }
 
   const missingIndex = sessions.findIndex((s) => s === null);
   if (missingIndex !== -1) {
     return {
       ok: false,
-      error: `${STAGE_CONFIG[missingIndex].level}단계 게임 데이터를 불러오지 못했습니다.`,
+      key: "preload.levelSessionError",
+      params: { level: STAGE_CONFIG[missingIndex].level },
     };
   }
 
@@ -54,10 +54,7 @@ export async function preloadAllStages(
   try {
     await runWithConcurrencyLimit(urls, PRELOAD_IMAGE_CONCURRENCY, loadImage);
   } catch {
-    return {
-      ok: false,
-      error: "이미지를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
-    };
+    return { ok: false, key: "preload.imageError" };
   }
 
   return { ok: true, sessions: confirmedSessions };

@@ -118,14 +118,35 @@ export async function composeScene(
           return null;
         }
 
+        // 슬롯 박스 자체가 씬 캔버스(SCENE_WIDTH x SCENE_HEIGHT)보다 큰 경우, 위에서
+        // 박스 기준으로 잘라낸 영역이라도 여전히 캔버스 밖으로 나갈 수 있다. sharp의
+        // composite는 overlay가 캔버스보다 크면 에러를 던지므로, 캔버스 경계로도 한 번 더
+        // 교집합을 구해 실제로 화면에 그려질 영역만 남긴다 — 이미지 편집 툴에서 캔버스
+        // 밖으로 나간 내용을 내보내기 시 잘라내는 것과 같은 동작이다.
+        const absLeft = partLeft + extractLeft;
+        const absTop = partTop + extractTop;
+        const canvasLeft = Math.max(0, absLeft);
+        const canvasTop = Math.max(0, absTop);
+        const canvasWidth = Math.max(0, Math.min(absLeft + extractWidth, SCENE_WIDTH) - canvasLeft);
+        const canvasHeight = Math.max(0, Math.min(absTop + extractHeight, SCENE_HEIGHT) - canvasTop);
+
+        if (canvasWidth === 0 || canvasHeight === 0) {
+          return null;
+        }
+
         const visiblePart = await sharp(resizedPart)
-          .extract({ left: extractLeft, top: extractTop, width: extractWidth, height: extractHeight })
+          .extract({
+            left: extractLeft + (canvasLeft - absLeft),
+            top: extractTop + (canvasTop - absTop),
+            width: canvasWidth,
+            height: canvasHeight,
+          })
           .toBuffer();
 
         return {
           input: visiblePart,
-          left: partLeft + extractLeft,
-          top: partTop + extractTop,
+          left: canvasLeft,
+          top: canvasTop,
         };
       })
     )
