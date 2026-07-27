@@ -52,7 +52,7 @@ test("세션 조회 중 네트워크 오류로 reject되면 예외를 던지지 
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.match(result.error, /네트워크/);
+    assert.match(result.error, /게임 데이터/);
   }
 });
 
