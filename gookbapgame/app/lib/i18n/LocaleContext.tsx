@@ -34,6 +34,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.title = translate(locale, "meta.title");
   }, [locale]);
 
   const setLocale = (next: Locale) => {
@@ -51,10 +52,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <>
-      <title>{translate(locale, "meta.title")}</title>
-      <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
-    </>
+    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
   );
 }
 
