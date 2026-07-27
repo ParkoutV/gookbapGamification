@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
 import PixelPanel from "./PixelPanel";
+import { useLocale } from "../lib/i18n/LocaleContext";
 
 interface GameScreenProps {
   session: GameSession;
@@ -23,6 +24,7 @@ export default function GameScreen({
   onStageTimeout,
   onWrongTouch,
 }: GameScreenProps) {
+  const { t } = useLocale();
   const [timeLeft, setTimeLeft] = useState(timeLimitSec);
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
   const [scale, setScale] = useState(1);
@@ -103,14 +105,14 @@ export default function GameScreen({
     <div className="flex flex-col min-h-screen bg-bg-deep text-ink">
       <header className="flex justify-between items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
         <span className="text-lg md:text-xl font-bold">
-          {stageNumber} / {totalStages} 단계
+          {t("game.stageProgress", { current: stageNumber, total: totalStages })}
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-xl md:text-2xl font-bold">남은 시간:</span>
+          <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
           <span
             className={`text-2xl md:text-3xl font-extrabold ${timeLeft <= 10 ? "text-error animate-pulse" : "text-amber"}`}
           >
-            {timeLeft}초
+            {t("game.secondsUnit", { seconds: timeLeft })}
           </span>
         </div>
       </header>
@@ -146,11 +148,11 @@ export default function GameScreen({
       <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
         <PixelPanel size="btn">
           <button type="button" className="w-full font-bold text-ink">
-            힌트
+            {t("game.hintButton")}
           </button>
         </PixelPanel>
         <span className="text-lg font-bold">
-          남은 개수: {totalDifferences - foundSlots.size}/{totalDifferences}
+          {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
         </span>
       </footer>
     </div>
