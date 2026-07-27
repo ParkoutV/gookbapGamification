@@ -255,3 +255,46 @@ test("composeScene - offset이 있으면 박스 중앙이 아니라 offset만큼
   // (310,200)은 offset 반영 시 배경(파란색)이어야 한다 - offset 미적용 버그를 잡아냄.
   assertColorClose(px(310, 200), { r: 0, g: 0, b: 255 }, "offset 미반영이라면 빨간색이었을 구석 - 배경 확인");
 });
+
+test("composeScene - 슬롯 박스 자체가 씬 캔버스(1200x800)보다 크면 에러 대신 캔버스 안쪽만 합성한다", async () => {
+  const baseImageBuffer = await sharp({
+    create: { width: 1200, height: 800, channels: 4, background: { r: 0, g: 0, b: 255, alpha: 1 } },
+  })
+    .png()
+    .toBuffer();
+
+  const redPartBuffer = await sharp({
+    create: { width: 1500, height: 1500, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } },
+  })
+    .png()
+    .toBuffer();
+
+  // slotScale 15 -> box = 100*15 = 1500, 캔버스(1200x800)보다 크다.
+  // (0,0)에 배치하면 박스가 (0,0)-(1500,1500)로 캔버스의 오른쪽/아래쪽 경계를 모두 넘어간다.
+  const result = await composeScene(baseImageBuffer, [
+    {
+      slotId: 1,
+      x: 0,
+      y: 0,
+      slotScale: 15,
+      offsetX: 0,
+      offsetY: 0,
+      partScale: 1,
+      imageBuffer: redPartBuffer,
+      zIndex: 1,
+    },
+  ]);
+
+  const meta = await sharp(result).metadata();
+  assert.equal(meta.width, 1200);
+  assert.equal(meta.height, 800);
+
+  const { data, info } = await sharp(result).raw().toBuffer({ resolveWithObject: true });
+  const px = (x: number, y: number) => {
+    const idx = (y * info.width + x) * info.channels;
+    return { r: data[idx], g: data[idx + 1], b: data[idx + 2] };
+  };
+
+  // 캔버스 안쪽(경계에서 충분히 떨어진 지점)은 파츠 색으로 채워져야 한다.
+  assertColorClose(px(600, 400), { r: 255, g: 0, b: 0 }, "캔버스 안쪽, 파츠로 덮인 지점");
+});
