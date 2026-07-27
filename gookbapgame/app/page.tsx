@@ -7,6 +7,7 @@ import StageTransitionModal from "./components/StageTransitionModal";
 import GameResultScreen from "./components/GameResultScreen";
 import WheelScreen from "./components/WheelScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
+import LanguageToggle from "./components/LanguageToggle";
 import { useGameProgress } from "./hooks/useGameProgress";
 
 export default function Home() {
@@ -14,6 +15,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black">
+      <LanguageToggle />
       {game.phase === "start" && (
         <StartScreen
           nickname={game.nickname}
