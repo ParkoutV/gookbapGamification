@@ -3,6 +3,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { cookies, headers } from 'next/headers'
 import { after } from 'next/server'
@@ -434,8 +435,13 @@ export async function saveGameData(
       }
     }
 
+    // Initialize Supabase Admin Client for backend caching and cleanup
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabaseAdmin = createSupabaseClient(supabaseUrl, supabaseServiceKey)
+
     // 6. Delete old unified_images cache
-    const { data: existingUnified } = await supabase
+    const { data: existingUnified } = await supabaseAdmin
       .from('unified_images')
       .select('image_url')
       .eq('base_image_id', baseImageId)
@@ -454,19 +460,19 @@ export async function saveGameData(
         // If there are many, we should chunk it. For safety, chunk by 100
         for (let i = 0; i < pathsToDelete.length; i += 100) {
           const chunk = pathsToDelete.slice(i, i + 100)
-          await supabase.storage.from('game_assets').remove(chunk)
+          await supabaseAdmin.storage.from('game_assets').remove(chunk)
         }
       }
     }
-    await supabase.from('unified_images').delete().eq('base_image_id', baseImageId)
+    await supabaseAdmin.from('unified_images').delete().eq('base_image_id', baseImageId)
 
     // 7. Generate a single Preview Image (Smallest part IDs)
     // Fetch slots and parts again to get their true DB IDs
-    const { data: freshSlots } = await supabase.from('image_slots').select('*').eq('base_image_id', baseImageId)
+    const { data: freshSlots } = await supabaseAdmin.from('image_slots').select('*').eq('base_image_id', baseImageId)
     if (freshSlots && freshSlots.length > 0) {
-      const { data: freshBase } = await supabase.from('base_images').select('*').eq('id', baseImageId).single()
+      const { data: freshBase } = await supabaseAdmin.from('base_images').select('*').eq('id', baseImageId).single()
       const categoryIds = freshSlots.map(s => s.category_id)
-      const { data: freshParts } = await supabase.from('parts').select('*').in('category_id', categoryIds)
+      const { data: freshParts } = await supabaseAdmin.from('parts').select('*').in('category_id', categoryIds)
       
       if (freshParts && freshParts.length > 0) {
         // Pick the part with the smallest ID per category
@@ -506,16 +512,25 @@ export async function saveGameData(
           // Wrap in Uint8Array for Vercel fetch compatibility
           const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
           const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
-          const { error: uploadError } = await supabase.storage.from('game_assets').upload(fileName, blob, { contentType: 'image/webp' })
+          const { error: uploadError } = await supabaseAdmin.storage.from('game_assets').upload(fileName, blob, { contentType: 'image/webp' })
           
           if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage.from('game_assets').getPublicUrl(fileName)
-            await supabase.from('unified_images').insert({
+            const { data: publicUrlData } = supabaseAdmin.storage.from('game_assets').getPublicUrl(fileName)
+            const { error: insertError } = await supabaseAdmin.from('unified_images').insert({
               base_image_id: baseImageId,
               image_url: publicUrlData.publicUrl,
               image_slots: imageSlotsJson
             })
+            if (insertError) {
+              console.error("[actions.ts] Failed to insert preview cache:", insertError)
+            } else {
+              console.log(`[actions.ts] Preview image successfully generated and cached for baseImageId: ${baseImageId}`)
+            }
+          } else {
+            console.error("[actions.ts] Failed to upload preview image:", uploadError)
           }
+        } else {
+          console.error("[actions.ts] Failed to generate preview buffer")
         }
       }
     }
