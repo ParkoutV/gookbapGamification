@@ -28,6 +28,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **`accounts` 테이블**: `auth.users`와 1:1 매칭 (PK: `user_id` uuid). 시스템 전반의 계정 연계 키(Central Key)로 이 `user_id` (UUID)를 사용합니다.
 - **`permission`**: `0` = Admin(본사), `1` = User(가맹점).
 
+
 # Database Tables & RLS Permissions
 모든 데이터베이스 테이블에는 강력한 RLS(Row Level Security)가 적용되어 있습니다. 권한은 `accounts` 테이블의 `permission` 값(0: Admin, 1: User)을 기준으로 동작합니다.
 
@@ -38,7 +39,15 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
   - **Lazy Loading (온디맨드) 정책:** `/api/generate-unified` API는 요청된 조합이 `unified_images`에 존재하면 즉시 반환하고, 없을 경우에만 1장을 실시간으로 합성(JIT)하여 DB와 스토리지에 저장한 뒤 반환합니다. 관리자가 편집 내용을 저장할 때, 기존의 캐시(`unified_images`)는 모두 삭제되며 프리뷰를 위한 1장의 이미지(파츠 ID가 가장 작은 조합)만 동기적으로 재생성됩니다.
 - **`branches` (지점 마스터)**: 지점 정의. 지점 구분을 `branch_id`(UUID)를 기반으로 구별하며, `branch_name`이 지점명 (다국어 지원 있음)입니다. (Admin: ALL, Everyone: SELECT)
 - **`tracks` (접속 링크 마스터)**: 트랙(track) 쿼리문을 정의하는 부분. 지점 ID(`branch_id`)와 공유 여부(`is_shared`)로 구분됩니다. (Admin: ALL, Everyone: SELECT)
-- **`track_logs` (접속 로그)**: 트랙 로그를 기반으로 유저 접속 기록을 표시합니다. 이 데이터를 기반으로 유저가 어느 지점에서 왔는지 조회 가능합니다. (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)
+- **`track_logs` (접속 로그)**: 트랙 로그를 기반으로 유저 접속 및 행동 기록을 저장합니다. `game_start_count` (INT)는 재도전율 집계 및 게임 참여 판별을 위한 시작 횟수 누적 카운터이며, `share_clicked` (BOOLEAN)는 공유하기 클릭 여부를 직관적으로 기록합니다. (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)
+- **`get_track_kpi_dashboard` (KPI 통계 RPC)**: 9대 지표(방문자수, 시작/완주/재도전율, 공유 참여/유입, 설문/쿠폰)를 시간 조건에 맞춰 동적으로 필터링하여 집계해주는 강력한 함수입니다.
+  - **파라미터 (Parameters):**
+    - `start_date` (TIMESTAMPTZ, 선택): 조회 시작 일시. 생략 시 과거 무한대(`-infinity`)가 적용되어 처음부터 조회합니다.
+    - `end_date` (TIMESTAMPTZ, 선택): 조회 종료 일시. 생략 시 미래 무한대(`infinity`)가 적용되어 현재까지 조회합니다.
+    - **`assigned_branch_id` (UUID)**: 일반 User(가맹점 관리자) 계정이 관리할 특정 지점의 ID(`branches` 테이블의 `branch_id`)를 지정합니다. 이 값을 기준으로 대시보드 통계 조회 및 각종 지점 전용 데이터에 대한 접근(보안 필터링 등)이 철저하게 통제됩니다. Admin 권한의 경우 전체 조회 권한을 가지므로 이 값이 비어 있어도 무방합니다.
+  - 파라미터 생략 시 전체 기간을 조회하며 `await supabase.rpc('get_track_kpi_dashboard', { start_date: '2026-07-01T00:00:00Z', end_date: '2026-07-31T23:59:59Z' })` 처럼 기간 조회가 가능합니다. 
+  - **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 있습니다. 최고 관리자(Admin)가 호출할 경우 전체 지점의 데이터가 반환되지만, 일반 가맹점 관리자(User)가 호출할 경우 외부 파라미터와 무관하게 무조건 본인의 `assigned_branch_id`와 일치하는 트랙만 자동 필터링되어 안전하게 반환됩니다.
+  - 리턴 데이터는 `track_id`별 2개의 행(일반 트랙 / 공유 트랙)으로 나뉘어 반환되므로, 지점 단위의 합계 통계는 프론트엔드에서 두 데이터를 더하여 처리(Formatting)하는 것을 권장합니다.
 - **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. (Admin: ALL, Anon: INSERT, UPDATE. *조회는 RPC 함수 필수*)
 - **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`coupon_effects` (쿠폰 혜택)**: 쿠폰 정의. 쿠폰 설명은 텍스트로만 구성됩니다. `probability` 및 `high_rank_probability` (NUMERIC, 1 = 100%) 컬럼으로 각각 일반 유저용/상위 랭커용 당첨 확률을 지정하며, DB 트리거(`enforce_max_probability`)를 통해 각 확률 타입별 전체 합계가 1을 초과하지 못하도록 강력하게 제한됩니다. (Admin: ALL, Everyone: SELECT)
