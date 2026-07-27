@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     if (existingRow) {
       console.log(`[Unified Generator JIT] Cache hit for baseImageId: ${baseImageId}`)
-      return NextResponse.json({ success: true, url: existingRow.image_url })
+      return NextResponse.json({ success: true, url: existingRow.unified_image_url })
     }
 
     console.log(`[Unified Generator JIT] Cache miss. Generating for baseImageId: ${baseImageId}`)
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     // 6. Save to database
     const { error: insertError } = await supabaseAdmin.from('unified_images').insert({
       base_image_id: baseImageId,
-      image_url: newImageUrl,
+      unified_image_url: newImageUrl,
       image_slots: sortedSlotsJson
     })
 

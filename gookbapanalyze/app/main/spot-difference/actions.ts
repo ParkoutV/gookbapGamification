@@ -443,13 +443,13 @@ export async function saveGameData(
     // 6. Delete old unified_images cache
     const { data: existingUnified } = await supabaseAdmin
       .from('unified_images')
-      .select('image_url')
+      .select('unified_image_url')
       .eq('base_image_id', baseImageId)
     
     if (existingUnified && existingUnified.length > 0) {
       const pathsToDelete = existingUnified.map(u => {
         try {
-          const urlObj = new URL(u.image_url)
+          const urlObj = new URL(u.unified_image_url)
           const partsArr = urlObj.pathname.split('/game_assets/')
           return partsArr.length > 1 ? partsArr[1] : null
         } catch { return null }
@@ -518,7 +518,7 @@ export async function saveGameData(
             const { data: publicUrlData } = supabaseAdmin.storage.from('game_assets').getPublicUrl(fileName)
             const { error: insertError } = await supabaseAdmin.from('unified_images').insert({
               base_image_id: baseImageId,
-              image_url: publicUrlData.publicUrl,
+              unified_image_url: publicUrlData.publicUrl,
               image_slots: imageSlotsJson
             })
             if (insertError) {
