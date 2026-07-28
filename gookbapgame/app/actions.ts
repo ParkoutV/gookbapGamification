@@ -3,6 +3,7 @@
 import { supabase } from "./lib/db";
 import { clampDifferenceCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
+import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
 
 export type GameSlot = {
   slotId: number;
@@ -10,6 +11,8 @@ export type GameSlot = {
   y: number;
   slotScale: number;
   isDifference: boolean;
+  leftHitPolygon: Point[] | null;
+  rightHitPolygon: Point[] | null;
 };
 
 export type GameSession = {
@@ -18,6 +21,44 @@ export type GameSession = {
   rightSceneUrl: string;
   slots: GameSlot[];
 };
+
+type PartRow = {
+  id: number;
+  image_url: string;
+  offset_x: number;
+  offset_y: number;
+  scale: number;
+};
+
+async function computeSlotPolygons(
+  leftPart: PartRow,
+  rightPart: PartRow,
+  slotScale: number
+): Promise<{ leftHitPolygon: Point[] | null; rightHitPolygon: Point[] | null }> {
+  const leftHull = await getPartSilhouette(leftPart.image_url);
+  const rightHull =
+    rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.image_url);
+
+  const leftHitPolygon = leftHull
+    ? mapSilhouetteToSlot(leftHull, {
+        offsetX: leftPart.offset_x,
+        offsetY: leftPart.offset_y,
+        partScale: leftPart.scale,
+        slotScale,
+      })
+    : null;
+
+  const rightHitPolygon = rightHull
+    ? mapSilhouetteToSlot(rightHull, {
+        offsetX: rightPart.offset_x,
+        offsetY: rightPart.offset_y,
+        partScale: rightPart.scale,
+        slotScale,
+      })
+    : null;
+
+  return { leftHitPolygon, rightHitPolygon };
+}
 
 export async function fetchGameData(
   level: number,
@@ -89,17 +130,25 @@ export async function fetchGameData(
 
     const diffIndices = [...Array(N).keys()].sort(() => 0.5 - Math.random()).slice(0, numDifferences);
 
-    const slots: GameSlot[] = [];
     const leftImageSlots: ImageSlots = {};
     const rightImageSlots: ImageSlots = {};
+
+    const slotBuilders: {
+      slotId: number;
+      x: number;
+      y: number;
+      slotScale: number;
+      leftPart: PartRow;
+      rightPart: PartRow;
+    }[] = [];
 
     for (let i = 0; i < N; i++) {
       const slot = validSlots[i];
       const slotParts = validParts.filter((p) => p.category_id === slot.category_id);
 
       const isDifference = diffIndices.includes(i);
-      let leftPart;
-      let rightPart;
+      let leftPart: PartRow;
+      let rightPart: PartRow;
 
       if (isDifference && slotParts.length >= 2) {
         const shuffledSlotParts = [...slotParts].sort(() => 0.5 - Math.random());
@@ -111,17 +160,38 @@ export async function fetchGameData(
         rightPart = randomPart;
       }
 
-      slots.push({
+      slotBuilders.push({
         slotId: slot.id,
         x: slot.x_coordinate,
         y: slot.y_coordinate,
         slotScale: slot.scale ?? 1.0,
-        isDifference: leftPart.id !== rightPart.id,
+        leftPart,
+        rightPart,
       });
 
       leftImageSlots[slot.category_id] = leftPart.id;
       rightImageSlots[slot.category_id] = rightPart.id;
     }
+
+    const slots: GameSlot[] = await Promise.all(
+      slotBuilders.map(async (builder) => {
+        const { leftHitPolygon, rightHitPolygon } = await computeSlotPolygons(
+          builder.leftPart,
+          builder.rightPart,
+          builder.slotScale
+        );
+
+        return {
+          slotId: builder.slotId,
+          x: builder.x,
+          y: builder.y,
+          slotScale: builder.slotScale,
+          isDifference: builder.leftPart.id !== builder.rightPart.id,
+          leftHitPolygon,
+          rightHitPolygon,
+        };
+      })
+    );
 
     const baseImageId = selectedBaseImage.id;
 
