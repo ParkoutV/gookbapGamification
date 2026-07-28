@@ -1,4 +1,5 @@
 import { convexHull, type Point } from "./convexHull.ts";
+import { PNG } from "pngjs";
 
 export type { Point };
 
@@ -36,4 +37,30 @@ export function extractSilhouetteFromRaw(
     x: (p.x + padX) / maxDim,
     y: (p.y + padY) / maxDim,
   }));
+}
+
+const silhouetteCache = new Map<string, Point[] | null>();
+
+export async function getPartSilhouette(
+  imageUrl: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<Point[] | null> {
+  if (silhouetteCache.has(imageUrl)) {
+    return silhouetteCache.get(imageUrl) ?? null;
+  }
+
+  let result: Point[] | null = null;
+  try {
+    const res = await fetchImpl(imageUrl);
+    if (res.ok) {
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const png = PNG.sync.read(buffer);
+      result = extractSilhouetteFromRaw(png.width, png.height, png.data);
+    }
+  } catch {
+    result = null;
+  }
+
+  silhouetteCache.set(imageUrl, result);
+  return result;
 }

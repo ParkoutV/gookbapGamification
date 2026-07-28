@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractSilhouetteFromRaw } from "./hitPolygon.ts";
+import { PNG } from "pngjs";
+import { extractSilhouetteFromRaw, getPartSilhouette } from "./hitPolygon.ts";
 
 function makeRawAlpha(
   width: number,
@@ -46,4 +47,58 @@ test("extractSilhouetteFromRaw: 가로가 긴 이미지에서 사각 블록의 �
     const found = hull!.some((p) => Math.abs(p.x - e.x) < 1e-9 && Math.abs(p.y - e.y) < 1e-9);
     assert.ok(found, `expected point (${e.x}, ${e.y}) not found in hull`);
   }
+});
+
+function makePngBuffer(
+  width: number,
+  height: number,
+  isOpaque: (x: number, y: number) => boolean
+): Buffer {
+  const png = new PNG({ width, height });
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (width * y + x) << 2;
+      png.data[i] = 0;
+      png.data[i + 1] = 0;
+      png.data[i + 2] = 0;
+      png.data[i + 3] = isOpaque(x, y) ? 255 : 0;
+    }
+  }
+  return PNG.sync.write(png);
+}
+
+test("getPartSilhouette: 정상 PNG를 가져오면 실루엣을 계산하고 캐싱한다", async () => {
+  const pngBuffer = makePngBuffer(8, 4, (x, y) => x >= 2 && x <= 5 && y >= 1 && y <= 2);
+  let fetchCount = 0;
+  const fakeFetch = (async () => {
+    fetchCount += 1;
+    return {
+      ok: true,
+      arrayBuffer: async () =>
+        pngBuffer.buffer.slice(pngBuffer.byteOffset, pngBuffer.byteOffset + pngBuffer.byteLength),
+    };
+  }) as unknown as typeof fetch;
+
+  const first = await getPartSilhouette("test://fixture-1.png", fakeFetch);
+  const second = await getPartSilhouette("test://fixture-1.png", fakeFetch);
+
+  assert.ok(first !== null);
+  assert.equal(first!.length, 4);
+  assert.deepEqual(second, first);
+  assert.equal(fetchCount, 1);
+});
+
+test("getPartSilhouette: fetch 실패 시 null을 반환하고 실패도 캐싱한다", async () => {
+  let fetchCount = 0;
+  const fakeFetch = (async () => {
+    fetchCount += 1;
+    return { ok: false } as Response;
+  }) as unknown as typeof fetch;
+
+  const first = await getPartSilhouette("test://fixture-2.png", fakeFetch);
+  const second = await getPartSilhouette("test://fixture-2.png", fakeFetch);
+
+  assert.equal(first, null);
+  assert.equal(second, null);
+  assert.equal(fetchCount, 1);
 });
