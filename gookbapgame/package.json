@@ -7,27 +7,25 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test app/lib/composeScene.test.ts app/lib/stageConfig.test.ts app/lib/nickname.test.ts app/lib/gameSelection.test.ts app/lib/fetchImageBuffer.test.ts app/lib/concurrencyLimit.test.ts app/lib/preloadGame.test.ts app/lib/i18n/detectLocale.test.ts app/lib/i18n/translate.test.ts app/lib/i18n/gukbapTierKey.test.ts test/pipeline-visual.test.ts"
+    "test": "node --experimental-strip-types --test app/lib/stageConfig.test.ts app/lib/nickname.test.ts app/lib/gameSelection.test.ts app/lib/concurrencyLimit.test.ts app/lib/generateUnified.test.ts app/lib/preloadGame.test.ts app/lib/i18n/detectLocale.test.ts app/lib/i18n/translate.test.ts app/lib/i18n/gukbapTierKey.test.ts app/lib/convexHull.test.ts app/lib/hitPolygon.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
+    "@types/pngjs": "^6.0.5",
     "dotenv": "^17.4.2",
     "image-size": "^2.0.2",
     "next": "16.2.9",
+    "pngjs": "^7.0.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "sharp": "^0.34.5"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/pngjs": "^6.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "pixelmatch": "^7.2.0",
-    "pngjs": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

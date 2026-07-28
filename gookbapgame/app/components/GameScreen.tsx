@@ -79,7 +79,18 @@ export default function GameScreen({
     onWrongTouch();
   };
 
-  const renderClickOverlays = () =>
+  const buildClipPath = (polygon: { x: number; y: number }[] | null): string => {
+    if (!polygon || polygon.length < 3) {
+      return "circle(50%)";
+    }
+    if (polygon.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
+      return "circle(50%)";
+    }
+    const points = polygon.map((p) => `${p.x * 100}% ${p.y * 100}%`).join(", ");
+    return `polygon(${points})`;
+  };
+
+  const renderClickOverlays = (side: "left" | "right") =>
     session.slots.map((slot) => (
       <div
         key={slot.slotId}
@@ -89,7 +100,7 @@ export default function GameScreen({
           top: `${slot.y * scale}px`,
           width: `${100 * slot.slotScale * scale}px`,
           height: `${100 * slot.slotScale * scale}px`,
-          clipPath: "circle(50%)",
+          clipPath: buildClipPath(side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon),
         }}
         onClick={() => handleSlotClick(slot.slotId, slot.isDifference)}
       >
@@ -129,7 +140,7 @@ export default function GameScreen({
             className="w-full h-full object-contain select-none pointer-events-none"
             onLoad={handleImageLoad}
           />
-          {renderClickOverlays()}
+          {renderClickOverlays("left")}
         </div>
 
         <div
@@ -141,7 +152,7 @@ export default function GameScreen({
             alt="Scene Right"
             className="w-full h-full object-contain select-none pointer-events-none"
           />
-          {renderClickOverlays()}
+          {renderClickOverlays("right")}
         </div>
       </main>
 
