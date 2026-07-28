@@ -2,6 +2,7 @@
 
 import { supabase } from "./lib/db";
 import { clampDifferenceCount } from "./lib/gameSelection";
+import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 
 export type GameSlot = {
   slotId: number;
@@ -89,8 +90,8 @@ export async function fetchGameData(
     const diffIndices = [...Array(N).keys()].sort(() => 0.5 - Math.random()).slice(0, numDifferences);
 
     const slots: GameSlot[] = [];
-    const leftPairs: string[] = [];
-    const rightPairs: string[] = [];
+    const leftImageSlots: ImageSlots = {};
+    const rightImageSlots: ImageSlots = {};
 
     for (let i = 0; i < N; i++) {
       const slot = validSlots[i];
@@ -118,18 +119,36 @@ export async function fetchGameData(
         isDifference: leftPart.id !== rightPart.id,
       });
 
-      leftPairs.push(`${slot.id}:${leftPart.id}`);
-      rightPairs.push(`${slot.id}:${rightPart.id}`);
+      leftImageSlots[slot.category_id] = leftPart.id;
+      rightImageSlots[slot.category_id] = rightPart.id;
     }
 
     const baseImageId = selectedBaseImage.id;
-    const leftSceneUrl = `/api/scene?base=${baseImageId}&side=left&parts=${leftPairs.join(",")}`;
-    const rightSceneUrl = `/api/scene?base=${baseImageId}&side=right&parts=${rightPairs.join(",")}`;
+
+    const apiUrl = process.env.GENERATE_UNIFIED_API_URL;
+    if (!apiUrl) {
+      console.error("Missing GENERATE_UNIFIED_API_URL environment variable.");
+      return null;
+    }
+
+    const [leftResult, rightResult] = await Promise.all([
+      requestUnifiedImage(apiUrl, baseImageId, leftImageSlots),
+      requestUnifiedImage(apiUrl, baseImageId, rightImageSlots),
+    ]);
+
+    if (!leftResult.ok || !rightResult.ok) {
+      console.error(
+        `[fetchGameData] generate-unified 호출 실패 (base=${baseImageId}): left=${
+          leftResult.ok ? "ok" : leftResult.error
+        }, right=${rightResult.ok ? "ok" : rightResult.error}`
+      );
+      return null;
+    }
 
     return {
       level,
-      leftSceneUrl,
-      rightSceneUrl,
+      leftSceneUrl: leftResult.url,
+      rightSceneUrl: rightResult.url,
       slots,
     };
   } catch (error) {
