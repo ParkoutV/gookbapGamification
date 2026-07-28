@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchGameData, GameSession } from "../actions";
 import { preloadAllStages } from "../lib/preloadGame";
+import type { LoadError } from "../lib/preloadGame";
 import {
   STAGE_CONFIG,
   calcFinalScore,
@@ -31,7 +32,7 @@ export function useGameProgress() {
   const [stageIndex, setStageIndex] = useState(0);
   const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loadNonce, setLoadNonce] = useState(0);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
   const [remainingTimeByStage, setRemainingTimeByStage] = useState<number[]>([]);
   const [hadWrongTouch, setHadWrongTouch] = useState(false);
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
@@ -51,7 +52,7 @@ export function useGameProgress() {
       setLoadNonce((n) => n + 1);
       setPhase("playing");
     } else {
-      setLoadError(result.error);
+      setLoadError({ key: result.key, params: result.params });
     }
   }, []);
 
