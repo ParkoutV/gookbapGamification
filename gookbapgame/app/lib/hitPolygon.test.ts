@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PNG } from "pngjs";
-import { extractSilhouetteFromRaw, getPartSilhouette } from "./hitPolygon.ts";
+import {
+  extractSilhouetteFromRaw,
+  getPartSilhouette,
+  mapSilhouetteToSlot,
+} from "./hitPolygon.ts";
 
 function makeRawAlpha(
   width: number,
@@ -101,4 +105,28 @@ test("getPartSilhouette: fetch 실패 시 null을 반환하고 실패도 캐싱�
   assert.equal(first, null);
   assert.equal(second, null);
   assert.equal(fetchCount, 1);
+});
+
+test("mapSilhouetteToSlot: offsetX/offsetY/partScale/slotScale을 반영해 정규화 좌표를 계산한다", () => {
+  const hull = [
+    { x: 0, y: 0 },
+    { x: 1, y: 1 },
+  ];
+  const placement = { offsetX: 10, offsetY: 5, partScale: 0.5, slotScale: 1 };
+
+  const result = mapSilhouetteToSlot(hull, placement);
+
+  assert.deepEqual(result, [
+    { x: 0.35, y: 0.3 },
+    { x: 0.85, y: 0.8 },
+  ]);
+});
+
+test("mapSilhouetteToSlot: 박스를 벗어나는 극단값은 0~1로 clamp된다", () => {
+  const hull = [{ x: 0, y: 0 }];
+  const placement = { offsetX: 1000, offsetY: -1000, partScale: 1, slotScale: 1 };
+
+  const result = mapSilhouetteToSlot(hull, placement);
+
+  assert.deepEqual(result, [{ x: 1, y: 0 }]);
 });

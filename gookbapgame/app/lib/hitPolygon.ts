@@ -64,3 +64,24 @@ export async function getPartSilhouette(
   silhouetteCache.set(imageUrl, result);
   return result;
 }
+
+export type SlotPlacement = {
+  offsetX: number;
+  offsetY: number;
+  partScale: number;
+  slotScale: number;
+};
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+export function mapSilhouetteToSlot(hull: Point[], placement: SlotPlacement): Point[] {
+  const boxSize = 100 * placement.slotScale;
+  const scale = placement.partScale;
+
+  return hull.map((p) => ({
+    x: clamp01(placement.offsetX / boxSize + (1 - scale) / 2 + p.x * scale),
+    y: clamp01(placement.offsetY / boxSize + (1 - scale) / 2 + p.y * scale),
+  }));
+}
