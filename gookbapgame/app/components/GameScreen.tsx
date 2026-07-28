@@ -83,6 +83,9 @@ export default function GameScreen({
     if (!polygon || polygon.length < 3) {
       return "circle(50%)";
     }
+    if (polygon.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
+      return "circle(50%)";
+    }
     const points = polygon.map((p) => `${p.x * 100}% ${p.y * 100}%`).join(", ");
     return `polygon(${points})`;
   };
