@@ -44,7 +44,6 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
   - **파라미터 (Parameters):**
     - `start_date` (TIMESTAMPTZ, 선택): 조회 시작 일시. 생략 시 과거 무한대(`-infinity`)가 적용되어 처음부터 조회합니다.
     - `end_date` (TIMESTAMPTZ, 선택): 조회 종료 일시. 생략 시 미래 무한대(`infinity`)가 적용되어 현재까지 조회합니다.
-    - **`assigned_branch_id` (UUID)**: 일반 User(가맹점 관리자) 계정이 관리할 특정 지점의 ID(`branches` 테이블의 `branch_id`)를 지정합니다. 이 값을 기준으로 대시보드 통계 조회 및 각종 지점 전용 데이터에 대한 접근(보안 필터링 등)이 철저하게 통제됩니다. Admin 권한의 경우 전체 조회 권한을 가지므로 이 값이 비어 있어도 무방합니다.
   - 파라미터 생략 시 전체 기간을 조회하며 `await supabase.rpc('get_track_kpi_dashboard', { start_date: '2026-07-01T00:00:00Z', end_date: '2026-07-31T23:59:59Z' })` 처럼 기간 조회가 가능합니다. 
   - **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 있습니다. 최고 관리자(Admin)가 호출할 경우 전체 지점의 데이터가 반환되지만, 일반 가맹점 관리자(User)가 호출할 경우 외부 파라미터와 무관하게 무조건 본인의 `assigned_branch_id`와 일치하는 트랙만 자동 필터링되어 안전하게 반환됩니다.
   - 리턴 데이터는 `track_id`별 2개의 행(일반 트랙 / 공유 트랙)으로 나뉘어 반환되므로, 지점 단위의 합계 통계는 프론트엔드에서 두 데이터를 더하여 처리(Formatting)하는 것을 권장합니다.
@@ -52,7 +51,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`coupon_effects` (쿠폰 혜택)**: 쿠폰 정의. 쿠폰 설명은 텍스트로만 구성됩니다. `probability` 및 `high_rank_probability` (NUMERIC, 1 = 100%) 컬럼으로 각각 일반 유저용/상위 랭커용 당첨 확률을 지정하며, DB 트리거(`enforce_max_probability`)를 통해 각 확률 타입별 전체 합계가 1을 초과하지 못하도록 강력하게 제한됩니다. (Admin: ALL, Everyone: SELECT)
 - **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. (Admin: ALL, User: UPDATE/SELECT, Anon: INSERT. *조회는 RPC 함수 필수*)
-- **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
+- **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). `question_type=0`은 질문 여러개 중 한개를 선택하는 문제, `question_type=1`은 질문 여러개 중 여러개를 선택하는 문제이며, 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
 - **`survey_responses` (설문 응답)**: 질문 결과를 저장하는 곳. `participant_id`로 유저 인식이 가능합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)
 
 # Frontend RPC Guidelines & Anonymous Users

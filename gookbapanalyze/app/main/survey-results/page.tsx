@@ -1,0 +1,52 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
+import SurveyResultsClient from './SurveyResultsClient'
+
+export default async function SurveyResultsPage() {
+  const supabase = await createClient()
+  const adminClient = createAdminClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/login')
+  }
+
+  // Get user permissions
+  const { data: account } = await adminClient
+    .from('accounts')
+    .select('permission, assigned_branch_id')
+    .eq('user_id', user.id)
+    .single()
+
+  const permission = account?.permission ?? 1
+  const assignedBranchId = account?.assigned_branch_id
+
+  // Fetch branches (for Phase 2 selection)
+  let branchesQuery = adminClient.from('branches').select('branch_id, branch_name')
+  
+  if (permission === 1 && assignedBranchId) {
+    branchesQuery = branchesQuery.eq('branch_id', assignedBranchId)
+  }
+
+  const { data: branchesData } = await branchesQuery
+  const branches = branchesData || []
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">설문 통계</h1>
+          <p className="text-gray-500 dark:text-zinc-400 mt-1">사용자들의 설문 응답 결과를 분석하고 시각화합니다.</p>
+        </div>
+      </div>
+
+      <SurveyResultsClient 
+        permission={permission}
+        assignedBranchId={assignedBranchId}
+        branches={branches}
+      />
+    </div>
+  )
+}
