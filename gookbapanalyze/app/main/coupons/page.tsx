@@ -76,8 +76,8 @@ export default function CouponsPage() {
   // Modal State for Multilingual text
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCouponIndex, setEditingCouponIndex] = useState<number | null>(null)
-  const [editingField, setEditingField] = useState<'coupon_type' | 'description' | null>(null)
-  const [modalData, setModalData] = useState<Record<string, string>>({})
+  const [modalNameData, setModalNameData] = useState<Record<string, string>>({})
+  const [modalDescData, setModalDescData] = useState<Record<string, string>>({})
 
   const fetchAll = async () => {
     setLoading(true)
@@ -228,7 +228,7 @@ export default function CouponsPage() {
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (colIdx === 0) {
-        openModal(rowIdx, 'coupon_type')
+        openModal(rowIdx)
       } else {
         if (rowIdx < numRows - 1) {
           document.getElementById(`cell-${rowIdx + 1}-${colIdx}`)?.focus()
@@ -351,25 +351,33 @@ export default function CouponsPage() {
   }
 
   // --- Multi-lang Modal Logic ---
-  const openModal = (index: number, field: 'coupon_type' | 'description') => {
-    const existing = safeParseJSON(coupons[index][field])
-    const initData: Record<string, string> = { ...existing }
+  const openModal = (index: number) => {
+    const existingName = safeParseJSON(coupons[index].coupon_type)
+    const existingDesc = safeParseJSON(coupons[index].description)
+    
+    const initName: Record<string, string> = { ...existingName }
+    const initDesc: Record<string, string> = { ...existingDesc }
+    
     activeLanguages.forEach(lang => {
-      if (!initData[lang.lang_code]) initData[lang.lang_code] = ''
+      if (!initName[lang.lang_code]) initName[lang.lang_code] = ''
+      if (!initDesc[lang.lang_code]) initDesc[lang.lang_code] = ''
     })
-    setModalData(initData)
+    
+    setModalNameData(initName)
+    setModalDescData(initDesc)
     setEditingCouponIndex(index)
-    setEditingField(field)
     setIsModalOpen(true)
   }
 
   const saveModal = () => {
-    if (editingCouponIndex === null || !editingField) return
+    if (editingCouponIndex === null) return
     const newCoupons = [...coupons]
     
-    // Merge new with existing inside JSON to prevent data loss of inactive langs
-    const existingObj = safeParseJSON(newCoupons[editingCouponIndex][editingField])
-    newCoupons[editingCouponIndex][editingField] = JSON.stringify({ ...existingObj, ...modalData })
+    const existingNameObj = safeParseJSON(newCoupons[editingCouponIndex].coupon_type)
+    newCoupons[editingCouponIndex].coupon_type = JSON.stringify({ ...existingNameObj, ...modalNameData })
+    
+    const existingDescObj = safeParseJSON(newCoupons[editingCouponIndex].description)
+    newCoupons[editingCouponIndex].description = JSON.stringify({ ...existingDescObj, ...modalDescData })
     
     setCoupons(newCoupons)
     setIsModalOpen(false)
@@ -545,7 +553,7 @@ export default function CouponsPage() {
                       readOnly
                       value={getKoText(coupon.coupon_type)}
                       onKeyDown={(e) => handleKeyDown(e, rowIdx, 0)}
-                      onClick={() => openModal(rowIdx, 'coupon_type')}
+                      onClick={() => openModal(rowIdx)}
                       className="w-full h-12 px-3 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-medium dark:text-white cursor-pointer"
                       placeholder="Enter로 다국어 편집..."
                     />
@@ -620,21 +628,26 @@ export default function CouponsPage() {
                       {lang.lang_code} - {lang.lang_name}
                     </span>
                   </div>
-                  {editingField === 'coupon_type' ? (
-                    <input
-                      type="text"
-                      value={modalData[lang.lang_code] || ''}
-                      onChange={(e) => setModalData({ ...modalData, [lang.lang_code]: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  ) : (
-                    <textarea
-                      rows={2}
-                      value={modalData[lang.lang_code] || ''}
-                      onChange={(e) => setModalData({ ...modalData, [lang.lang_code]: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                    />
-                  )}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-zinc-400 mb-1">쿠폰 이름</label>
+                      <input
+                        type="text"
+                        value={modalNameData[lang.lang_code] || ''}
+                        onChange={(e) => setModalNameData({ ...modalNameData, [lang.lang_code]: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-zinc-400 mb-1">쿠폰 설명</label>
+                      <textarea
+                        rows={2}
+                        value={modalDescData[lang.lang_code] || ''}
+                        onChange={(e) => setModalDescData({ ...modalDescData, [lang.lang_code]: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
