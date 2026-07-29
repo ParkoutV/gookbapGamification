@@ -95,33 +95,33 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
     return nameObj.ko || defaultName;
   }
 
-  useEffect(() => {
-    const fetchGameData = async () => {
-      const result = await getGameData(baseImageId)
-      if (result.error) {
-        alert(result.error)
-        router.push('/main/spot-difference')
-        return
-      }
-      
-      setBaseImage(result.baseImage)
-      setQuestionsCount(result.baseImage.questions_count || 3)
-      
-      // Ensure we have unique string IDs for frontend tracking
-      const mappedSlots = (result.slots || []).map((s: any) => ({ ...s, tempId: s.id.toString() }))
-      setSlots(mappedSlots)
-      
-      const mappedParts = (result.parts || []).map((p: any) => ({ 
-        ...p, 
-        tempId: p.id.toString(),
-        slotTempId: mappedSlots.find((s: any) => s.category_id === p.category_id)?.tempId 
-      }))
-      setParts(mappedParts)
-      
-      
-      setLoading(false)
+  const fetchGameData = async () => {
+    const result = await getGameData(baseImageId)
+    if (result.error) {
+      alert(result.error)
+      router.push('/main/spot-difference')
+      return
     }
 
+    setBaseImage(result.baseImage)
+    setQuestionsCount(result.baseImage.questions_count || 3)
+
+    // Ensure we have unique string IDs for frontend tracking
+    const mappedSlots = (result.slots || []).map((s: any) => ({ ...s, tempId: s.id.toString() }))
+    setSlots(mappedSlots)
+
+    const mappedParts = (result.parts || []).map((p: any) => ({
+      ...p,
+      tempId: p.id.toString(),
+      slotTempId: mappedSlots.find((s: any) => s.category_id === p.category_id)?.tempId
+    }))
+    setParts(mappedParts)
+
+
+    setLoading(false)
+  }
+
+  useEffect(() => {
     const loadLanguages = async () => {
       const result = await getSupportedLanguages()
       if (result.success) {
@@ -129,8 +129,10 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       }
     }
     
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 초기 로드: getGameData 결과로 state를 채워야 함
     fetchGameData()
     loadLanguages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchGameData는 baseImageId에만 의존, 매 렌더 재생성되는 함수라 deps 제외
   }, [baseImageId, router])
 
   // Automatically cap questions count if slots are deleted
@@ -152,9 +154,10 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       alert(result.error)
     } else {
       alert('저장되었습니다.')
-      // Reset deleted trackers
+      // Reset deleted trackers and re-fetch so isNew/temp ids don't cause duplicate inserts on the next save
       setDeletedSlotIds([])
       setDeletedPartIds([])
+      await fetchGameData()
     }
     setSaving(false)
   }

@@ -13,6 +13,8 @@ export const STAGE_CONFIG: StageDef[] = [
   { level: 5, timeLimitSec: 60, diffCount: 5, stageScore: 180 },
   { level: 6, timeLimitSec: 60, diffCount: 5, stageScore: 180 },
   { level: 7, timeLimitSec: 60, diffCount: 7, stageScore: 320 },
+  { level: 8, timeLimitSec: 60, diffCount: 7, stageScore: 320 },
+  { level: 9, timeLimitSec: 60, diffCount: 7, stageScore: 320 },
 ];
 
 export const TOTAL_STAGE_SCORE = STAGE_CONFIG.reduce((sum, s) => sum + s.stageScore, 0);
