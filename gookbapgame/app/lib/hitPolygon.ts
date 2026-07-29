@@ -52,16 +52,21 @@ export async function getPartSilhouette(
   let result: Point[] | null = null;
   try {
     const res = await fetchImpl(imageUrl);
-    if (res.ok) {
+    if (!res.ok) {
+      console.warn(`[getPartSilhouette] fetch 실패 (status=${res.status}): ${imageUrl}`);
+    } else {
       const buffer = Buffer.from(await res.arrayBuffer());
       const { data, info } = await sharp(buffer)
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
       result = extractSilhouetteFromRaw(info.width, info.height, data);
+      if (!result) {
+        console.warn(`[getPartSilhouette] 실루엣 추출 실패 (${info.width}x${info.height}): ${imageUrl}`);
+      }
     }
-  } catch {
-    result = null;
+  } catch (error) {
+    console.warn(`[getPartSilhouette] 디코딩 예외 (${error instanceof Error ? error.message : error}): ${imageUrl}`);
   }
 
   silhouetteCache.set(imageUrl, result);
