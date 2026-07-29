@@ -51,7 +51,9 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **`nickname_presets` (닉네임 프리셋)**: 닉네임 조합에 사용될 앞글자(first_word)와 뒷글자(last_word) 데이터를 정의합니다. `type`으로 구분하며 다국어(`text` JSONB)를 지원합니다. (Admin: ALL, Everyone: SELECT)
 - **`nickname_exclusions` (닉네임 제외 조합)**: 특정 앞글자와 뒷글자의 결합을 금지하는 블랙리스트입니다. `assign_random_nickname` RPC 및 할당 로직에서 무작위 추출 시 해당 테이블에 정의된 쌍은 결과에서 배제됩니다. (Admin: ALL, Everyone: SELECT)
 - **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
-- **`coupon_effects` (쿠폰 혜택)**: 쿠폰 정의. 쿠폰 설명은 텍스트로만 구성됩니다. `probability` 및 `high_rank_probability` (NUMERIC, 1 = 100%) 컬럼으로 각각 일반 유저용/상위 랭커용 당첨 확률을 지정하며, DB 트리거(`enforce_max_probability`)를 통해 각 확률 타입별 전체 합계가 1을 초과하지 못하도록 강력하게 제한됩니다. (Admin: ALL, Everyone: SELECT)
+- **`gatcha_cases` (가챠 구간 설정)**: 0점부터 1953점까지의 점수 구간(`min_score`, `max_score`)을 정의합니다. DB 테이블 레벨에 `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 제약 조건이 설정되어 있어 유효하지 않은 점수 범위는 원천 차단됩니다. 구간 사이의 빈틈이나 겹침 여부는 프론트엔드 저장 로직에서 검증합니다. (Admin: ALL, Everyone: SELECT)
+- **`gatcha_settings` (가챠 글로벌 설정)**: 단일 row(id=1)를 유지하며 룰렛 쿨타임(`cooldown_hours`, `cooldown_minutes`) 및 최고 점수 집계 제한 시간(`aggregation_hours`, `aggregation_minutes`)을 설정합니다. (Admin: ALL, Everyone: SELECT)
+- **`coupon_effects` (쿠폰 혜택)**: 발급 가능한 쿠폰을 정의합니다. 혜택 텍스트는 다국어 처리(JSON)를 지원합니다. `probability` (JSONB) 컬럼을 통해 `{"case_id": 0.5}` 형태로 각 가챠 구간(Case)별 당첨 확률(0~1)을 유연하게 매핑하여 저장합니다. (각 Case별 총합 100% 초과 여부는 프론트엔드 편집기에서 검증합니다.) (Admin: ALL, Everyone: SELECT)
 - **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. (Admin: ALL, User: UPDATE/SELECT, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). `question_type=0`은 질문 여러개 중 한개를 선택하는 문제, `question_type=1`은 질문 여러개 중 여러개를 선택하는 문제이며, 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
 - **`survey_responses` (설문 응답)**: 질문 결과를 저장하는 곳. `participant_id`로 유저 인식이 가능합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)
@@ -76,7 +78,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 
 4. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
-   - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname`, `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
+   - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
    - ✅ `supabase.from('ranking_view').select('*')`
 
 # Multilingual Support Manual
@@ -147,6 +149,32 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
   ```json
   {
     "error": "오류 메세지"
+  }
+  ```
+
+# Gatcha Draw API Guide
+게임 클라이언트에서 룰렛(가챠)을 실행할 때 호출하는 온디맨드 API 명세입니다.
+요청 시, `gatcha_settings` 테이블에 설정된 '최고 점수 집계 기준 시간' 이내의 해당 유저 플레이 기록(`game_score_logs`)만을 조회하여 가장 높은 점수를 찾고, 그에 해당하는 `gatcha_cases` 구간의 확률 풀을 기준으로 서버사이드 JIT 렌더링 방식의 가중치 랜덤(가챠)을 수행합니다. 룰렛 쿨타임 제한도 이 안에서 검증됩니다. 발급된 쿠폰은 자동으로 `issued_coupons`에 INSERT 됩니다.
+
+- **Endpoint**: `POST /api/gatcha/draw`
+- **Headers**: `Content-Type: application/json`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "participant_id": "유저의 UUID 문자열"
+  }
+  ```
+- **Response (Success - 200 OK)**:
+  ```json
+  {
+    "success": true,
+    "coupon_type": "{\"ko\":\"국밥 1그릇 무료 뚝딱 쿠폰\",\"en\":\"Free Gookbap\"}"
+  }
+  ```
+- **Response (Error - 400/500/Cooldown/NoScore)**:
+  ```json
+  {
+    "error": "아직 룰렛을 돌릴 수 없습니다. / 최근 플레이 기록이 없습니다."
   }
   ```
 
