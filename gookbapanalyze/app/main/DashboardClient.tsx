@@ -44,9 +44,10 @@ export function DashboardClient({ isAdmin }: DashboardClientProps) {
     setLoading(true);
     try {
       // 1. Fetch Aggregated Data
-      const params: any = {};
-      if (startDate) params.start_date = startDate.toISOString();
-      if (endDate) params.end_date = endDate.toISOString();
+      const params: any = {
+        start_date: startDate ? startDate.toISOString() : undefined,
+        end_date: endDate ? endDate.toISOString() : undefined
+      };
 
       const { data: aggData, error: aggError } = await supabase.rpc('get_track_kpi_dashboard', params);
       
@@ -104,11 +105,46 @@ export function DashboardClient({ isAdmin }: DashboardClientProps) {
         { step: '쿠폰 사용', count: totals.couponUses },
       ]);
 
-      // Mock Coupon data since get_track_kpi_dashboard doesn't break down by coupon type
-      setCouponData([
-        { name: '온라인 쿠폰 A', issued: Math.floor(totals.couponIssues * 0.4), used: Math.floor(totals.couponUses * 0.5) },
-        { name: '오프라인 쿠폰 B', issued: Math.floor(totals.couponIssues * 0.6), used: Math.floor(totals.couponUses * 0.7) },
-      ]);
+      // Fetch all coupon types to initialize the map with 0s
+      const { data: allCoupons, error: allCouponsErr } = await supabase.from('coupon_effects').select('coupon_type');
+      if (allCouponsErr) throw allCouponsErr;
+
+      const couponMap: Record<string, { issued: number, used: number }> = {};
+      allCoupons?.forEach((c: any) => {
+        let typeName = '알 수 없음';
+        try {
+          const parsed = JSON.parse(c.coupon_type);
+          typeName = parsed.ko || parsed.en || '알 수 없음';
+        } catch (e) {
+          typeName = c.coupon_type;
+        }
+        if (!couponMap[typeName]) couponMap[typeName] = { issued: 0, used: 0 };
+      });
+
+      filteredAgg.forEach((row: any) => {
+        if (Array.isArray(row.coupon_breakdown)) {
+          row.coupon_breakdown.forEach((cb: any) => {
+            let typeName = '알 수 없음';
+            try {
+              const parsed = JSON.parse(cb.type);
+              typeName = parsed.ko || parsed.en || '알 수 없음';
+            } catch (e) {
+              typeName = cb.type;
+            }
+            if (!couponMap[typeName]) couponMap[typeName] = { issued: 0, used: 0 };
+            couponMap[typeName].issued += Number(cb.issued || 0);
+            couponMap[typeName].used += Number(cb.used || 0);
+          });
+        }
+      });
+
+      const actualCouponData = Object.entries(couponMap).map(([name, stats]) => ({
+        name,
+        issued: stats.issued,
+        used: stats.used
+      }));
+
+      setCouponData(actualCouponData);
 
       // 2. Fetch Daily Data (7 days back from endDate or now)
       const refDate = endDate || new Date();
@@ -158,8 +194,11 @@ export function DashboardClient({ isAdmin }: DashboardClientProps) {
 
       setDailyData(newDailyData);
 
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Dashboard fetch error:", e);
+      if (typeof e === 'object') {
+        console.error("Error details:", JSON.stringify(e, null, 2));
+      }
     } finally {
       setLoading(false);
     }
