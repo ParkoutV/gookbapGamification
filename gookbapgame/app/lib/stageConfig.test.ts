@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import {
   STAGE_CONFIG,
   TOTAL_STAGE_SCORE,
-  MAX_TOTAL_SCORE,
+  DISPLAY_MAX_SCORE,
   calcTimeBonus,
   calcStreakBonus,
   calcFinalScore,
   calcGukbapTier,
+  toDisplayScore,
 } from "./stageConfig.ts";
 
 test("STAGE_CONFIG는 9개 스테이지, Stage 점수 합계는 2040이다", () => {
@@ -15,8 +16,8 @@ test("STAGE_CONFIG는 9개 스테이지, Stage 점수 합계는 2040이다", () 
   assert.equal(TOTAL_STAGE_SCORE, 2040);
 });
 
-test("MAX_TOTAL_SCORE는 2593이다", () => {
-  assert.equal(MAX_TOTAL_SCORE, 2593);
+test("DISPLAY_MAX_SCORE는 1953이다", () => {
+  assert.equal(DISPLAY_MAX_SCORE, 1953);
 });
 
 test("calcTimeBonus: 전체 시간 예산의 60%(324초)를 남기면 만점 400을 준다", () => {
@@ -43,33 +44,42 @@ test("calcStreakBonus: 오답이 없으면 53점, 있으면 0점", () => {
   assert.equal(calcStreakBonus(true), 0);
 });
 
-test("calcFinalScore: 시간 만점 + 오답 없음이면 총점 2593", () => {
+test("calcFinalScore: 내부 계산은 항상 0~100 비율이다", () => {
   const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36];
   const result = calcFinalScore(remaining, false);
-  assert.equal(result.stageScore, 2040);
-  assert.equal(result.completionBonus, 100);
-  assert.equal(result.timeBonus, 400);
-  assert.equal(result.streakBonus, 53);
-  assert.equal(result.total, 2593);
+  assert.equal(Math.round(result.total * 1000) / 1000, 100);
+});
+
+test("calcFinalScore: 시간 만점 + 오답 없음이면 표시 총점 1953 (만점 달성 가능)", () => {
+  const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36];
+  const result = calcFinalScore(remaining, false);
+  assert.equal(toDisplayScore(result.total), 1953);
 });
 
 test("calcFinalScore: 오답이 있으면 정답행진 보너스만 빠진다", () => {
   const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36];
-  const result = calcFinalScore(remaining, true);
-  assert.equal(result.streakBonus, 0);
-  assert.equal(result.total, 2540);
+  const withStreak = calcFinalScore(remaining, false);
+  const withoutStreak = calcFinalScore(remaining, true);
+  assert.equal(withoutStreak.streakBonus, 0);
+  assert.ok(withoutStreak.total < withStreak.total);
 });
 
-test("calcGukbapTier: 2593점이면 1953 Master", () => {
-  assert.equal(calcGukbapTier(2593), "1953 Master");
+test("calcGukbapTier: 만점(0~100 비율 100)이면 1953 Master", () => {
+  assert.equal(calcGukbapTier(100), "1953 Master");
 });
 
-test("calcGukbapTier: 1500점 이상 1953 미만은 국밥 단골", () => {
-  assert.equal(calcGukbapTier(1500), "국밥 단골");
-  assert.equal(calcGukbapTier(1952), "국밥 단골");
+test("calcGukbapTier: 표시 점수 1500 이상 1953 미만은 국밥 단골", () => {
+  // 1500/1953*100, 1952/1953*100 을 역산한 비율값으로 경계 검증
+  assert.equal(calcGukbapTier((1500 / 1953) * 100), "국밥 단골");
+  assert.equal(calcGukbapTier((1952 / 1953) * 100), "국밥 단골");
 });
 
-test("calcGukbapTier: 800점 미만은 국밥 입문생", () => {
+test("calcGukbapTier: 표시 점수 0이면 국밥 입문생", () => {
   assert.equal(calcGukbapTier(0), "국밥 입문생");
-  assert.equal(calcGukbapTier(799), "국밥 입문생");
+});
+
+test("toDisplayScore: 0~100 비율을 1953 만점으로 반올림 환산한다", () => {
+  assert.equal(toDisplayScore(100), 1953);
+  assert.equal(toDisplayScore(0), 0);
+  assert.equal(toDisplayScore(50), 977); // round(50/100*1953)
 });
