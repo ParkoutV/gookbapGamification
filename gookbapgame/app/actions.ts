@@ -100,7 +100,13 @@ export async function fetchGameData(
 
       if (partsErr || !parts || parts.length === 0) continue;
 
-      const currentValidSlots = slots.filter((slot) => {
+      const dedupedSlots = Array.from(
+        new Map(
+          slots.map((slot) => [`${slot.x_coordinate},${slot.y_coordinate},${slot.scale}`, slot])
+        ).values()
+      );
+
+      const currentValidSlots = dedupedSlots.filter((slot) => {
         const slotParts = parts.filter((p) => p.category_id === slot.category_id);
         return slotParts.length >= 2;
       });
