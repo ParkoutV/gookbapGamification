@@ -101,11 +101,12 @@ export default function GameScreen({
           width: `${100 * slot.slotScale * scale}px`,
           height: `${100 * slot.slotScale * scale}px`,
           clipPath: buildClipPath(side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon),
+          zIndex: foundSlots.has(slot.slotId) ? 2 : 1,
         }}
         onClick={() => handleSlotClick(slot.slotId, slot.isDifference)}
       >
         {foundSlots.has(slot.slotId) && (
-          <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in z-10">
+          <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
             ✅
           </div>
         )}

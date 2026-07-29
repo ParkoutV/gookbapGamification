@@ -1,5 +1,5 @@
 import { convexHull, type Point } from "./convexHull.ts";
-import { PNG } from "pngjs";
+import sharp from "sharp";
 
 export type { Point };
 
@@ -54,8 +54,11 @@ export async function getPartSilhouette(
     const res = await fetchImpl(imageUrl);
     if (res.ok) {
       const buffer = Buffer.from(await res.arrayBuffer());
-      const png = PNG.sync.read(buffer);
-      result = extractSilhouetteFromRaw(png.width, png.height, png.data);
+      const { data, info } = await sharp(buffer)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      result = extractSilhouetteFromRaw(info.width, info.height, data);
     }
   } catch {
     result = null;
