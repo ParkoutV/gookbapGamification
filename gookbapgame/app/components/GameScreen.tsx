@@ -79,12 +79,14 @@ export default function GameScreen({
     onWrongTouch();
   };
 
+  const FALLBACK_CLIP_PATH = "circle(25%)";
+
   const buildClipPath = (polygon: { x: number; y: number }[] | null): string => {
     if (!polygon || polygon.length < 3) {
-      return "circle(50%)";
+      return FALLBACK_CLIP_PATH;
     }
     if (polygon.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
-      return "circle(50%)";
+      return FALLBACK_CLIP_PATH;
     }
     const points = polygon.map((p) => `${p.x * 100}% ${p.y * 100}%`).join(", ");
     return `polygon(${points})`;
