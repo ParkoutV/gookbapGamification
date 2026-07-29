@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { STAGE_CONFIG } from "./stageConfig.ts";
 import { preloadAllStages } from "./preloadGame.ts";
 
-test("모든 레벨/이미지가 성공하면 세션 7개를 반환하고 이미지 14장을 전부 로드한다", async () => {
+test("모든 레벨/이미지가 성공하면 세션 전체를 반환하고 이미지를 전부 로드한다", async () => {
   const fakeSessions = STAGE_CONFIG.map((cfg) => ({
     level: cfg.level,
     leftSceneUrl: `/api/scene?level=${cfg.level}&side=left`,
