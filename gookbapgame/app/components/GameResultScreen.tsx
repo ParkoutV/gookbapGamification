@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ScoreBreakdown, GukbapTier, MAX_TOTAL_SCORE } from "../lib/stageConfig";
+import { ScoreBreakdown, GukbapTier, DISPLAY_MAX_SCORE, toDisplayScore } from "../lib/stageConfig";
 import { gukbapTierKey } from "../lib/i18n/gukbapTierKey";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import PixelPanel from "./PixelPanel";
@@ -19,11 +19,18 @@ export default function GameResultScreen({
 }: GameResultScreenProps) {
   const { t } = useLocale();
 
+  // 항목별로 독립 반올림하면 합이 총점과 어긋날 수 있어, 마지막 항목에서 잔차를 흡수한다.
+  const displayTotal = toDisplayScore(scoreBreakdown.total);
+  const displayStage = toDisplayScore(scoreBreakdown.stageScore);
+  const displayCompletion = toDisplayScore(scoreBreakdown.completionBonus);
+  const displayTime = toDisplayScore(scoreBreakdown.timeBonus);
+  const displayStreak = displayTotal - displayStage - displayCompletion - displayTime;
+
   const rows: { label: string; value: number }[] = [
-    { label: t("gameResult.stageScore"), value: scoreBreakdown.stageScore },
-    { label: t("gameResult.completionBonus"), value: scoreBreakdown.completionBonus },
-    { label: t("gameResult.timeBonus"), value: scoreBreakdown.timeBonus },
-    { label: t("gameResult.streakBonus"), value: scoreBreakdown.streakBonus },
+    { label: t("gameResult.stageScore"), value: displayStage },
+    { label: t("gameResult.completionBonus"), value: displayCompletion },
+    { label: t("gameResult.timeBonus"), value: displayTime },
+    { label: t("gameResult.streakBonus"), value: displayStreak },
   ];
 
   return (
@@ -42,7 +49,7 @@ export default function GameResultScreen({
           <div className="flex justify-between text-xl font-extrabold">
             <span className="text-ink">{t("gameResult.totalLabel")}</span>
             <span className="text-amber" style={{ fontFamily: "var(--font-pixel)" }}>
-              {scoreBreakdown.total} / {MAX_TOTAL_SCORE}
+              {displayTotal} / {DISPLAY_MAX_SCORE}
             </span>
           </div>
         </div>

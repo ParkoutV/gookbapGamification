@@ -21,7 +21,9 @@ export const TOTAL_STAGE_SCORE = STAGE_CONFIG.reduce((sum, s) => sum + s.stageSc
 export const COMPLETION_BONUS = 100;
 export const MAX_TIME_BONUS = 400;
 export const STREAK_BONUS = 53;
-export const MAX_TOTAL_SCORE = TOTAL_STAGE_SCORE + COMPLETION_BONUS + MAX_TIME_BONUS + STREAK_BONUS;
+// 내부 raw 만점(레벨 수에 따라 변동). 화면 표시는 항상 DISPLAY_MAX_SCORE(1953)로 환산한다.
+const RAW_MAX_SCORE = TOTAL_STAGE_SCORE + COMPLETION_BONUS + MAX_TIME_BONUS + STREAK_BONUS;
+export const DISPLAY_MAX_SCORE = 1953;
 
 const TOTAL_TIME_BUDGET_SEC = STAGE_CONFIG.reduce((sum, s) => sum + s.timeLimitSec, 0);
 // GDD 6.2: "일정 수준 이상의 남은 시간을 확보하면 최대 점수" — 세부 환산은 밸런스 테스트로
@@ -39,6 +41,7 @@ export function calcStreakBonus(hadWrongTouch: boolean): number {
   return hadWrongTouch ? 0 : STREAK_BONUS;
 }
 
+// 내부 계산은 항상 0~100 비율로 표현한다. 1953점 환산은 화면 표시 시점에만 적용한다.
 export type ScoreBreakdown = {
   stageScore: number;
   completionBonus: number;
@@ -53,13 +56,20 @@ export function calcFinalScore(
 ): ScoreBreakdown {
   const timeBonus = calcTimeBonus(remainingTimeByStage);
   const streakBonus = calcStreakBonus(hadWrongTouch);
+  const rawTotal = TOTAL_STAGE_SCORE + COMPLETION_BONUS + timeBonus + streakBonus;
+  const toRatio = (raw: number) => (raw / RAW_MAX_SCORE) * 100;
   return {
-    stageScore: TOTAL_STAGE_SCORE,
-    completionBonus: COMPLETION_BONUS,
-    timeBonus,
-    streakBonus,
-    total: TOTAL_STAGE_SCORE + COMPLETION_BONUS + timeBonus + streakBonus,
+    stageScore: toRatio(TOTAL_STAGE_SCORE),
+    completionBonus: toRatio(COMPLETION_BONUS),
+    timeBonus: toRatio(timeBonus),
+    streakBonus: toRatio(streakBonus),
+    total: toRatio(rawTotal),
   };
+}
+
+// 0~100 비율 점수를 화면 표시용 1953 만점 점수로 반올림 변환한다.
+export function toDisplayScore(ratioScore: number): number {
+  return Math.round((ratioScore / 100) * DISPLAY_MAX_SCORE);
 }
 
 export type GukbapTier =
@@ -77,7 +87,9 @@ const GUKBAP_TIER_CUTOFFS: { min: number; tier: GukbapTier }[] = [
   { min: 0, tier: "국밥 입문생" },
 ];
 
-export function calcGukbapTier(totalScore: number): GukbapTier {
-  const found = GUKBAP_TIER_CUTOFFS.find((c) => totalScore >= c.min);
+// totalRatio는 calcFinalScore가 반환하는 0~100 비율 total이다.
+export function calcGukbapTier(totalRatio: number): GukbapTier {
+  const displayScore = toDisplayScore(totalRatio);
+  const found = GUKBAP_TIER_CUTOFFS.find((c) => displayScore >= c.min);
   return found ? found.tier : "국밥 입문생";
 }
