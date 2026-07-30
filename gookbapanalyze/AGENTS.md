@@ -47,14 +47,14 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
   - 파라미터 생략 시 전체 기간을 조회하며 `await supabase.rpc('get_track_kpi_dashboard', { start_date: '2026-07-01T00:00:00Z', end_date: '2026-07-31T23:59:59Z' })` 처럼 기간 조회가 가능합니다. 
   - **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 있습니다. 최고 관리자(Admin)가 호출할 경우 전체 지점의 데이터가 반환되지만, 일반 가맹점 관리자(User)가 호출할 경우 외부 파라미터와 무관하게 무조건 본인의 `assigned_branch_id`와 일치하는 트랙만 자동 필터링되어 안전하게 반환됩니다.
   - 리턴 데이터는 `track_id`별 2개의 행(일반 트랙 / 공유 트랙)으로 나뉘어 반환되므로, 지점 단위의 합계 통계는 프론트엔드에서 두 데이터를 더하여 처리(Formatting)하는 것을 권장합니다.
-- **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. `nickname_first_id`, `nickname_last_id` 컬럼으로 무작위 할당된 닉네임 조합 정보를 외래키(FK) 형태로 유지합니다. (Admin: ALL, Anon: INSERT, UPDATE. *조회는 RPC 함수 필수*)
+- **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. `nickname_first_id`, `nickname_last_id` 컬럼으로 무작위 할당된 닉네임 조합 정보를 외래키(FK) 형태로 유지합니다. (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`nickname_presets` (닉네임 프리셋)**: 닉네임 조합에 사용될 앞글자(first_word)와 뒷글자(last_word) 데이터를 정의합니다. `type`으로 구분하며 다국어(`text` JSONB)를 지원합니다. (Admin: ALL, Everyone: SELECT)
 - **`nickname_exclusions` (닉네임 제외 조합)**: 특정 앞글자와 뒷글자의 결합을 금지하는 블랙리스트입니다. `assign_random_nickname` RPC 및 할당 로직에서 무작위 추출 시 해당 테이블에 정의된 쌍은 결과에서 배제됩니다. (Admin: ALL, Everyone: SELECT)
 - **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`gatcha_cases` (가챠 구간 설정)**: 0점부터 1953점까지의 점수 구간(`min_score`, `max_score`)을 정의합니다. DB 테이블 레벨에 `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 제약 조건이 설정되어 있어 유효하지 않은 점수 범위는 원천 차단됩니다. 구간 사이의 빈틈이나 겹침 여부는 프론트엔드 저장 로직에서 검증합니다. (Admin: ALL, Everyone: SELECT)
 - **`gatcha_settings` (가챠 글로벌 설정)**: 단일 row(id=1)를 유지하며 룰렛 쿨타임(`cooldown_hours`, `cooldown_minutes`) 및 최고 점수 집계 제한 시간(`aggregation_hours`, `aggregation_minutes`)을 설정합니다. (Admin: ALL, Everyone: SELECT)
 - **`coupon_effects` (쿠폰 혜택)**: 발급 가능한 쿠폰을 정의합니다. 혜택 텍스트는 다국어 처리(JSON)를 지원합니다. `probability` (JSONB) 컬럼을 통해 `{"case_id": 0.5}` 형태로 각 가챠 구간(Case)별 당첨 확률(0~1)을 유연하게 매핑하여 저장합니다. (각 Case별 총합 100% 초과 여부는 프론트엔드 편집기에서 검증합니다.) (Admin: ALL, Everyone: SELECT)
-- **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. (Admin: ALL, User: UPDATE/SELECT, Anon: INSERT. *조회는 RPC 함수 필수*)
+- **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)
 - **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). `question_type=0`은 질문 여러개 중 한개를 선택하는 문제, `question_type=1`은 질문 여러개 중 여러개를 선택하는 문제이며, 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
 - **`survey_responses` (설문 응답)**: 질문 결과를 저장하는 곳. `participant_id`로 유저 인식이 가능합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)
 
@@ -74,7 +74,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
    - ❌ `supabase.from('game_score_logs').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_score_logs', { p_id: id })`
 
-*(주의: 익명 유저의 점수를 갱신하는 `UPDATE`나, 최초 생성 시의 `INSERT` 로직은 기존처럼 테이블을 직접 호출해도 정상 작동합니다.)*
+*(주의: 익명 유저의 최초 생성 시 `INSERT` 로직은 기존처럼 테이블을 직접 호출해도 정상 작동합니다. 단, 보안을 위해 직접적인 `UPDATE`는 전면 차단되었습니다.)*
 
 4. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.

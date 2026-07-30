@@ -78,6 +78,10 @@ export default function CouponsPage() {
   const [editingCouponIndex, setEditingCouponIndex] = useState<number | null>(null)
   const [modalNameData, setModalNameData] = useState<Record<string, string>>({})
   const [modalDescData, setModalDescData] = useState<Record<string, string>>({})
+  
+  // Delete Modal State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [couponToDelete, setCouponToDelete] = useState<number | null>(null)
 
   const fetchAll = async () => {
     setLoading(true)
@@ -247,17 +251,24 @@ export default function CouponsPage() {
     }])
   }
 
-  const removeCouponRow = async (index: number) => {
+  const confirmRemoveCoupon = (index: number) => {
+    setCouponToDelete(index)
+    setDeleteModalOpen(true)
+  }
+
+  const executeRemoveCoupon = async () => {
+    if (couponToDelete === null) return
+    const index = couponToDelete
     const c = coupons[index]
-    if (confirm('이 쿠폰을 삭제하시겠습니까?')) {
-      if (!c.coupon_effect_id.startsWith('new-')) {
-        const supabase = createClient()
-        await supabase.from('coupon_effects').delete().eq('coupon_effect_id', c.coupon_effect_id)
-      }
-      const newCoupons = [...coupons]
-      newCoupons.splice(index, 1)
-      setCoupons(newCoupons)
+    if (!c.coupon_effect_id.startsWith('new-')) {
+      const supabase = createClient()
+      await supabase.from('coupon_effects').delete().eq('coupon_effect_id', c.coupon_effect_id)
     }
+    const newCoupons = [...coupons]
+    newCoupons.splice(index, 1)
+    setCoupons(newCoupons)
+    setDeleteModalOpen(false)
+    setCouponToDelete(null)
   }
 
   const saveAllData = async () => {
@@ -542,7 +553,7 @@ export default function CouponsPage() {
               {coupons.map((coupon, rowIdx) => (
                 <tr key={coupon.coupon_effect_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
                   <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0">
-                    <button onClick={() => removeCouponRow(rowIdx)} className="w-full h-12 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                    <button onClick={() => confirmRemoveCoupon(rowIdx)} className="w-full h-12 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -658,6 +669,30 @@ export default function CouponsPage() {
               </button>
               <button onClick={saveModal} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
                 적용하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteModalOpen(false)} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-sm ring-1 ring-gray-200 dark:ring-zinc-800 flex flex-col p-6">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <AlertCircle className="w-6 h-6" />
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">쿠폰 삭제 경고</h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+              이 쿠폰을 정말 삭제하시겠습니까?<br/><br/>
+              <strong className="text-red-500 font-bold">경고:</strong> 쿠폰을 삭제하면 기존 유저가 이미 발급받은 쿠폰 데이터도 삭제되거나 시스템 오류가 발생할 수 있습니다. 가급적 확률을 0%로 조정하는 것을 권장합니다.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                취소
+              </button>
+              <button onClick={executeRemoveCoupon} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors shadow-sm">
+                강제 삭제하기
               </button>
             </div>
           </div>
