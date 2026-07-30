@@ -12,27 +12,8 @@ const NOUNS = [
   "뚝심", "손맛", "불맛", "국밥러", "미식가", "탐험가", "애호가", "단골",
 ];
 
-const NICKNAME_STORAGE_KEY = "gookbapgame:nickname";
-
 export function generateNickname(): string {
   const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
   return `${adjective} ${noun}`;
-}
-
-export function loadOrCreateNickname(): string {
-  if (typeof window === "undefined") return generateNickname();
-  const stored = window.localStorage.getItem(NICKNAME_STORAGE_KEY);
-  if (stored) return stored;
-  const created = generateNickname();
-  window.localStorage.setItem(NICKNAME_STORAGE_KEY, created);
-  return created;
-}
-
-export function regenerateNickname(): string {
-  const created = generateNickname();
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(NICKNAME_STORAGE_KEY, created);
-  }
-  return created;
 }

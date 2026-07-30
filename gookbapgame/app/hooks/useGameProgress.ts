@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGameData, GameSession } from "../actions";
 import { preloadAllStages } from "../lib/preloadGame";
 import type { LoadError } from "../lib/preloadGame";
@@ -11,10 +11,7 @@ import {
   ScoreBreakdown,
   GukbapTier,
 } from "../lib/stageConfig";
-import {
-  loadOrCreateNickname,
-  regenerateNickname as regenerateStoredNickname,
-} from "../lib/nickname";
+import { ensureParticipant, reassignNickname as reassignNicknameAction } from "../actions";
 
 export type GamePhase =
   | "start"
@@ -26,9 +23,11 @@ export type GamePhase =
   | "wheel"
   | "dailyResult";
 
-export function useGameProgress() {
+export function useGameProgress(trackId: string | null) {
   const [phase, setPhase] = useState<GamePhase>("start");
   const [nickname, setNickname] = useState<string>("");
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const nicknameSyncedRef = useRef(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loadNonce, setLoadNonce] = useState(0);
@@ -41,8 +40,16 @@ export function useGameProgress() {
   const session = sessions[stageIndex] ?? null;
 
   useEffect(() => {
-    setNickname(loadOrCreateNickname());
-  }, []);
+    let cancelled = false;
+    void ensureParticipant(trackId).then((result) => {
+      if (cancelled) return;
+      setNickname(result.nickname);
+      nicknameSyncedRef.current = result.nicknameSynced;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
 
   const runPreload = useCallback(async () => {
     setLoadError(null);
@@ -63,6 +70,14 @@ export function useGameProgress() {
     setHadWrongTouch(false);
     setScoreBreakdown(null);
     setGukbapTier(null);
+
+    if (!nicknameSyncedRef.current) {
+      void reassignNicknameAction().then((result) => {
+        setNickname(result.nickname);
+        nicknameSyncedRef.current = result.nicknameSynced;
+      });
+    }
+
     void runPreload();
   }, [runPreload]);
 
@@ -71,7 +86,13 @@ export function useGameProgress() {
   }, [runPreload]);
 
   const regenerateNickname = useCallback(() => {
-    setNickname(regenerateStoredNickname());
+    setIsRegenerating(true);
+    void reassignNicknameAction()
+      .then((result) => {
+        setNickname(result.nickname);
+        nicknameSyncedRef.current = result.nicknameSynced;
+      })
+      .finally(() => setIsRegenerating(false));
   }, []);
 
   const recordWrongTouch = useCallback(() => {
@@ -126,6 +147,7 @@ export function useGameProgress() {
     phase,
     nickname,
     regenerateNickname,
+    isRegenerating,
     stageNumber: stageIndex + 1,
     loadNonce,
     totalStages: STAGE_CONFIG.length,

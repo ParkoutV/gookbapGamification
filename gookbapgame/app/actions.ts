@@ -4,6 +4,9 @@ import { supabase } from "./lib/db";
 import { clampDifferenceCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
+import { getOrIssueToken, hashToken } from "./lib/participantToken";
+import { requestNicknameAssign } from "./lib/nicknameApi";
+import { generateNickname } from "./lib/nickname";
 
 export type GameSlot = {
   slotId: number;
@@ -230,5 +233,93 @@ export async function fetchGameData(
   } catch (error) {
     console.error("Error in fetchGameData:", error);
     return null;
+  }
+}
+
+export type ParticipantResult = {
+  nickname: string;
+  nicknameSynced: boolean;
+};
+
+async function resolveParticipantId(): Promise<string> {
+  const token = await getOrIssueToken();
+  const hash = hashToken(token);
+  const hex32 = hash.slice(0, 32);
+  return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-${hex32.slice(12, 16)}-${hex32.slice(16, 20)}-${hex32.slice(20, 32)}`;
+}
+
+function localFallback(): ParticipantResult {
+  return { nickname: generateNickname(), nicknameSynced: false };
+}
+
+async function assignNicknameOrFallback(participantId: string): Promise<ParticipantResult> {
+  const apiUrl = process.env.NICKNAME_ASSIGN_API_URL;
+  if (!apiUrl) {
+    console.error("[assignNicknameOrFallback] NICKNAME_ASSIGN_API_URL 미설정, 로컬 폴백 사용");
+    return localFallback();
+  }
+
+  const result = await requestNicknameAssign(apiUrl, participantId);
+  if (!result.ok) {
+    console.error("[assignNicknameOrFallback] 닉네임 API 실패:", result.error);
+    return localFallback();
+  }
+  return { nickname: result.nickname, nicknameSynced: true };
+}
+
+async function ensureParticipantUnsafe(trackId: string | null): Promise<ParticipantResult> {
+  const participantId = await resolveParticipantId();
+
+  const { error: insertError } = await supabase
+    .from("participants")
+    .insert({ participant_id: participantId });
+
+  if (insertError && insertError.code !== "23505") {
+    console.error("[ensureParticipant] participants insert 실패:", insertError);
+    return localFallback();
+  }
+
+  // insertError가 없으면 = 방금 새로 생성된 참여자(진짜 신규 방문).
+  // 23505(중복키)면 = 이미 존재하는 참여자(재방문/새로고침) — 이 경우엔 신규가 아님.
+  const isNewParticipant = !insertError;
+
+  // track_logs는 신규 참여자일 때만 기록한다(최초 접속 로그라는 설계 의도,
+  // gookbapanalyze/AGENTS.md 참고). 그렇지 않으면 useGameProgress의 mount effect가
+  // 새로고침마다 ensureParticipant를 호출하기 때문에 동일 참여자에 대해 track_logs가
+  // 계속 쌓여서 (participant_id, track_id) 쌍당 1개 row를 가정하는 KPI 집계
+  // (game_start_count UPDATE)가 깨진다.
+  //
+  // 알려진 한계: 이미 참여자로 등록된 사람이 "다른" 공유 링크(다른 track_id)로
+  // 재접속하는 경우, isNewParticipant가 false라 그 새 트랙에 대한 접속 로그는
+  // 남지 않는다. 이건 제품 결정이 필요한 부분이라 이번 수정에서는 손대지 않았다 —
+  // 구자건/이란토와 논의 후 별도로 다룰 것.
+  if (isNewParticipant && trackId) {
+    const { error: trackLogError } = await supabase
+      .from("track_logs")
+      .insert([{ participant_id: participantId, track_id: trackId }]);
+    if (trackLogError) {
+      console.error("[ensureParticipant] track_logs insert 실패(무시, best-effort):", trackLogError);
+    }
+  }
+
+  return assignNicknameOrFallback(participantId);
+}
+
+export async function ensureParticipant(trackId: string | null): Promise<ParticipantResult> {
+  try {
+    return await ensureParticipantUnsafe(trackId);
+  } catch (error) {
+    console.error("[ensureParticipant] 예기치 못한 예외:", error);
+    return localFallback();
+  }
+}
+
+export async function reassignNickname(): Promise<ParticipantResult> {
+  try {
+    const participantId = await resolveParticipantId();
+    return await assignNicknameOrFallback(participantId);
+  } catch (error) {
+    console.error("[reassignNickname] 예기치 못한 예외:", error);
+    return localFallback();
   }
 }
