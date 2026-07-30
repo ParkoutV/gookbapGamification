@@ -27,7 +27,7 @@ export function useGameProgress(trackId: string | null) {
   const [phase, setPhase] = useState<GamePhase>("start");
   const [nickname, setNickname] = useState<string>("");
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const nicknameSyncedRef = useRef(true);
+  const nicknameSyncedRef = useRef(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loadNonce, setLoadNonce] = useState(0);

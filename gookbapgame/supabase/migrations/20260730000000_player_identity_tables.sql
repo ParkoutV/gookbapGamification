@@ -1,3 +1,6 @@
+-- LOCAL DEV ONLY — 프로덕션에 db push 하지 말 것. tracks/participants/track_logs는
+-- 실제 프로덕션 스키마를 이란토가 공유한 ER 다이어그램+산문설명으로 재구성한 것이며,
+-- 구자건에게 실제 RLS 정책 확인 후에만 참고할 것.
 create extension if not exists pgcrypto;
 
 create table if not exists public.tracks (
