@@ -50,7 +50,7 @@ db.properties
 test/fixtures/diff-output-*.png
 
 # 로컬 개발 전용 Supabase 스택 (supabase init으로 생성, 팀 공유 대상 아님)
-/supabase/
+/supabase/*
 # 단, 마이그레이션 파일은 버전 제어에 포함
 !/supabase/migrations/
 !/supabase/migrations/**
