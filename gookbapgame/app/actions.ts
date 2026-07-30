@@ -4,6 +4,9 @@ import { supabase } from "./lib/db";
 import { clampDifferenceCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
+import { getOrIssueToken, hashToken } from "./lib/participantToken";
+import { requestNicknameAssign } from "./lib/nicknameApi";
+import { generateNickname } from "./lib/nickname";
 
 export type GameSlot = {
   slotId: number;
@@ -231,4 +234,58 @@ export async function fetchGameData(
     console.error("Error in fetchGameData:", error);
     return null;
   }
+}
+
+export type ParticipantResult = {
+  nickname: string;
+  nicknameSynced: boolean;
+};
+
+async function resolveParticipantId(): Promise<string> {
+  const token = await getOrIssueToken();
+  return hashToken(token);
+}
+
+async function assignNicknameOrFallback(participantId: string): Promise<ParticipantResult> {
+  const apiUrl = process.env.NICKNAME_ASSIGN_API_URL;
+  if (!apiUrl) {
+    console.error("[assignNicknameOrFallback] NICKNAME_ASSIGN_API_URL 미설정, 로컬 폴백 사용");
+    return { nickname: generateNickname(), nicknameSynced: false };
+  }
+
+  const result = await requestNicknameAssign(apiUrl, participantId);
+  if (!result.ok) {
+    console.error("[assignNicknameOrFallback] 닉네임 API 실패:", result.error);
+    return { nickname: generateNickname(), nicknameSynced: false };
+  }
+  return { nickname: result.nickname, nicknameSynced: true };
+}
+
+export async function ensureParticipant(trackId: string | null): Promise<ParticipantResult> {
+  const participantId = await resolveParticipantId();
+
+  const { error: upsertError } = await supabase
+    .from("participants")
+    .upsert({ participant_id: participantId }, { onConflict: "participant_id", ignoreDuplicates: true });
+
+  if (upsertError) {
+    console.error("[ensureParticipant] participants upsert 실패:", upsertError);
+    return { nickname: generateNickname(), nicknameSynced: false };
+  }
+
+  if (trackId) {
+    const { error: trackLogError } = await supabase
+      .from("track_logs")
+      .insert([{ participant_id: participantId, track_id: trackId }]);
+    if (trackLogError) {
+      console.error("[ensureParticipant] track_logs insert 실패(무시, best-effort):", trackLogError);
+    }
+  }
+
+  return assignNicknameOrFallback(participantId);
+}
+
+export async function reassignNickname(): Promise<ParticipantResult> {
+  const participantId = await resolveParticipantId();
+  return assignNicknameOrFallback(participantId);
 }
