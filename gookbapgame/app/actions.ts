@@ -243,7 +243,9 @@ export type ParticipantResult = {
 
 async function resolveParticipantId(): Promise<string> {
   const token = await getOrIssueToken();
-  return hashToken(token);
+  const hash = hashToken(token);
+  const hex32 = hash.slice(0, 32);
+  return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-${hex32.slice(12, 16)}-${hex32.slice(16, 20)}-${hex32.slice(20, 32)}`;
 }
 
 async function assignNicknameOrFallback(participantId: string): Promise<ParticipantResult> {
