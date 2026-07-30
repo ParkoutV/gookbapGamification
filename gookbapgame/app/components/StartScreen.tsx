@@ -6,12 +6,14 @@ import { useLocale } from "../lib/i18n/LocaleContext";
 interface StartScreenProps {
   nickname: string;
   onRegenerateNickname: () => void;
+  isRegeneratingNickname: boolean;
   onStart: () => void;
 }
 
 export default function StartScreen({
   nickname,
   onRegenerateNickname,
+  isRegeneratingNickname,
   onStart,
 }: StartScreenProps) {
   const { t } = useLocale();
@@ -27,8 +29,9 @@ export default function StartScreen({
           <button
             type="button"
             onClick={onRegenerateNickname}
+            disabled={isRegeneratingNickname}
             aria-label={t("start.regenerateNicknameAria")}
-            className="text-xl"
+            className="text-xl disabled:opacity-40"
           >
             🔄
           </button>

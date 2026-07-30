@@ -1,5 +1,6 @@
 "use client";
 
+import { use } from "react";
 import StartScreen from "./components/StartScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
@@ -10,8 +11,16 @@ import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
 import { useGameProgress } from "./hooks/useGameProgress";
 
-export default function Home() {
-  const game = useGameProgress();
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+
+export default function Home({ searchParams }: PageProps) {
+  const resolvedSearchParams = use(searchParams);
+  const rawTrackId = resolvedSearchParams.q;
+  const trackId = typeof rawTrackId === "string" ? rawTrackId : null;
+
+  const game = useGameProgress(trackId);
 
   return (
     <div className="min-h-screen bg-black">
@@ -20,6 +29,7 @@ export default function Home() {
         <StartScreen
           nickname={game.nickname}
           onRegenerateNickname={game.regenerateNickname}
+          isRegeneratingNickname={game.isRegenerating}
           onStart={game.startGame}
         />
       )}
