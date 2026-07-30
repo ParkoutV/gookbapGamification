@@ -76,6 +76,32 @@ export default function SurveyFilterModal({ isOpen, onClose, questions, initialF
     })
   }
 
+  const handleDatePreset = (preset: 'today' | '24h' | '1w' | '2w') => {
+    const now = new Date()
+    const start = new Date(now)
+    
+    if (preset === 'today') {
+      start.setHours(0, 0, 0, 0)
+    } else if (preset === '24h') {
+      start.setHours(start.getHours() - 24)
+    } else if (preset === '1w') {
+      start.setDate(start.getDate() - 7)
+    } else if (preset === '2w') {
+      start.setDate(start.getDate() - 14)
+    }
+
+    const formatLocal = (d: Date) => {
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+
+    setFilters(p => ({
+      ...p,
+      startDate: formatLocal(start),
+      endDate: null
+    }))
+  }
+
   const clearFilters = () => {
     setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND' })
   }
@@ -100,9 +126,18 @@ export default function SurveyFilterModal({ isOpen, onClose, questions, initialF
           
           {/* Date Filter */}
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-              <Calendar className="w-4 h-4" /> 응답 기간 설정
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> 응답 기간 설정
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => handleDatePreset('today')} className="px-2.5 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-zinc-700 dark:text-zinc-300">오늘</button>
+                <button onClick={() => handleDatePreset('24h')} className="px-2.5 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-zinc-700 dark:text-zinc-300">최근 24시간</button>
+                <button onClick={() => handleDatePreset('1w')} className="px-2.5 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-zinc-700 dark:text-zinc-300">최근 1주일</button>
+                <button onClick={() => handleDatePreset('2w')} className="px-2.5 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-zinc-700 dark:text-zinc-300">최근 2주일</button>
+                <button onClick={() => setFilters(p => ({...p, startDate: null, endDate: null}))} className="px-2.5 py-1 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-zinc-700 dark:text-zinc-300">전체 기간</button>
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
