@@ -266,12 +266,12 @@ async function assignNicknameOrFallback(participantId: string): Promise<Particip
 export async function ensureParticipant(trackId: string | null): Promise<ParticipantResult> {
   const participantId = await resolveParticipantId();
 
-  const { error: upsertError } = await supabase
+  const { error: insertError } = await supabase
     .from("participants")
-    .upsert({ participant_id: participantId }, { onConflict: "participant_id", ignoreDuplicates: true });
+    .insert({ participant_id: participantId });
 
-  if (upsertError) {
-    console.error("[ensureParticipant] participants upsert 실패:", upsertError);
+  if (insertError && insertError.code !== "23505") {
+    console.error("[ensureParticipant] participants insert 실패:", insertError);
     return { nickname: generateNickname(), nicknameSynced: false };
   }
 
