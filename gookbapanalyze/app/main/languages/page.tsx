@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Globe, MoreVertical, Edit2, CheckCircle2, XCircle, X } from 'lucide-react'
+import { Globe, MoreVertical, Edit2, CheckCircle2, XCircle, X, Plus } from 'lucide-react'
 import { SupportedLanguage } from '../tracks/actions'
 import { createClient } from '@/utils/supabase/client'
 
@@ -12,11 +12,12 @@ export default function LanguagesPage() {
 
   // Modals state
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [editingLang, setEditingLang] = useState<SupportedLanguage | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Form state for editing
-  const [formData, setFormData] = useState<{ lang_name: string, order_index: number }>({ lang_name: '', order_index: 0 })
+  // Form state for creating and editing
+  const [formData, setFormData] = useState<{ lang_code?: string, lang_name: string, order_index: number }>({ lang_name: '', order_index: 0 })
 
   const fetchLanguages = async () => {
     setLoading(true)
@@ -93,6 +94,30 @@ export default function LanguagesPage() {
     setSubmitting(false)
   }
 
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.lang_code) return
+
+    setSubmitting(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('supported_languages')
+      .insert({
+        lang_code: formData.lang_code.toLowerCase(),
+        lang_name: formData.lang_name,
+        is_active: true,
+        order_index: Number(formData.order_index)
+      })
+    
+    if (error) {
+      alert(error.message)
+    } else {
+      setIsCreateModalOpen(false)
+      fetchLanguages()
+    }
+    setSubmitting(false)
+  }
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       <div className="flex items-center justify-between mb-8">
@@ -105,6 +130,16 @@ export default function LanguagesPage() {
             게임 및 플랫폼에서 지원하는 언어를 관리합니다.
           </p>
         </div>
+        <button 
+          onClick={() => {
+            setFormData({ lang_code: '', lang_name: '', order_index: languages.length + 1 })
+            setIsCreateModalOpen(true)
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          언어 추가
+        </button>
       </div>
 
       {error && (
@@ -224,25 +259,39 @@ export default function LanguagesPage() {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {editingLang && (
+      {/* Edit/Create Modal */}
+      {(editingLang || isCreateModalOpen) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingLang(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setEditingLang(null); setIsCreateModalOpen(false) }} />
           <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-sm ring-1 ring-gray-200 dark:ring-zinc-800">
             <div className="p-6 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                언어 설정 수정
+                {isCreateModalOpen ? '언어 추가' : '언어 설정 수정'}
               </h3>
               <button 
-                onClick={() => setEditingLang(null)}
+                onClick={() => { setEditingLang(null); setIsCreateModalOpen(false) }}
                 className="text-gray-400 hover:text-gray-500 dark:hover:text-zinc-300"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleEditSubmit} className="p-6">
+            <form onSubmit={isCreateModalOpen ? handleCreateSubmit : handleEditSubmit} className="p-6">
               <div className="space-y-4 mb-8">
+                {isCreateModalOpen && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+                      언어 코드 (예: ko, en, ja, zh)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.lang_code || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, lang_code: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
                     언어명
@@ -272,7 +321,7 @@ export default function LanguagesPage() {
               <div className="flex gap-3 justify-end">
                 <button
                   type="button"
-                  onClick={() => setEditingLang(null)}
+                  onClick={() => { setEditingLang(null); setIsCreateModalOpen(false) }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
                 >
                   취소
@@ -282,7 +331,7 @@ export default function LanguagesPage() {
                   disabled={submitting}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
                 >
-                  {submitting ? '저장 중...' : '저장하기'}
+                  {submitting ? '저장 중...' : (isCreateModalOpen ? '추가하기' : '저장하기')}
                 </button>
               </div>
             </form>
