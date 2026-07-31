@@ -2468,6 +2468,133 @@ EOF
 
 ---
 
+## Task 17: 헤더/푸터 레이아웃 조정 (실사용 QA 발견)
+
+수동 확인 중 이란토가 발견: 좌상단 고정 로케일 메뉴(`LanguageToggle`, `page.tsx`에서 전역 오버레이로 렌더)가 헤더 왼쪽의 "N / 7 단계" 표시를 가린다. 단계 표시를 상단 중앙으로, 오답 카운터(3개 아이콘)를 하단(푸터) 중앙으로 옮겨서 겹침을 피한다. 순수 레이아웃 변경이며 점수 로직은 건드리지 않는다.
+
+**Files:**
+- Modify: `app/components/GameScreen.tsx`
+
+**Interfaces:** 변경 없음(내부 렌더링만 수정).
+
+- [ ] **Step 1: 헤더 — 단계 표시를 절대 위치로 중앙 정렬, 오답 카운터 블록 제거**
+
+기존 `<header>` 전체를:
+```tsx
+      <header className="flex justify-between items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
+        <span className="text-lg md:text-xl font-bold">
+          {t("game.stageProgress", { current: stageNumber, total: totalStages })}
+        </span>
+        <div
+          className="flex items-center gap-1"
+          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
+        >
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <img
+              key={i}
+              src="/icons/check-failed.svg"
+              alt=""
+              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
+          <span
+            className={`text-2xl md:text-3xl font-extrabold ${remainingTimeSec <= 30 ? "text-error animate-pulse" : "text-amber"}`}
+          >
+            {t("game.secondsUnit", { seconds: remainingTimeSec })}
+          </span>
+        </div>
+      </header>
+```
+
+아래로 교체(오답 카운터 블록은 통째로 Step 2에서 푸터로 옮긴다 — 여기서는 삭제만 한다):
+```tsx
+      <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
+        <span className="absolute left-1/2 -translate-x-1/2 text-lg md:text-xl font-bold">
+          {t("game.stageProgress", { current: stageNumber, total: totalStages })}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
+          <span
+            className={`text-2xl md:text-3xl font-extrabold ${remainingTimeSec <= 30 ? "text-error animate-pulse" : "text-amber"}`}
+          >
+            {t("game.secondsUnit", { seconds: remainingTimeSec })}
+          </span>
+        </div>
+      </header>
+```
+
+`relative`(자식의 `absolute` 기준점) + `justify-end`(남은 유일한 flex 자식인 타이머를 오른쪽 끝으로)로 바뀐 것에 유의. 단계 표시는 `absolute left-1/2 -translate-x-1/2`로 형제 요소 너비와 무관하게 항상 화면 정중앙에 온다 — `LanguageToggle`이 차지하는 좌상단 코너와 절대 겹치지 않는다.
+
+- [ ] **Step 2: 푸터 — 오답 카운터를 가운데에 추가**
+
+기존 `<footer>` 전체를:
+```tsx
+      <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
+        <PixelPanel size="btn">
+          <button type="button" className="w-full font-bold text-ink">
+            {t("game.hintButton")}
+          </button>
+        </PixelPanel>
+        <span className="text-lg font-bold">
+          {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
+        </span>
+      </footer>
+```
+
+아래로 교체(Step 1에서 헤더에서 삭제한 오답 카운터 블록을 그대로 가운데 자식으로 삽입):
+```tsx
+      <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
+        <PixelPanel size="btn">
+          <button type="button" className="w-full font-bold text-ink">
+            {t("game.hintButton")}
+          </button>
+        </PixelPanel>
+        <div
+          className="flex items-center gap-1"
+          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
+        >
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <img
+              key={i}
+              src="/icons/check-failed.svg"
+              alt=""
+              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+            />
+          ))}
+        </div>
+        <span className="text-lg font-bold">
+          {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
+        </span>
+      </footer>
+```
+
+- [ ] **Step 3: 타입 체크**
+
+Run: `flatpak-spawn --host npx tsc --noEmit`
+Expected: 에러 0건.
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add app/components/GameScreen.tsx
+git commit -m "$(cat <<'EOF'
+GameScreen: 단계 표시 상단 중앙 이동, 오답 카운터 하단 이동
+
+좌상단 고정 로케일 메뉴(LanguageToggle)가 헤더의 단계 표시와
+겹치는 문제를 수동 QA에서 발견 — 단계 표시를 절대 위치로
+화면 정중앙에 고정하고, 오답 카운터(3개 아이콘)는 푸터
+가운데로 옮겨 겹침을 피한다. 순수 레이아웃 변경, 로직 변경 없음.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
 ## Self-Review 요약
 
 - **스펙 커버리지**: 게임 규칙 변경(레벨 7, 전역 300초, 오답 3회) → Task 1/7/8/9. 점수 구성 3항목(스테이지/시간/콤보) → Task 2~4, 6. 감점 2종 → Task 5~6. 검증된 엣지 케이스(오답만 찍는 악용 방지) → Task 6의 통합 테스트. UI 반영 → Task 8, 10. i18n → Task 11. 수동 검증 → Task 12. 스펙의 "범위 밖" 항목(`game_score_logs` 제출, 가챠 구간 재조정, 등급 컷오프 최종 확정)은 이 계획에 포함하지 않음(의도된 배제).
