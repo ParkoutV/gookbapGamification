@@ -163,23 +163,10 @@ export default function GameScreen({
 
   return (
     <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
-      <header className="flex justify-between items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
-        <span className="text-lg md:text-xl font-bold">
+      <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
+        <span className="absolute left-1/2 -translate-x-1/2 text-lg md:text-xl font-bold">
           {t("game.stageProgress", { current: stageNumber, total: totalStages })}
         </span>
-        <div
-          className="flex items-center gap-1"
-          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
-        >
-          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
-            <img
-              key={i}
-              src="/icons/check-failed.svg"
-              alt=""
-              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
-            />
-          ))}
-        </div>
         <div className="flex items-center gap-2">
           <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
           <span
@@ -228,6 +215,19 @@ export default function GameScreen({
             {t("game.hintButton")}
           </button>
         </PixelPanel>
+        <div
+          className="flex items-center gap-1"
+          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
+        >
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <img
+              key={i}
+              src="/icons/check-failed.svg"
+              alt=""
+              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+            />
+          ))}
+        </div>
         <span className="text-lg font-bold">
           {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
         </span>
