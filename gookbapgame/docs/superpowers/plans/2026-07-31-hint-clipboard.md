@@ -392,9 +392,16 @@ export default function HintClipboard({ names, onClose }: HintClipboardProps) {
     >
       <div
         className="relative"
-        // 세로로 긴 애셋(1626x2624)이라 높이 기준으로 크기를 잡는다.
-        // 폭 기준으로 잡으면 세로가 화면을 넘친다.
-        style={{ height: "88vh", width: "calc(88vh * 1626 / 2624)", maxWidth: "92vw" }}
+        // 세로로 긴 애셋(1626x2624)이라 기본은 높이 기준이되, 좁은 화면에서는 폭 기준으로 줄인다.
+        // 중요: maxWidth로 자르면 안 된다. 폭이 잘린 래퍼는 애셋보다 가로가 넓어지고,
+        // object-contain이 이미지를 위아래 레터박스로 축소시킨다. 그런데 아래 PAPER_INSET은
+        // 이미지가 아니라 "래퍼" 기준 백분율이라, 글자 블록이 종이에서 떨어져 나간다.
+        // aspectRatio로 래퍼를 항상 애셋 비율과 정확히 같게 유지해야 백분율이 성립한다.
+        style={{
+          aspectRatio: "1626 / 2624",
+          height: "min(88vh, calc(92vw * 2624 / 1626))",
+          width: "auto",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <img
@@ -409,10 +416,11 @@ export default function HintClipboard({ names, onClose }: HintClipboardProps) {
             ...PAPER_INSET,
             color: PAPER_INK,
             fontFamily: "monospace",
-            // 10줄이 종이 안에 들어가도록 높이 기준으로 잡되,
-            // 좁은 화면에서는 폭 기준이 더 작아지므로 둘 중 작은 값을 쓴다.
-            fontSize: "min(2.6vh, 3.4vw)",
-            lineHeight: 1.9,
+            // 예산: 종이 세로 = (100-26-14)% × 88vh = 52.8vh.
+            // 줄 높이 1.8 × 2.2vh = 3.96vh, 10줄 = 39.6vh, 헤더+여백 ≈ 4.5vh → 약 44vh.
+            // 52.8vh 안에 여유 있게 들어간다. 이 값들을 키우려면 다시 계산할 것.
+            fontSize: "min(2.2vh, 3.0vw)",
+            lineHeight: 1.8,
           }}
         >
           <div className="font-bold tracking-widest border-b border-dashed border-current pb-1 mb-2">
@@ -488,7 +496,9 @@ import { resolveLocalizedName } from "../lib/i18n/localizedName";
 
 - [ ] **Step 7: 스테이지가 넘어갈 때 힌트를 닫는다**
 
-강제 진행 후 오버레이가 남아 다음 스테이지를 가리지 않도록, `registerWrongTouch` 안의 3회 도달 분기에서 `setIsShaking(true);` 바로 앞에 추가:
+`page.tsx:44`가 `key={`${game.stageNumber}-${game.loadNonce}`}`로 스테이지마다 `GameScreen`을 리마운트하므로 다음 스테이지로 state가 새지는 않는다. 하지만 `page.tsx:41-42`를 보면 `stageClear` 단계 동안 `GameScreen`이 블러 처리된 채 그대로 남아 있고, 그 구간에 `z-50` 오버레이가 열려 있으면 클리어 모달과 겹쳐 지저분해진다. 그래서 아래 리셋은 필요하다.
+
+`registerWrongTouch` 안의 3회 도달 분기에서 `setIsShaking(true);` 바로 앞에 추가:
 
 ```tsx
       setIsHintOpen(false);
@@ -527,9 +537,32 @@ Run: `cd gookbapgame && npm run dev` 후 게임 화면까지 진행한다. 확�
 5. 브라우저 창을 좁게/짧게 줄여도 클립보드가 화면을 넘지 않는다.
 6. 언어 토글로 en/ja를 눌러도 줄 수가 유지된다 (ja는 번역이 없으면 ko 값이 그대로 보이는 게 정상).
 
-3번이 어긋나면 `HintClipboard.tsx`의 `PAPER_INSET`과 `fontSize`를 눈으로 맞춘다. 이 값들은 추정치다.
+3번이 어긋나면 `HintClipboard.tsx`의 `PAPER_INSET`을 눈으로 맞춘다. 이 값은 추정치다.
+단 `fontSize`를 키울 때는 Step 2의 예산 주석을 다시 계산할 것 — 10줄이 들어가야 한다.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 11: 10줄 한계를 실제로 확인한다**
+
+Step 10은 실제 스테이지(`diffCount: 5`)로만 돌아서 10줄 요구사항을 전혀 건드리지 못한다. 직접 시험해야 한다.
+
+`HintClipboard.tsx`의 텍스트 블록에서 `overflow-hidden`을 **잠시 제거**하고(넘침이 조용히 잘리는 대신 눈에 보이게), `GameScreen.tsx`의 `hintNames` 계산을 임시로 아래로 바꾼다:
+
+```tsx
+  const hintNames = [
+    "메인 국밥그릇", "깍두기 접시", "밥공기", "숟가락 받침", "다진양념 종지",
+    "Extra Long Category Name That Should Wrap Onto Two Lines", "새우젓 종지",
+    "고춧가루 통", "물컵", "휴지통",
+  ];
+```
+
+확인:
+1. 10줄이 전부 보이고 종이 밖으로 넘치지 않는다 (긴 영문 줄은 두 줄로 접히고, 그 상태로도 종이 안이다).
+2. 브라우저 창을 세로로 길고 좁게(모바일 비율, 예: 400×900) 만들어도 여전히 종이 안이다. **이 비율에서 예전 `maxWidth` 방식이 깨졌던 지점이므로 반드시 확인한다.**
+
+넘치면 `fontSize`를 낮추고 Step 2 주석의 계산을 갱신한다.
+
+확인이 끝나면 **`hintNames`를 원래대로 되돌리고 `overflow-hidden`도 복구한다.** 되돌리지 않은 채 커밋하지 말 것.
+
+- [ ] **Step 12: Commit**
 
 ```bash
 git add gookbapgame/app/components/HintClipboard.tsx gookbapgame/app/components/GameScreen.tsx gookbapgame/app/lib/i18n/locales/ko.ts gookbapgame/app/lib/i18n/locales/en.ts
@@ -542,4 +575,5 @@ git commit -m "feat: 힌트 클립보드 오버레이 — 차이 슬롯 카테�
 
 - `npm test` 전부 통과
 - `npx tsc --noEmit`, `npm run lint` 에러 없음
-- Task 3 Step 10의 수동 확인 6항목 전부 통과 (특히 4번)
+- Task 3 Step 10의 수동 확인 6항목 전부 통과 (특히 4번 — 힌트 여닫기가 오답으로 집계되지 않을 것)
+- Task 3 Step 11의 10줄 한계 확인 통과, 그리고 임시 코드가 원복되었을 것
