@@ -20,3 +20,32 @@ export const GLOBAL_TIME_LIMIT_SEC = 300;
 export const WRONG_TOUCH_LIMIT_PER_LEVEL = 3;
 export const WRONG_TOUCH_PENALTY = 10;
 export const INCOMPLETE_LEVEL_PENALTY = 10;
+
+export const TIME_BONUS_MAX = 600;
+export const TIME_BONUS_FAST_THRESHOLD_SEC = 100;
+export const TIME_BONUS_STEP_SEC = 10;
+export const TIME_BONUS_STEP_VALUE = 30;
+
+const ACCURACY_TIME_BONUS_TIERS: { minPercent: number; points: number }[] = [
+  { minPercent: 91, points: 600 },
+  { minPercent: 81, points: 400 },
+  { minPercent: 61, points: 200 },
+  { minPercent: 41, points: 100 },
+  { minPercent: 21, points: 50 },
+  { minPercent: 0, points: 0 },
+];
+
+export function calcAccuracyTierPoints(accuracyPercent: number): number {
+  const found = ACCURACY_TIME_BONUS_TIERS.find((t) => accuracyPercent >= t.minPercent);
+  return found ? found.points : 0;
+}
+
+export function calcTimeBonus(elapsedSec: number, accuracyPercent: number): number {
+  const tierPoints = calcAccuracyTierPoints(accuracyPercent);
+  if (elapsedSec <= TIME_BONUS_FAST_THRESHOLD_SEC) {
+    return tierPoints;
+  }
+  const overSec = elapsedSec - TIME_BONUS_FAST_THRESHOLD_SEC;
+  const steps = Math.ceil(overSec / TIME_BONUS_STEP_SEC);
+  return Math.max(0, tierPoints - TIME_BONUS_STEP_VALUE * steps);
+}
