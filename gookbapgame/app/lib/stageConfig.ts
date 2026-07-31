@@ -57,3 +57,16 @@ export function calcComboBonusForStreak(streakLength: number, totalAnswers: numb
   const ratio = streakLength / totalAnswers;
   return COMBO_BONUS_MAX * ratio * ratio;
 }
+
+export type LevelResult = {
+  pointPool: number;
+  foundCount: number;
+  actualDiffCount: number;
+};
+
+export function calcStageScore(levelResults: LevelResult[]): number {
+  return levelResults.reduce((sum, r) => {
+    if (r.actualDiffCount <= 0) return sum;
+    return sum + (r.pointPool / r.actualDiffCount) * r.foundCount;
+  }, 0);
+}

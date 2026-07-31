@@ -115,3 +115,34 @@ test("calcComboBonusForStreak: 균등 간격 오답 k회 시 총합은 553/(k+1)
     calcComboBonusForStreak(segment, N);
   closeTo(total, COMBO_BONUS_MAX / (k + 1), 0.5);
 });
+
+import { calcStageScore } from "./stageConfig.ts";
+
+test("calcStageScore: 한 레벨을 전부 찾으면 배점 그대로", () => {
+  assert.equal(calcStageScore([{ pointPool: 50, foundCount: 5, actualDiffCount: 5 }]), 50);
+});
+
+test("calcStageScore: 일부만 찾으면 비율만큼만 받는다", () => {
+  assert.equal(calcStageScore([{ pointPool: 50, foundCount: 3, actualDiffCount: 5 }]), 30);
+});
+
+test("calcStageScore: 실제 diffCount가 목표보다 적어도 정확히 나뉜다", () => {
+  closeToStage(calcStageScore([{ pointPool: 100, foundCount: 2, actualDiffCount: 3 }]), 200 / 3);
+});
+
+test("calcStageScore: 여러 레벨을 합산한다", () => {
+  const result = calcStageScore([
+    { pointPool: 50, foundCount: 5, actualDiffCount: 5 },
+    { pointPool: 100, foundCount: 0, actualDiffCount: 5 },
+    { pointPool: 200, foundCount: 7, actualDiffCount: 7 },
+  ]);
+  assert.equal(result, 50 + 0 + 200);
+});
+
+test("calcStageScore: actualDiffCount가 0이면 0으로 나누지 않고 건너뛴다", () => {
+  assert.equal(calcStageScore([{ pointPool: 50, foundCount: 0, actualDiffCount: 0 }]), 0);
+});
+
+function closeToStage(actual: number, expected: number, tolerance = 0.01) {
+  assert.ok(Math.abs(actual - expected) < tolerance, `expected ${actual} to be close to ${expected}`);
+}
