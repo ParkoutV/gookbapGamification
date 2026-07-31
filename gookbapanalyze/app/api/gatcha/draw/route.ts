@@ -45,6 +45,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 3.5 Check Survey Phase 1 Completion
+    const { data: p1Questions } = await supabase
+      .from('survey_questions')
+      .select('question_id')
+      .eq('survey_phase', 1)
+
+    if (p1Questions && p1Questions.length > 0) {
+      const p1Ids = p1Questions.map(q => q.question_id)
+      const { data: p1Responses, error: p1Error } = await supabase
+        .from('survey_responses')
+        .select('id')
+        .eq('participant_id', participant_id)
+        .in('question_id', p1Ids)
+        .limit(1)
+
+      if (p1Error || !p1Responses || p1Responses.length === 0) {
+        return NextResponse.json({ error: '설문조사를 먼저 완료해주세요.' }, { status: 403 })
+      }
+    }
+
     // 4. Fetch Best Score within Aggregation Time
     const aggregationMs = (settings.aggregation_hours * 60 * 60 * 1000) + (settings.aggregation_minutes * 60 * 1000)
     const timeLimit = new Date(Date.now() - aggregationMs).toISOString()

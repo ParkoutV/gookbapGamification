@@ -26,9 +26,9 @@ export default async function SurveysPage() {
   // Fetch active languages
   const { data: languagesData } = await supabase
     .from('supported_languages')
-    .select('lang_code, lang_name, is_active')
+    .select('lang_code, lang_name, is_active, order_index')
     .eq('is_active', true)
-    .order('order_index')
+    .order('order_index', { ascending: true })
 
   const activeLanguages = languagesData || []
 
