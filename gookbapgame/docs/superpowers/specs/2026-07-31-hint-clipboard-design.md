@@ -132,11 +132,14 @@ categoryName?.[locale] ?? categoryName?.ko ?? "—"
   뷰포트 단위 기반으로 `min(<vh>, <vw>)` 형태로 잡아 높이·폭 양쪽에서 안전하게 만든다.
   기준: **10줄 + 줄간격이 종이 영역 세로에 들어갈 것.**
 - 좌측 정렬, 넉넉한 `line-height`, 잉크색은 완전한 검정보다 살짝 흐리게 하여 감열지 인쇄 느낌을 낸다.
+  주의: 테마의 `--ink`는 어두운 배경용 밝은 색(`#F3E9DC`)이므로 `text-ink`를 쓰면 흰 종이에서 안 보인다.
+  종이 위 글자는 별도의 어두운 색을 명시한다.
 
 ## 6. i18n
 
 로케일 파일은 `app/lib/i18n/locales/` 아래 `ko.ts`, `en.ts`, `ja.ts` 세 개다.
-새로 추가하는 키는 **세 파일 모두**에 넣는다.
+단 `ja.ts`는 현재 의도적으로 비어 있고(`export const ja: Partial<Dictionary> = {}`),
+`translate.ts`가 `ja → en → ko` 순으로 폴백한다. 이 관례를 따라 새 키는 **`ko.ts`와 `en.ts`에만** 추가한다.
 
 필요한 키:
 
