@@ -141,8 +141,8 @@ export default function GameScreen({
         onClick={handleSlotClick(slot.slotId)}
       >
         {foundSlots.has(slot.slotId) && (
-          <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
-            ✅
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
+            <img src="/icons/check-success.svg" alt="" className="w-8 h-8" />
           </div>
         )}
       </div>
@@ -152,13 +152,13 @@ export default function GameScreen({
     wrongMarks
       .filter((mark) => mark.side === side)
       .map((mark) => (
-        <div
+        <img
           key={mark.id}
-          className="absolute pointer-events-none flex items-center justify-center text-3xl text-error"
+          src="/icons/check-failed.svg"
+          alt=""
+          className="absolute pointer-events-none"
           style={{ left: mark.x - 16, top: mark.y - 16, width: 32, height: 32, zIndex: 3 }}
-        >
-          ✕
-        </div>
+        />
       ));
 
   return (
@@ -172,9 +172,12 @@ export default function GameScreen({
           aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
         >
           {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
-            <span key={i} className={`text-xl ${i < wrongTouchCount ? "text-error" : "text-muted/30"}`}>
-              ✕
-            </span>
+            <img
+              key={i}
+              src="/icons/check-failed.svg"
+              alt=""
+              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+            />
           ))}
         </div>
         <div className="flex items-center gap-2">
