@@ -78,3 +78,40 @@ test("calcTimeBonus: 정답률 0%면 어떤 시간에도 0이다(악용 방지 �
   assert.equal(calcTimeBonus(105, 0), 0);
   assert.equal(calcTimeBonus(250, 0), 0);
 });
+
+import { COMBO_BONUS_MAX, calcComboBonusForStreak } from "./stageConfig.ts";
+
+function closeTo(actual: number, expected: number, tolerance = 0.01) {
+  assert.ok(
+    Math.abs(actual - expected) < tolerance,
+    `expected ${actual} to be close to ${expected}`
+  );
+}
+
+test("calcComboBonusForStreak: 스트릭 0이면 0점", () => {
+  assert.equal(calcComboBonusForStreak(0, 50), 0);
+});
+
+test("calcComboBonusForStreak: 전체 정답을 스트릭 끊김 없이 다 찾으면 만점", () => {
+  closeTo(calcComboBonusForStreak(50, 50), COMBO_BONUS_MAX);
+});
+
+test("calcComboBonusForStreak: 스트릭 길이의 제곱에 비례한다", () => {
+  closeTo(calcComboBonusForStreak(10, 50), 553 * (10 / 50) ** 2);
+  closeTo(calcComboBonusForStreak(25, 50), 553 * (25 / 50) ** 2);
+});
+
+test("calcComboBonusForStreak: 전체 정답 수가 0이면 0점(0으로 나누기 방지)", () => {
+  assert.equal(calcComboBonusForStreak(0, 0), 0);
+});
+
+test("calcComboBonusForStreak: 균등 간격 오답 k회 시 총합은 553/(k+1)에 수렴한다", () => {
+  const N = 60;
+  const k = 2; // 오답 2회 → 3구간
+  const segment = N / (k + 1);
+  const total =
+    calcComboBonusForStreak(segment, N) +
+    calcComboBonusForStreak(segment, N) +
+    calcComboBonusForStreak(segment, N);
+  closeTo(total, COMBO_BONUS_MAX / (k + 1), 0.5);
+});

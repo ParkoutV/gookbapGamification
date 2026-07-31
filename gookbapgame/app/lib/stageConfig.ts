@@ -49,3 +49,11 @@ export function calcTimeBonus(elapsedSec: number, accuracyPercent: number): numb
   const steps = Math.ceil(overSec / TIME_BONUS_STEP_SEC);
   return Math.max(0, tierPoints - TIME_BONUS_STEP_VALUE * steps);
 }
+
+export const COMBO_BONUS_MAX = 553;
+
+export function calcComboBonusForStreak(streakLength: number, totalAnswers: number): number {
+  if (totalAnswers <= 0) return 0;
+  const ratio = streakLength / totalAnswers;
+  return COMBO_BONUS_MAX * ratio * ratio;
+}
