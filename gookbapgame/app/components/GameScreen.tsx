@@ -19,6 +19,8 @@ interface GameScreenProps {
 
 const FORCE_ADVANCE_DELAY_MS = 400;
 
+type WrongMark = { id: number; x: number; y: number; side: "left" | "right" };
+
 export default function GameScreen({
   session,
   stageNumber,
@@ -32,11 +34,14 @@ export default function GameScreen({
   const { t } = useLocale();
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
   const [wrongTouchCount, setWrongTouchCount] = useState(0);
+  const [wrongMarks, setWrongMarks] = useState<WrongMark[]>([]);
   const [isShaking, setIsShaking] = useState(false);
   const [scale, setScale] = useState(1);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const wrongMarkIdRef = React.useRef(0);
 
-  const totalDifferences = session.slots.filter((s) => s.isDifference).length;
+  const differenceSlots = session.slots.filter((s) => s.isDifference);
+  const totalDifferences = differenceSlots.length;
 
   const updateScale = () => {
     if (containerRef.current) {
@@ -61,21 +66,10 @@ export default function GameScreen({
     }
   }, [foundSlots.size, totalDifferences, onStageClear]);
 
-  const handleSlotClick = (slotId: number, isDifference: boolean) => {
-    // 3회 소진 후 강제진행 연출(FORCE_ADVANCE_DELAY_MS) 대기 중 추가 클릭이
-    // 오답/정답을 중복 집계하지 않도록 차단한다.
+  const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
     if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
 
-    if (isDifference && !foundSlots.has(slotId)) {
-      setFoundSlots((prev) => {
-        const newSet = new Set(prev);
-        newSet.add(slotId);
-        return newSet;
-      });
-      onCorrectFind();
-      return;
-    }
-
+    setWrongMarks((prev) => [...prev, { id: wrongMarkIdRef.current++, x, y, side }]);
     onWrongTouch();
     setWrongTouchCount((prev) => {
       const next = prev + 1;
@@ -88,6 +82,25 @@ export default function GameScreen({
       }
       return next;
     });
+  };
+
+  const handleBackgroundClick =
+    (side: "left" | "right") => (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      registerWrongTouch(e.clientX - rect.left, e.clientY - rect.top, side);
+    };
+
+  const handleSlotClick = (slotId: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
+    if (foundSlots.has(slotId)) return;
+
+    setFoundSlots((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(slotId);
+      return newSet;
+    });
+    onCorrectFind();
   };
 
   const FALLBACK_CLIP_PATH = "circle(25%)";
@@ -104,7 +117,7 @@ export default function GameScreen({
   };
 
   const renderClickOverlays = (side: "left" | "right") =>
-    session.slots.map((slot) => (
+    differenceSlots.map((slot) => (
       <div
         key={slot.slotId}
         className="absolute cursor-pointer overflow-hidden"
@@ -116,7 +129,7 @@ export default function GameScreen({
           clipPath: buildClipPath(side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon),
           zIndex: foundSlots.has(slot.slotId) ? 2 : 1,
         }}
-        onClick={() => handleSlotClick(slot.slotId, slot.isDifference)}
+        onClick={handleSlotClick(slot.slotId)}
       >
         {foundSlots.has(slot.slotId) && (
           <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
@@ -125,6 +138,19 @@ export default function GameScreen({
         )}
       </div>
     ));
+
+  const renderWrongMarks = (side: "left" | "right") =>
+    wrongMarks
+      .filter((mark) => mark.side === side)
+      .map((mark) => (
+        <div
+          key={mark.id}
+          className="absolute pointer-events-none flex items-center justify-center text-3xl text-error"
+          style={{ left: mark.x - 16, top: mark.y - 16, width: 32, height: 32, zIndex: 3 }}
+        >
+          ✕
+        </div>
+      ));
 
   return (
     <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
@@ -155,8 +181,9 @@ export default function GameScreen({
       <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-6 overflow-auto">
         <div
           ref={containerRef}
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px]"
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
           style={{ aspectRatio: "1200 / 800" }}
+          onClick={handleBackgroundClick("left")}
         >
           <img
             src={session.leftSceneUrl}
@@ -165,11 +192,13 @@ export default function GameScreen({
             onLoad={handleImageLoad}
           />
           {renderClickOverlays("left")}
+          {renderWrongMarks("left")}
         </div>
 
         <div
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px]"
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
           style={{ aspectRatio: "1200 / 800" }}
+          onClick={handleBackgroundClick("right")}
         >
           <img
             src={session.rightSceneUrl}
@@ -177,6 +206,7 @@ export default function GameScreen({
             className="w-full h-full object-contain select-none pointer-events-none"
           />
           {renderClickOverlays("right")}
+          {renderWrongMarks("right")}
         </div>
       </main>
 
