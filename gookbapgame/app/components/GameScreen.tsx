@@ -4,29 +4,35 @@ import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
+import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
 
 interface GameScreenProps {
   session: GameSession;
   stageNumber: number;
   totalStages: number;
-  timeLimitSec: number;
-  onStageClear: (remainingTimeSec: number) => void;
-  onStageTimeout: () => void;
+  remainingTimeSec: number;
+  onStageClear: (foundCount: number) => void;
+  onForceAdvance: (foundCount: number) => void;
   onWrongTouch: () => void;
+  onCorrectFind: () => void;
 }
+
+const FORCE_ADVANCE_DELAY_MS = 400;
 
 export default function GameScreen({
   session,
   stageNumber,
   totalStages,
-  timeLimitSec,
+  remainingTimeSec,
   onStageClear,
-  onStageTimeout,
+  onForceAdvance,
   onWrongTouch,
+  onCorrectFind,
 }: GameScreenProps) {
   const { t } = useLocale();
-  const [timeLeft, setTimeLeft] = useState(timeLimitSec);
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
+  const [wrongTouchCount, setWrongTouchCount] = useState(0);
+  const [isShaking, setIsShaking] = useState(false);
   const [scale, setScale] = useState(1);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -50,33 +56,38 @@ export default function GameScreen({
   };
 
   useEffect(() => {
-    if (timeLeft <= 0) {
-      onStageTimeout();
-      return;
-    }
-
     if (totalDifferences > 0 && foundSlots.size >= totalDifferences) {
-      onStageClear(timeLeft);
-      return;
+      onStageClear(foundSlots.size);
     }
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeLeft, foundSlots.size, totalDifferences, onStageTimeout, onStageClear]);
+  }, [foundSlots.size, totalDifferences, onStageClear]);
 
   const handleSlotClick = (slotId: number, isDifference: boolean) => {
+    // 3회 소진 후 강제진행 연출(FORCE_ADVANCE_DELAY_MS) 대기 중 추가 클릭이
+    // 오답/정답을 중복 집계하지 않도록 차단한다.
+    if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
+
     if (isDifference && !foundSlots.has(slotId)) {
       setFoundSlots((prev) => {
         const newSet = new Set(prev);
         newSet.add(slotId);
         return newSet;
       });
+      onCorrectFind();
       return;
     }
+
     onWrongTouch();
+    setWrongTouchCount((prev) => {
+      const next = prev + 1;
+      if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
+        setIsShaking(true);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(100);
+        }
+        setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+      }
+      return next;
+    });
   };
 
   const FALLBACK_CLIP_PATH = "circle(25%)";
@@ -116,17 +127,27 @@ export default function GameScreen({
     ));
 
   return (
-    <div className="flex flex-col min-h-screen bg-bg-deep text-ink">
+    <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
       <header className="flex justify-between items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
         <span className="text-lg md:text-xl font-bold">
           {t("game.stageProgress", { current: stageNumber, total: totalStages })}
         </span>
+        <div
+          className="flex items-center gap-1"
+          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
+        >
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <span key={i} className={`text-xl ${i < wrongTouchCount ? "text-error" : "text-muted/30"}`}>
+              ✕
+            </span>
+          ))}
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
           <span
-            className={`text-2xl md:text-3xl font-extrabold ${timeLeft <= 10 ? "text-error animate-pulse" : "text-amber"}`}
+            className={`text-2xl md:text-3xl font-extrabold ${remainingTimeSec <= 30 ? "text-error animate-pulse" : "text-amber"}`}
           >
-            {t("game.secondsUnit", { seconds: timeLeft })}
+            {t("game.secondsUnit", { seconds: remainingTimeSec })}
           </span>
         </div>
       </header>
