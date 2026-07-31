@@ -70,3 +70,12 @@ export function calcStageScore(levelResults: LevelResult[]): number {
     return sum + (r.pointPool / r.actualDiffCount) * r.foundCount;
   }, 0);
 }
+
+export function calcWrongTouchPenalty(totalWrongTouches: number): number {
+  return totalWrongTouches * WRONG_TOUCH_PENALTY;
+}
+
+export function calcIncompleteLevelPenalty(levelsReached: number, totalLevels: number): number {
+  const unreached = Math.max(0, totalLevels - levelsReached);
+  return unreached * INCOMPLETE_LEVEL_PENALTY;
+}

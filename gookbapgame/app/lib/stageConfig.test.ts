@@ -146,3 +146,24 @@ test("calcStageScore: actualDiffCount가 0이면 0으로 나누지 않고 건너
 function closeToStage(actual: number, expected: number, tolerance = 0.01) {
   assert.ok(Math.abs(actual - expected) < tolerance, `expected ${actual} to be close to ${expected}`);
 }
+
+import { calcWrongTouchPenalty, calcIncompleteLevelPenalty } from "./stageConfig.ts";
+
+test("calcWrongTouchPenalty: 오답 1회당 10점", () => {
+  assert.equal(calcWrongTouchPenalty(0), 0);
+  assert.equal(calcWrongTouchPenalty(1), 10);
+  assert.equal(calcWrongTouchPenalty(21), 210);
+});
+
+test("calcIncompleteLevelPenalty: 전부 도달하면 0점", () => {
+  assert.equal(calcIncompleteLevelPenalty(7, 7), 0);
+});
+
+test("calcIncompleteLevelPenalty: 진행 중이던 레벨은 도달로 취급해 감점 제외", () => {
+  // 4단계까지 갔다(진행 중이던 4단계 포함 levelsReached=4) → 5,6,7단계 3개 미도달
+  assert.equal(calcIncompleteLevelPenalty(4, 7), 30);
+});
+
+test("calcIncompleteLevelPenalty: 음수로 내려가지 않는다", () => {
+  assert.equal(calcIncompleteLevelPenalty(9, 7), 0);
+});
