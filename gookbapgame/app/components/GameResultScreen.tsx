@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ScoreBreakdown, GukbapTier, DISPLAY_MAX_SCORE, toDisplayScore } from "../lib/stageConfig";
+import { ScoreBreakdown, GukbapTier, DISPLAY_MAX_SCORE } from "../lib/stageConfig";
 import { gukbapTierKey } from "../lib/i18n/gukbapTierKey";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import PixelPanel from "./PixelPanel";
@@ -19,18 +19,20 @@ export default function GameResultScreen({
 }: GameResultScreenProps) {
   const { t } = useLocale();
 
-  // 항목별로 독립 반올림하면 합이 총점과 어긋날 수 있어, 마지막 항목에서 잔차를 흡수한다.
-  const displayTotal = toDisplayScore(scoreBreakdown.total);
-  const displayStage = toDisplayScore(scoreBreakdown.stageScore);
-  const displayCompletion = toDisplayScore(scoreBreakdown.completionBonus);
-  const displayTime = toDisplayScore(scoreBreakdown.timeBonus);
-  const displayStreak = displayTotal - displayStage - displayCompletion - displayTime;
-
-  const rows: { label: string; value: number }[] = [
-    { label: t("gameResult.stageScore"), value: displayStage },
-    { label: t("gameResult.completionBonus"), value: displayCompletion },
-    { label: t("gameResult.timeBonus"), value: displayTime },
-    { label: t("gameResult.streakBonus"), value: displayStreak },
+  const rows: { label: string; value: number; isPenalty: boolean }[] = [
+    { label: t("gameResult.stageScore"), value: scoreBreakdown.stageScore, isPenalty: false },
+    { label: t("gameResult.timeBonus"), value: scoreBreakdown.timeBonus, isPenalty: false },
+    { label: t("gameResult.comboBonus"), value: scoreBreakdown.comboBonus, isPenalty: false },
+    {
+      label: t("gameResult.wrongTouchPenalty"),
+      value: scoreBreakdown.wrongTouchPenalty,
+      isPenalty: true,
+    },
+    {
+      label: t("gameResult.incompleteLevelPenalty"),
+      value: scoreBreakdown.incompleteLevelPenalty,
+      isPenalty: true,
+    },
   ];
 
   return (
@@ -41,7 +43,10 @@ export default function GameResultScreen({
           {rows.map((row) => (
             <div key={row.label} className="flex justify-between">
               <dt className="text-muted">{row.label}</dt>
-              <dd className="text-ink font-bold">{row.value}</dd>
+              <dd className={`font-bold ${row.isPenalty ? "text-error" : "text-ink"}`}>
+                {row.isPenalty ? "-" : ""}
+                {row.value}
+              </dd>
             </div>
           ))}
         </dl>
@@ -49,7 +54,7 @@ export default function GameResultScreen({
           <div className="flex justify-between text-xl font-extrabold">
             <span className="text-ink">{t("gameResult.totalLabel")}</span>
             <span className="text-amber" style={{ fontFamily: "var(--font-pixel)" }}>
-              {displayTotal} / {DISPLAY_MAX_SCORE}
+              {scoreBreakdown.total} / {DISPLAY_MAX_SCORE}
             </span>
           </div>
         </div>

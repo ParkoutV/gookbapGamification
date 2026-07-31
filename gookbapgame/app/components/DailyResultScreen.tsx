@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { GukbapTier, DISPLAY_MAX_SCORE, toDisplayScore } from "../lib/stageConfig";
+import { GukbapTier, DISPLAY_MAX_SCORE } from "../lib/stageConfig";
 import { gukbapTierKey } from "../lib/i18n/gukbapTierKey";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import PixelPanel from "./PixelPanel";
@@ -34,7 +34,7 @@ export default function DailyResultScreen({
         </p>
         <p className="text-muted mb-1">{t("dailyResult.finalScoreLabel")}</p>
         <p className="text-xl text-amber font-bold mb-6" style={{ fontFamily: "var(--font-pixel)" }}>
-          {toDisplayScore(totalScore)} / {DISPLAY_MAX_SCORE}
+          {totalScore} / {DISPLAY_MAX_SCORE}
         </p>
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {stubAchievements.map((label) => (

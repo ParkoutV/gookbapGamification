@@ -16,6 +16,9 @@ export const STAGE_CONFIG: StageDef[] = [
 
 export const TOTAL_STAGE_SCORE = STAGE_CONFIG.reduce((sum, s) => sum + s.pointPool, 0);
 
+// 이제 환산 대상이 아니라 총점의 실제 만점이다(총점은 항상 0~1953으로 계산된다).
+export const DISPLAY_MAX_SCORE = 1953;
+
 export const GLOBAL_TIME_LIMIT_SEC = 300;
 export const WRONG_TOUCH_LIMIT_PER_LEVEL = 3;
 export const WRONG_TOUCH_PENALTY = 10;
