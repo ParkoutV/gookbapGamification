@@ -47,6 +47,14 @@ export function useGameProgress(trackId: string | null) {
   const totalAnswersRef = useRef(0);
   const currentLevelFoundCountRef = useRef(0);
 
+  // finishGame이 (GameScreen의 setTimeout처럼) 임의로 낡을 수 있는 클로저에서 호출되더라도
+  // 항상 "지금 이 순간의 진짜 값"을 읽도록, 아래 4개 state는 ref로도 함께 미러링해둔다.
+  // ref는 객체 identity가 바뀌지 않으므로 클로저가 몇 번째 렌더의 것이든 상관없이 최신값을 가리킨다.
+  const remainingTimeSecRef = useRef(GLOBAL_TIME_LIMIT_SEC);
+  const totalWrongTouchesRef = useRef(0);
+  const comboBankedScoreRef = useRef(0);
+  const comboCurrentStreakRef = useRef(0);
+
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
   const [gukbapTier, setGukbapTier] = useState<GukbapTier | null>(null);
 
@@ -77,14 +85,23 @@ export function useGameProgress(trackId: string | null) {
   // 합쳐서 명시적으로 넘긴다. state를 그대로 읽으면 "같은 이벤트 안에서 setLevelResults 직후
   // 바로 finishGame을 호출"하는 경로(handleForceAdvance가 마지막 레벨일 때)에서 그 setState가
   // 아직 커밋되지 않은 값을 쓰게 되어 마지막 레벨 점수가 누락되는 버그가 있었다.
+  //
+  // 시간/오답/콤보 4개 값은 state가 아니라 ref(remainingTimeSecRef 등)에서 읽는다. GameScreen의
+  // registerWrongTouch는 3번째 오답에서 onWrongTouch()를 동기 호출한 직후 같은 함수 안에서
+  // setTimeout(() => onForceAdvance(...), 400)을 예약하는데, 이 화살표 함수가 캡처하는
+  // onForceAdvance(→ finishGame)는 onWrongTouch()로 인한 리렌더가 커밋되기 "이전" 렌더의
+  // 클로저다. 그 클로저가 state를 직접 읽으면 400ms 뒤 실행될 때 3번째 오답 반영 전
+  // totalWrongTouches와 최대 1틱 밀린 remainingTimeSec을 읽어 마지막 레벨 강제진행 시
+  // wrongTouchPenalty가 10점 부족하게 계산되는 문제가 있었다. ref는 객체 identity가 바뀌지
+  // 않으므로 아무리 오래된(stale) 클로저에서 .current를 읽어도 항상 최신값이 나온다.
   const finishGame = useCallback(
     (levelsReached: number, finalLevelResults: LevelResult[]) => {
       const breakdown = calcFinalScore({
         levelResults: finalLevelResults,
-        elapsedSec: GLOBAL_TIME_LIMIT_SEC - remainingTimeSec,
-        totalWrongTouches,
-        comboBankedScore,
-        comboCurrentStreak,
+        elapsedSec: GLOBAL_TIME_LIMIT_SEC - remainingTimeSecRef.current,
+        totalWrongTouches: totalWrongTouchesRef.current,
+        comboBankedScore: comboBankedScoreRef.current,
+        comboCurrentStreak: comboCurrentStreakRef.current,
         comboTotalAnswers: totalAnswersRef.current,
         levelsReached,
       });
@@ -92,7 +109,7 @@ export function useGameProgress(trackId: string | null) {
       setGukbapTier(calcGukbapTier(breakdown.total));
       setPhase("gameResult");
     },
-    [remainingTimeSec, totalWrongTouches, comboBankedScore, comboCurrentStreak]
+    []
   );
 
   // 전체 300초 단일 타이머: playing/stageClear 구간 내내 흐르고, 0이 되면 그 자리에서 즉시 종료한다.
@@ -112,7 +129,11 @@ export function useGameProgress(trackId: string | null) {
       return;
     }
     const timer = setInterval(() => {
-      setRemainingTimeSec((prev) => prev - 1);
+      setRemainingTimeSec((prev) => {
+        const next = prev - 1;
+        remainingTimeSecRef.current = next;
+        return next;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, [phase, remainingTimeSec, stageIndex, levelResults, buildLevelResult, finishGame]);
@@ -134,10 +155,14 @@ export function useGameProgress(trackId: string | null) {
     setPhase("loading");
     setStageIndex(0);
     setRemainingTimeSec(GLOBAL_TIME_LIMIT_SEC);
+    remainingTimeSecRef.current = GLOBAL_TIME_LIMIT_SEC;
     setLevelResults([]);
     setTotalWrongTouches(0);
+    totalWrongTouchesRef.current = 0;
     setComboBankedScore(0);
+    comboBankedScoreRef.current = 0;
     setComboCurrentStreak(0);
+    comboCurrentStreakRef.current = 0;
     currentLevelFoundCountRef.current = 0;
     setScoreBreakdown(null);
     setGukbapTier(null);
@@ -167,16 +192,27 @@ export function useGameProgress(trackId: string | null) {
   }, []);
 
   const recordCorrectFind = useCallback(() => {
-    setComboCurrentStreak((prev) => prev + 1);
+    setComboCurrentStreak((prev) => {
+      const next = prev + 1;
+      comboCurrentStreakRef.current = next;
+      return next;
+    });
     currentLevelFoundCountRef.current += 1;
   }, []);
 
   const recordWrongTouch = useCallback(() => {
-    setTotalWrongTouches((prev) => prev + 1);
-    setComboBankedScore(
-      (prev) => prev + calcComboBonusForStreak(comboCurrentStreak, totalAnswersRef.current)
-    );
+    setTotalWrongTouches((prev) => {
+      const next = prev + 1;
+      totalWrongTouchesRef.current = next;
+      return next;
+    });
+    setComboBankedScore((prev) => {
+      const next = prev + calcComboBonusForStreak(comboCurrentStreak, totalAnswersRef.current);
+      comboBankedScoreRef.current = next;
+      return next;
+    });
     setComboCurrentStreak(0);
+    comboCurrentStreakRef.current = 0;
   }, [comboCurrentStreak]);
 
   const handleStageClear = useCallback(
@@ -227,10 +263,14 @@ export function useGameProgress(trackId: string | null) {
     setStageIndex(0);
     setSessions([]);
     setRemainingTimeSec(GLOBAL_TIME_LIMIT_SEC);
+    remainingTimeSecRef.current = GLOBAL_TIME_LIMIT_SEC;
     setLevelResults([]);
     setTotalWrongTouches(0);
+    totalWrongTouchesRef.current = 0;
     setComboBankedScore(0);
+    comboBankedScoreRef.current = 0;
     setComboCurrentStreak(0);
+    comboCurrentStreakRef.current = 0;
     currentLevelFoundCountRef.current = 0;
     setScoreBreakdown(null);
     setGukbapTier(null);
