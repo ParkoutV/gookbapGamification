@@ -1984,6 +1984,394 @@ EOF
 
 ---
 
+## Task 15: 최종 브랜치 리뷰에서 발견된 점수 정합성 버그 수정
+
+최종 전체 브랜치 리뷰(opus 모델)에서 발견한 Critical 2건 + Important 1건. 개별 태스크 리뷰는 각 태스크의 diff만 보므로 놓쳤던, 태스크 경계를 넘나드는 결함이다.
+
+**발견된 문제:**
+1. **(Critical) 마지막 레벨(7단계)에서 오답 3회로 강제진행될 때 그 레벨 점수가 통째로 누락된다.** `handleForceAdvance`가 `recordLevelResult`로 `setLevelResults`를 큐잉한 직후 같은 이벤트 핸들러 안에서 `finishGame`을 호출하는데, `finishGame`은 `levelResults`를 **클로저(state)로** 읽어서 방금 큐잉한 항목이 반영되기 전 값을 쓴다(React state 업데이트는 비동기 커밋). 7레벨 `foundCount`가 `stageScore`/정답률 계산에서 빠지고, 심하면 `totalWrongTouches`/`comboBankedScore`도 낡은 스냅샷을 쓴다.
+2. **(Critical) 300초 타임아웃 시 그 순간 진행 중이던 레벨에서 찾은 정답이 0점 처리된다.** 스펙(`2026-07-31-native-1953-score-design.md:90`)은 "그때까지 찾은 정답은 스테이지 점수로 그대로 인정"이라고 명시했지만, 타이머 effect가 `finishGame`만 호출하고 진행 중 레벨의 `foundCount`를 `levelResults`에 반영하는 코드가 없다(그 값은 `GameScreen`의 로컬 state에만 있어 훅이 알 방법이 없었음).
+3. **(Important) `GameScreen`의 `registerWrongTouch`가 `setWrongTouchCount`의 함수형 업데이터 안에서 `setIsShaking`/`navigator.vibrate`/`setTimeout` 부수효과를 실행한다.** Next.js 앱 라우터는 `reactStrictMode`가 기본 `true`이고, React 19는 dev 모드에서 `setState`에 전달된 업데이터 함수를 부수효과 탐지를 위해 **두 번** 호출한다. 그 결과 dev 환경에서 오답 3회 강제진행이 이중으로 발생할 수 있다(마지막 레벨이 아니면 해당 레벨 점수가 이중 계상, 마지막 레벨이면 문제 1과 동일한 낡은 스냅샷 문제가 겹침). **이 버그가 남아있는 동안 `npm run dev`로 하는 수동 검증 결과는 신뢰할 수 없다.**
+
+**수정 방향:** `finishGame`이 `levelResults`를 state 클로저로 읽지 않고 **호출부가 명시적으로 조립해서 전달**하도록 시그니처를 바꾼다(문제 1 해결). 훅이 "진행 중인 레벨에서 몇 개를 찾았는지"를 `recordCorrectFind` 시점에 직접 추적하는 `ref`를 두고, 타임아웃 시 이 값으로 진행 중 레벨의 `LevelResult`를 합성해 넘긴다(문제 2 해결). `registerWrongTouch`는 함수형 업데이터 대신 현재 렌더의 `wrongTouchCount`를 직접 읽어 부수효과를 업데이터 바깥으로 뺀다(문제 3 해결, 겸사겸사 미해결 상태였던 Task 8/14의 강제진행 `setTimeout` cleanup 누락도 이 태스크에서 같이 정리한다).
+
+**Files:**
+- Modify: `app/hooks/useGameProgress.ts` (전체 재작성)
+- Modify: `app/components/GameScreen.tsx` (`registerWrongTouch` 부분 수정 + cleanup 추가)
+
+**Interfaces:**
+- Consumes: `STAGE_CONFIG`, `GLOBAL_TIME_LIMIT_SEC`, `calcComboBonusForStreak`, `calcFinalScore`, `calcGukbapTier`, `ScoreBreakdown`, `GukbapTier`, `LevelResult`(Tasks 1~6) — 변경 없음
+- Produces: 훅의 반환값 이름/시그니처는 Task 7과 **완전히 동일하게 유지**한다(`GameScreen`/`page.tsx`는 이 태스크에서 수정할 필요 없음, `GameScreen.tsx`는 오직 `registerWrongTouch` 내부 구현만 바뀜).
+
+- [ ] **Step 1: `app/hooks/useGameProgress.ts` 전체 교체**
+
+```ts
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchGameData, GameSession } from "../actions";
+import { preloadAllStages } from "../lib/preloadGame";
+import type { LoadError } from "../lib/preloadGame";
+import {
+  STAGE_CONFIG,
+  GLOBAL_TIME_LIMIT_SEC,
+  calcComboBonusForStreak,
+  calcFinalScore,
+  calcGukbapTier,
+  ScoreBreakdown,
+  GukbapTier,
+  LevelResult,
+} from "../lib/stageConfig";
+import { ensureParticipant, reassignNickname as reassignNicknameAction } from "../actions";
+
+export type GamePhase =
+  | "start"
+  | "loading"
+  | "playing"
+  | "stageClear"
+  | "gameResult"
+  | "wheel"
+  | "dailyResult";
+
+function countDifferences(session: GameSession): number {
+  return session.slots.filter((s) => s.isDifference).length;
+}
+
+export function useGameProgress(trackId: string | null) {
+  const [phase, setPhase] = useState<GamePhase>("start");
+  const [nickname, setNickname] = useState<string>("");
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const nicknameSyncedRef = useRef(false);
+  const [stageIndex, setStageIndex] = useState(0);
+  const [sessions, setSessions] = useState<GameSession[]>([]);
+  const [loadNonce, setLoadNonce] = useState(0);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
+
+  const [remainingTimeSec, setRemainingTimeSec] = useState(GLOBAL_TIME_LIMIT_SEC);
+  const [levelResults, setLevelResults] = useState<LevelResult[]>([]);
+  const [totalWrongTouches, setTotalWrongTouches] = useState(0);
+  const [comboBankedScore, setComboBankedScore] = useState(0);
+  const [comboCurrentStreak, setComboCurrentStreak] = useState(0);
+  const totalAnswersRef = useRef(0);
+  const currentLevelFoundCountRef = useRef(0);
+
+  const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
+  const [gukbapTier, setGukbapTier] = useState<GukbapTier | null>(null);
+
+  const session = sessions[stageIndex] ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void ensureParticipant(trackId).then((result) => {
+      if (cancelled) return;
+      setNickname(result.nickname);
+      nicknameSyncedRef.current = result.nicknameSynced;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
+
+  const buildLevelResult = useCallback(
+    (foundCount: number): LevelResult => ({
+      pointPool: STAGE_CONFIG[stageIndex].pointPool,
+      foundCount,
+      actualDiffCount: session ? countDifferences(session) : 0,
+    }),
+    [stageIndex, session]
+  );
+
+  // finishGame은 levelResults를 state 클로저로 읽지 않는다 — 호출부가 방금 큐잉한 항목까지
+  // 합쳐서 명시적으로 넘긴다. state를 그대로 읽으면 "같은 이벤트 안에서 setLevelResults 직후
+  // 바로 finishGame을 호출"하는 경로(handleForceAdvance가 마지막 레벨일 때)에서 그 setState가
+  // 아직 커밋되지 않은 값을 쓰게 되어 마지막 레벨 점수가 누락되는 버그가 있었다.
+  const finishGame = useCallback(
+    (levelsReached: number, finalLevelResults: LevelResult[]) => {
+      const breakdown = calcFinalScore({
+        levelResults: finalLevelResults,
+        elapsedSec: GLOBAL_TIME_LIMIT_SEC - remainingTimeSec,
+        totalWrongTouches,
+        comboBankedScore,
+        comboCurrentStreak,
+        comboTotalAnswers: totalAnswersRef.current,
+        levelsReached,
+      });
+      setScoreBreakdown(breakdown);
+      setGukbapTier(calcGukbapTier(breakdown.total));
+      setPhase("gameResult");
+    },
+    [remainingTimeSec, totalWrongTouches, comboBankedScore, comboCurrentStreak]
+  );
+
+  // 전체 300초 단일 타이머: playing/stageClear 구간 내내 흐르고, 0이 되면 그 자리에서 즉시 종료한다.
+  // phase가 "playing"일 때 타임아웃되면, 그 순간 진행 중이던 레벨에서 찾은 정답
+  // (currentLevelFoundCountRef)을 합성한 LevelResult를 만들어 반드시 점수에 포함시킨다 —
+  // 그렇지 않으면 "그때까지 찾은 정답은 인정한다"는 스펙을 어기고 그 레벨이 0점 처리된다.
+  // phase가 "stageClear"일 때 타임아웃되면 그 레벨은 이미 handleStageClear가 levelResults에
+  // 기록했으므로 추가로 합성하지 않는다(중복 계상 방지).
+  useEffect(() => {
+    if (phase !== "playing" && phase !== "stageClear") return;
+    if (remainingTimeSec <= 0) {
+      if (phase === "playing") {
+        finishGame(stageIndex + 1, [...levelResults, buildLevelResult(currentLevelFoundCountRef.current)]);
+      } else {
+        finishGame(stageIndex + 1, levelResults);
+      }
+      return;
+    }
+    const timer = setInterval(() => {
+      setRemainingTimeSec((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phase, remainingTimeSec, stageIndex, levelResults, buildLevelResult, finishGame]);
+
+  const runPreload = useCallback(async () => {
+    setLoadError(null);
+    const result = await preloadAllStages(fetchGameData);
+    if (result.ok) {
+      setSessions(result.sessions);
+      totalAnswersRef.current = result.sessions.reduce((sum, s) => sum + countDifferences(s), 0);
+      setLoadNonce((n) => n + 1);
+      setPhase("playing");
+    } else {
+      setLoadError({ key: result.key, params: result.params });
+    }
+  }, []);
+
+  const startGame = useCallback(() => {
+    setPhase("loading");
+    setStageIndex(0);
+    setRemainingTimeSec(GLOBAL_TIME_LIMIT_SEC);
+    setLevelResults([]);
+    setTotalWrongTouches(0);
+    setComboBankedScore(0);
+    setComboCurrentStreak(0);
+    currentLevelFoundCountRef.current = 0;
+    setScoreBreakdown(null);
+    setGukbapTier(null);
+
+    if (!nicknameSyncedRef.current) {
+      void reassignNicknameAction().then((result) => {
+        setNickname(result.nickname);
+        nicknameSyncedRef.current = result.nicknameSynced;
+      });
+    }
+
+    void runPreload();
+  }, [runPreload]);
+
+  const retryPreload = useCallback(() => {
+    void runPreload();
+  }, [runPreload]);
+
+  const regenerateNickname = useCallback(() => {
+    setIsRegenerating(true);
+    void reassignNicknameAction()
+      .then((result) => {
+        setNickname(result.nickname);
+        nicknameSyncedRef.current = result.nicknameSynced;
+      })
+      .finally(() => setIsRegenerating(false));
+  }, []);
+
+  const recordCorrectFind = useCallback(() => {
+    setComboCurrentStreak((prev) => prev + 1);
+    currentLevelFoundCountRef.current += 1;
+  }, []);
+
+  const recordWrongTouch = useCallback(() => {
+    setTotalWrongTouches((prev) => prev + 1);
+    setComboBankedScore(
+      (prev) => prev + calcComboBonusForStreak(comboCurrentStreak, totalAnswersRef.current)
+    );
+    setComboCurrentStreak(0);
+  }, [comboCurrentStreak]);
+
+  const handleStageClear = useCallback(
+    (foundCount: number) => {
+      setLevelResults((prev) => [...prev, buildLevelResult(foundCount)]);
+      setPhase("stageClear");
+    },
+    [buildLevelResult]
+  );
+
+  // 마지막 레벨에서 강제진행되는 경우, 방금 조립한 updatedLevelResults를 finishGame에
+  // "직접" 넘긴다 — setLevelResults(state) 갱신을 기다렸다가 다시 읽지 않는다(그게 문제 1의 원인이었다).
+  const handleForceAdvance = useCallback(
+    (foundCount: number) => {
+      const updatedLevelResults = [...levelResults, buildLevelResult(foundCount)];
+      setLevelResults(updatedLevelResults);
+      currentLevelFoundCountRef.current = 0;
+
+      const nextIndex = stageIndex + 1;
+      if (nextIndex < STAGE_CONFIG.length) {
+        setStageIndex(nextIndex);
+        setPhase("playing");
+        return;
+      }
+      finishGame(STAGE_CONFIG.length, updatedLevelResults);
+    },
+    [stageIndex, levelResults, buildLevelResult, finishGame]
+  );
+
+  // "다음" 버튼 클릭은 handleStageClear가 levelResults를 커밋한 뒤(별도 렌더/커밋 사이클)
+  // 일어나는 별개의 이벤트이므로, 여기서는 state를 그대로 읽어도 안전하다(stale 문제 없음).
+  const advanceToNextStage = useCallback(() => {
+    currentLevelFoundCountRef.current = 0;
+    const nextIndex = stageIndex + 1;
+    if (nextIndex < STAGE_CONFIG.length) {
+      setStageIndex(nextIndex);
+      setPhase("playing");
+      return;
+    }
+    finishGame(STAGE_CONFIG.length, levelResults);
+  }, [stageIndex, levelResults, finishGame]);
+
+  const proceedToWheel = useCallback(() => setPhase("wheel"), []);
+  const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
+
+  const resetToStart = useCallback(() => {
+    setPhase("start");
+    setStageIndex(0);
+    setSessions([]);
+    setRemainingTimeSec(GLOBAL_TIME_LIMIT_SEC);
+    setLevelResults([]);
+    setTotalWrongTouches(0);
+    setComboBankedScore(0);
+    setComboCurrentStreak(0);
+    currentLevelFoundCountRef.current = 0;
+    setScoreBreakdown(null);
+    setGukbapTier(null);
+  }, []);
+
+  return {
+    phase,
+    nickname,
+    regenerateNickname,
+    isRegenerating,
+    stageNumber: stageIndex + 1,
+    loadNonce,
+    totalStages: STAGE_CONFIG.length,
+    remainingTimeSec,
+    session,
+    loadError,
+    scoreBreakdown,
+    gukbapTier,
+    startGame,
+    retryPreload,
+    recordCorrectFind,
+    recordWrongTouch,
+    handleStageClear,
+    handleForceAdvance,
+    advanceToNextStage,
+    proceedToWheel,
+    proceedToDailyResult,
+    resetToStart,
+  };
+}
+```
+
+- [ ] **Step 2: `app/components/GameScreen.tsx`의 `registerWrongTouch` 부분과 그 주변 수정**
+
+기존(Task 14가 작성한):
+```tsx
+  const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
+    if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
+
+    setWrongMarks((prev) => [...prev, { id: wrongMarkIdRef.current++, x, y, side }]);
+    onWrongTouch();
+    setWrongTouchCount((prev) => {
+      const next = prev + 1;
+      if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
+        setIsShaking(true);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(100);
+        }
+        setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+      }
+      return next;
+    });
+  };
+```
+
+아래로 교체(부수효과를 `setWrongTouchCount`의 함수형 업데이터 밖으로 빼고, 강제진행 타이머를 ref에 저장해 언마운트 시 정리):
+
+```tsx
+  const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
+    if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
+
+    setWrongMarks((prev) => [...prev, { id: wrongMarkIdRef.current++, x, y, side }]);
+    onWrongTouch();
+
+    const next = wrongTouchCount + 1;
+    setWrongTouchCount(next);
+
+    if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
+      setIsShaking(true);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+      forceAdvanceTimeoutRef.current = setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+    }
+  };
+```
+
+`wrongMarkIdRef` 선언 바로 아래에 새 ref 선언을 추가:
+```tsx
+  const forceAdvanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+```
+
+`updateScale`의 `useEffect` 다음(또는 다른 적당한 위치)에 언마운트 시 타이머 정리용 `useEffect`를 추가:
+```tsx
+  useEffect(() => {
+    return () => {
+      if (forceAdvanceTimeoutRef.current) {
+        clearTimeout(forceAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
+```
+
+**왜 이렇게 고치는지**: `setWrongTouchCount(prev => {...부수효과...})`처럼 함수형 업데이터 안에서 `setIsShaking`/`navigator.vibrate`/`setTimeout` 같은 부수효과를 실행하면, React 19 + Next.js의 기본 `reactStrictMode`가 dev 모드에서 이 업데이터 함수를 부수효과 탐지 목적으로 **두 번** 호출하기 때문에 오답 3회 강제진행이 이중으로 발생할 수 있다. `wrongTouchCount`를 렌더 스코프에서 직접 읽어 `next` 값을 계산하고 `setWrongTouchCount(next)`로 리터럴 값을 넘기면(함수가 아니므로) 이 이중 호출 문제 자체가 사라진다.
+
+- [ ] **Step 3: 타입 체크**
+
+Run: `flatpak-spawn --host npx tsc --noEmit`
+Expected: 에러 0건(프로젝트 전체).
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add app/hooks/useGameProgress.ts app/components/GameScreen.tsx
+git commit -m "$(cat <<'EOF'
+최종 브랜치 리뷰에서 발견된 점수 정합성 버그 수정
+
+1. 마지막 레벨 강제진행 시 levelResults state를 클로저로 읽던
+   finishGame이 방금 큐잉된 갱신을 놓쳐 7단계 점수가 누락되던
+   버그 수정 — 호출부가 최신 배열을 직접 조립해서 넘기도록 변경.
+2. 300초 타임아웃 시 진행 중이던 레벨에서 찾은 정답이 0점
+   처리되던 버그 수정(스펙 명시 위반) — currentLevelFoundCountRef로
+   추적해 타임아웃 시 그 레벨의 LevelResult를 합성해 포함.
+3. GameScreen의 오답 카운트 함수형 업데이터 안에 있던 부수효과
+   (흔들림/진동/강제진행 타이머)를 업데이터 밖으로 이동 —
+   React 19 + Next.js 기본 StrictMode의 dev 모드 업데이터 이중
+   호출로 오답 3회 강제진행이 이중 발생하던 문제 해결. 강제진행
+   setTimeout을 ref에 저장해 언마운트 시 정리하도록 추가.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 5: 수동 재확인 (Task 12의 미완료 항목을 여기서 마무리)**
+
+`npm run dev`로 실행 후, 이번엔 반드시 확인:
+- **7단계(마지막 레벨)에서 일부러 오답 3번**: 결과 화면에서 7단계 정답까지 스테이지 점수에 포함되는지(기존엔 누락됐음).
+- **레벨 중간(예: 3단계)에서 일부러 300초를 다 씀**: 그 순간까지 3단계에서 찾은 정답이 스테이지 점수에 포함되는지(기존엔 0점 처리됐음).
+- 위 두 시나리오 모두 결과 화면을 새로고침 없이 한 번에 확인(개발 모드 StrictMode 이중 호출 여부까지 함께 확인하는 셈).
+
+---
+
 ## Self-Review 요약
 
 - **스펙 커버리지**: 게임 규칙 변경(레벨 7, 전역 300초, 오답 3회) → Task 1/7/8/9. 점수 구성 3항목(스테이지/시간/콤보) → Task 2~4, 6. 감점 2종 → Task 5~6. 검증된 엣지 케이스(오답만 찍는 악용 방지) → Task 6의 통합 테스트. UI 반영 → Task 8, 10. i18n → Task 11. 수동 검증 → Task 12. 스펙의 "범위 밖" 항목(`game_score_logs` 제출, 가챠 구간 재조정, 등급 컷오프 최종 확정)은 이 계획에 포함하지 않음(의도된 배제).
