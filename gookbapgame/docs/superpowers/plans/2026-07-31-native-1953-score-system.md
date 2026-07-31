@@ -2372,6 +2372,102 @@ EOF
 
 ---
 
+## Task 16: 정답/오답 표시를 픽셀 아이콘으로 교체 (에셋 적용)
+
+이란토가 제공한 픽셀 스타일 SVG 아이콘 2종(`public/icons/check-success.svg`, `public/icons/check-failed.svg` — 이미 배치 완료)을 `GameScreen.tsx`의 이모지(✅)/텍스트(✕) 표시 세 곳에 적용한다. 순수 시각 교체이며 점수 로직은 전혀 건드리지 않는다.
+
+**Files:**
+- Modify: `app/components/GameScreen.tsx`
+
+**Interfaces:** 변경 없음(내부 렌더링만 수정).
+
+- [ ] **Step 1: 정답 슬롯 체크마크(✅) 교체**
+
+`renderClickOverlays` 안의 아래 블록을:
+```tsx
+        {foundSlots.has(slot.slotId) && (
+          <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
+            ✅
+          </div>
+        )}
+```
+아래로 교체:
+```tsx
+        {foundSlots.has(slot.slotId) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
+            <img src="/icons/check-success.svg" alt="" className="w-8 h-8" />
+          </div>
+        )}
+```
+
+- [ ] **Step 2: 헤더의 오답 카운터(3개 ✕) 교체**
+
+아래 블록을:
+```tsx
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <span key={i} className={`text-xl ${i < wrongTouchCount ? "text-error" : "text-muted/30"}`}>
+              ✕
+            </span>
+          ))}
+```
+아래로 교체(색상 대비 대신 불투명도로 "이미 오답 낸 칸"을 표시):
+```tsx
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <img
+              key={i}
+              src="/icons/check-failed.svg"
+              alt=""
+              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+            />
+          ))}
+```
+
+- [ ] **Step 3: 클릭 위치의 ✕ 표시 교체**
+
+`renderWrongMarks` 안의 아래 블록을:
+```tsx
+        <div
+          key={mark.id}
+          className="absolute pointer-events-none flex items-center justify-center text-3xl text-error"
+          style={{ left: mark.x - 16, top: mark.y - 16, width: 32, height: 32, zIndex: 3 }}
+        >
+          ✕
+        </div>
+```
+아래로 교체:
+```tsx
+        <img
+          key={mark.id}
+          src="/icons/check-failed.svg"
+          alt=""
+          className="absolute pointer-events-none"
+          style={{ left: mark.x - 16, top: mark.y - 16, width: 32, height: 32, zIndex: 3 }}
+        />
+```
+
+- [ ] **Step 4: 타입 체크**
+
+Run: `flatpak-spawn --host npx tsc --noEmit`
+Expected: 에러 0건.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add app/components/GameScreen.tsx
+git commit -m "$(cat <<'EOF'
+GameScreen: 정답/오답 표시를 이모지에서 픽셀 아이콘으로 교체
+
+이모지(✅)와 텍스트(✕)로 임시 표시하던 정답/오답 마커를
+public/icons/의 픽셀 스타일 SVG로 교체. 헤더 오답 카운터는
+색상 대비 대신 불투명도로 채워진 칸을 구분한다.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
 ## Self-Review 요약
 
 - **스펙 커버리지**: 게임 규칙 변경(레벨 7, 전역 300초, 오답 3회) → Task 1/7/8/9. 점수 구성 3항목(스테이지/시간/콤보) → Task 2~4, 6. 감점 2종 → Task 5~6. 검증된 엣지 케이스(오답만 찍는 악용 방지) → Task 6의 통합 테스트. UI 반영 → Task 8, 10. i18n → Task 11. 수동 검증 → Task 12. 스펙의 "범위 밖" 항목(`game_score_logs` 제출, 가챠 구간 재조정, 등급 컷오프 최종 확정)은 이 계획에 포함하지 않음(의도된 배제).
