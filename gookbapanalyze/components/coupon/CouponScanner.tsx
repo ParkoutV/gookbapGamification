@@ -108,7 +108,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
 
   // Fetch languages
   const fetchLanguages = async () => {
-    const { data, error } = await supabase.from('supported_languages').select('lang_code, coupon_use_text')
+    const { data, error } = await supabase.from('supported_languages').select('lang_code, coupon_use_text').order('order_index')
     if (data && !error) {
       setLanguages(data as LanguageSetting[])
     }

@@ -28,6 +28,7 @@ export default async function SurveysPage() {
     .from('supported_languages')
     .select('lang_code, lang_name, is_active')
     .eq('is_active', true)
+    .order('order_index')
 
   const activeLanguages = languagesData || []
 
