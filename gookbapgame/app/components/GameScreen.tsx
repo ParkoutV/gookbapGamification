@@ -39,6 +39,7 @@ export default function GameScreen({
   const [scale, setScale] = useState(1);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const wrongMarkIdRef = React.useRef(0);
+  const forceAdvanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const differenceSlots = session.slots.filter((s) => s.isDifference);
   const totalDifferences = differenceSlots.length;
@@ -66,22 +67,30 @@ export default function GameScreen({
     }
   }, [foundSlots.size, totalDifferences, onStageClear]);
 
+  useEffect(() => {
+    return () => {
+      if (forceAdvanceTimeoutRef.current) {
+        clearTimeout(forceAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
     if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
 
     setWrongMarks((prev) => [...prev, { id: wrongMarkIdRef.current++, x, y, side }]);
     onWrongTouch();
-    setWrongTouchCount((prev) => {
-      const next = prev + 1;
-      if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
-        setIsShaking(true);
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
-          navigator.vibrate(100);
-        }
-        setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+
+    const next = wrongTouchCount + 1;
+    setWrongTouchCount(next);
+
+    if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
+      setIsShaking(true);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(100);
       }
-      return next;
-    });
+      forceAdvanceTimeoutRef.current = setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+    }
   };
 
   const handleBackgroundClick =
