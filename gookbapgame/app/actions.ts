@@ -142,6 +142,12 @@ export async function fetchGameData(
       console.warn("[fetchGameData] part_categories 조회 실패 — 힌트에 카테고리명이 비게 된다:", categoriesErr);
     }
 
+    if (!categoriesErr && (categoryRows ?? []).length < usedCategoryIds.length) {
+      console.warn(
+        `[fetchGameData] part_categories ${usedCategoryIds.length}건 중 ${(categoryRows ?? []).length}건만 조회됨 — anon SELECT 권한/RLS 정책을 확인할 것`
+      );
+    }
+
     const categoryNameById = new Map<number, LocalizedName>(
       (categoryRows ?? []).map((row) => [row.id as number, row.name as LocalizedName])
     );
