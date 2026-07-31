@@ -3,83 +3,235 @@ import assert from "node:assert/strict";
 import {
   STAGE_CONFIG,
   TOTAL_STAGE_SCORE,
-  DISPLAY_MAX_SCORE,
-  calcTimeBonus,
-  calcStreakBonus,
-  calcFinalScore,
-  calcGukbapTier,
-  toDisplayScore,
+  GLOBAL_TIME_LIMIT_SEC,
+  WRONG_TOUCH_LIMIT_PER_LEVEL,
+  WRONG_TOUCH_PENALTY,
+  INCOMPLETE_LEVEL_PENALTY,
 } from "./stageConfig.ts";
 
-test("STAGE_CONFIG는 9개 스테이지, Stage 점수 합계는 2040이다", () => {
-  assert.equal(STAGE_CONFIG.length, 9);
-  assert.equal(TOTAL_STAGE_SCORE, 2040);
+test("STAGE_CONFIG: 7레벨로 구성된다", () => {
+  assert.equal(STAGE_CONFIG.length, 7);
 });
 
-test("DISPLAY_MAX_SCORE는 1953이다", () => {
-  assert.equal(DISPLAY_MAX_SCORE, 1953);
+test("STAGE_CONFIG: 레벨 배점이 50/50/100/100/150/150/200이다", () => {
+  assert.deepEqual(
+    STAGE_CONFIG.map((s) => s.pointPool),
+    [50, 50, 100, 100, 150, 150, 200]
+  );
 });
 
-test("calcTimeBonus: 전체 시간 예산의 60%(324초)를 남기면 만점 400을 준다", () => {
-  const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36]; // 합계 324초
-  assert.equal(calcTimeBonus(remaining), 400);
+test("STAGE_CONFIG: diffCount는 1~6레벨 5, 7레벨 7이다", () => {
+  assert.deepEqual(
+    STAGE_CONFIG.map((s) => s.diffCount),
+    [5, 5, 5, 5, 5, 5, 7]
+  );
 });
 
-test("calcTimeBonus: 목표치의 절반만 남기면 절반 점수를 준다", () => {
-  const remaining = [18, 18, 18, 18, 18, 18, 18, 18, 18]; // 합계 162초 = 324의 절반
-  assert.equal(calcTimeBonus(remaining), 200);
+test("TOTAL_STAGE_SCORE: 레벨 배점 합은 800이다", () => {
+  assert.equal(TOTAL_STAGE_SCORE, 800);
 });
 
-test("calcTimeBonus: 남은 시간이 없으면 0점", () => {
-  assert.equal(calcTimeBonus([]), 0);
+test("전역 상수: 시간/오답/미완주 관련 값이 스펙과 일치한다", () => {
+  assert.equal(GLOBAL_TIME_LIMIT_SEC, 300);
+  assert.equal(WRONG_TOUCH_LIMIT_PER_LEVEL, 3);
+  assert.equal(WRONG_TOUCH_PENALTY, 10);
+  assert.equal(INCOMPLETE_LEVEL_PENALTY, 10);
 });
 
-test("calcTimeBonus: 남은 시간이 목표치를 초과해도 400점을 넘지 않는다", () => {
-  const remaining = [60, 60, 60, 60, 60, 60, 60, 60, 60]; // 합계 540초
-  assert.equal(calcTimeBonus(remaining), 400);
+import { calcAccuracyTierPoints, calcTimeBonus } from "./stageConfig.ts";
+
+test("calcAccuracyTierPoints: 6단계 정답률 구간 경계값", () => {
+  assert.equal(calcAccuracyTierPoints(0), 0);
+  assert.equal(calcAccuracyTierPoints(20), 0);
+  assert.equal(calcAccuracyTierPoints(21), 50);
+  assert.equal(calcAccuracyTierPoints(40), 50);
+  assert.equal(calcAccuracyTierPoints(41), 100);
+  assert.equal(calcAccuracyTierPoints(60), 100);
+  assert.equal(calcAccuracyTierPoints(61), 200);
+  assert.equal(calcAccuracyTierPoints(80), 200);
+  assert.equal(calcAccuracyTierPoints(81), 400);
+  assert.equal(calcAccuracyTierPoints(90), 400);
+  assert.equal(calcAccuracyTierPoints(91), 600);
+  assert.equal(calcAccuracyTierPoints(100), 600);
 });
 
-test("calcStreakBonus: 오답이 없으면 53점, 있으면 0점", () => {
-  assert.equal(calcStreakBonus(false), 53);
-  assert.equal(calcStreakBonus(true), 0);
+test("calcTimeBonus: 100초 이내는 정답률 티어 그대로", () => {
+  assert.equal(calcTimeBonus(50, 100), 600);
+  assert.equal(calcTimeBonus(100, 100), 600);
+  assert.equal(calcTimeBonus(100, 70), 200);
 });
 
-test("calcFinalScore: 내부 계산은 항상 0~100 비율이다", () => {
-  const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36];
-  const result = calcFinalScore(remaining, false);
-  assert.equal(Math.round(result.total * 1000) / 1000, 100);
+test("calcTimeBonus: 100초 초과는 10초 단위로 30점씩 감소한다", () => {
+  assert.equal(calcTimeBonus(105, 100), 570);
+  assert.equal(calcTimeBonus(110, 100), 570);
+  assert.equal(calcTimeBonus(111, 100), 540);
+  assert.equal(calcTimeBonus(300, 100), 0);
 });
 
-test("calcFinalScore: 시간 만점 + 오답 없음이면 표시 총점 1953 (만점 달성 가능)", () => {
-  const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36];
-  const result = calcFinalScore(remaining, false);
-  assert.equal(toDisplayScore(result.total), 1953);
+test("calcTimeBonus: 정답률이 낮으면 더 일찍 0에 도달한다", () => {
+  assert.equal(calcTimeBonus(150, 70), 50);
+  assert.equal(calcTimeBonus(161, 70), 0);
 });
 
-test("calcFinalScore: 오답이 있으면 정답행진 보너스만 빠진다", () => {
-  const remaining = [36, 36, 36, 36, 36, 36, 36, 36, 36];
-  const withStreak = calcFinalScore(remaining, false);
-  const withoutStreak = calcFinalScore(remaining, true);
-  assert.equal(withoutStreak.streakBonus, 0);
-  assert.ok(withoutStreak.total < withStreak.total);
+test("calcTimeBonus: 정답률 0%면 어떤 시간에도 0이다(악용 방지 검증)", () => {
+  assert.equal(calcTimeBonus(30, 0), 0);
+  assert.equal(calcTimeBonus(105, 0), 0);
+  assert.equal(calcTimeBonus(250, 0), 0);
 });
 
-test("calcGukbapTier: 만점(0~100 비율 100)이면 1953 Master", () => {
-  assert.equal(calcGukbapTier(100), "1953 Master");
+import { COMBO_BONUS_MAX, calcComboBonusForStreak } from "./stageConfig.ts";
+
+function closeTo(actual: number, expected: number, tolerance = 0.01) {
+  assert.ok(
+    Math.abs(actual - expected) < tolerance,
+    `expected ${actual} to be close to ${expected}`
+  );
+}
+
+test("calcComboBonusForStreak: 스트릭 0이면 0점", () => {
+  assert.equal(calcComboBonusForStreak(0, 50), 0);
 });
 
-test("calcGukbapTier: 표시 점수 1500 이상 1953 미만은 국밥 단골", () => {
-  // 1500/1953*100, 1952/1953*100 을 역산한 비율값으로 경계 검증
-  assert.equal(calcGukbapTier((1500 / 1953) * 100), "국밥 단골");
-  assert.equal(calcGukbapTier((1952 / 1953) * 100), "국밥 단골");
+test("calcComboBonusForStreak: 전체 정답을 스트릭 끊김 없이 다 찾으면 만점", () => {
+  closeTo(calcComboBonusForStreak(50, 50), COMBO_BONUS_MAX);
 });
 
-test("calcGukbapTier: 표시 점수 0이면 국밥 입문생", () => {
+test("calcComboBonusForStreak: 스트릭 길이의 제곱에 비례한다", () => {
+  closeTo(calcComboBonusForStreak(10, 50), 553 * (10 / 50) ** 2);
+  closeTo(calcComboBonusForStreak(25, 50), 553 * (25 / 50) ** 2);
+});
+
+test("calcComboBonusForStreak: 전체 정답 수가 0이면 0점(0으로 나누기 방지)", () => {
+  assert.equal(calcComboBonusForStreak(0, 0), 0);
+});
+
+test("calcComboBonusForStreak: 균등 간격 오답 k회 시 총합은 553/(k+1)에 수렴한다", () => {
+  const N = 60;
+  const k = 2; // 오답 2회 → 3구간
+  const segment = N / (k + 1);
+  const total =
+    calcComboBonusForStreak(segment, N) +
+    calcComboBonusForStreak(segment, N) +
+    calcComboBonusForStreak(segment, N);
+  closeTo(total, COMBO_BONUS_MAX / (k + 1), 0.5);
+});
+
+import { calcStageScore } from "./stageConfig.ts";
+
+test("calcStageScore: 한 레벨을 전부 찾으면 배점 그대로", () => {
+  assert.equal(calcStageScore([{ pointPool: 50, foundCount: 5, actualDiffCount: 5 }]), 50);
+});
+
+test("calcStageScore: 일부만 찾으면 비율만큼만 받는다", () => {
+  assert.equal(calcStageScore([{ pointPool: 50, foundCount: 3, actualDiffCount: 5 }]), 30);
+});
+
+test("calcStageScore: 실제 diffCount가 목표보다 적어도 정확히 나뉜다", () => {
+  closeToStage(calcStageScore([{ pointPool: 100, foundCount: 2, actualDiffCount: 3 }]), 200 / 3);
+});
+
+test("calcStageScore: 여러 레벨을 합산한다", () => {
+  const result = calcStageScore([
+    { pointPool: 50, foundCount: 5, actualDiffCount: 5 },
+    { pointPool: 100, foundCount: 0, actualDiffCount: 5 },
+    { pointPool: 200, foundCount: 7, actualDiffCount: 7 },
+  ]);
+  assert.equal(result, 50 + 0 + 200);
+});
+
+test("calcStageScore: actualDiffCount가 0이면 0으로 나누지 않고 건너뛴다", () => {
+  assert.equal(calcStageScore([{ pointPool: 50, foundCount: 0, actualDiffCount: 0 }]), 0);
+});
+
+function closeToStage(actual: number, expected: number, tolerance = 0.01) {
+  assert.ok(Math.abs(actual - expected) < tolerance, `expected ${actual} to be close to ${expected}`);
+}
+
+import { calcWrongTouchPenalty, calcIncompleteLevelPenalty } from "./stageConfig.ts";
+
+test("calcWrongTouchPenalty: 오답 1회당 10점", () => {
+  assert.equal(calcWrongTouchPenalty(0), 0);
+  assert.equal(calcWrongTouchPenalty(1), 10);
+  assert.equal(calcWrongTouchPenalty(21), 210);
+});
+
+test("calcIncompleteLevelPenalty: 전부 도달하면 0점", () => {
+  assert.equal(calcIncompleteLevelPenalty(7, 7), 0);
+});
+
+test("calcIncompleteLevelPenalty: 진행 중이던 레벨은 도달로 취급해 감점 제외", () => {
+  // 4단계까지 갔다(진행 중이던 4단계 포함 levelsReached=4) → 5,6,7단계 3개 미도달
+  assert.equal(calcIncompleteLevelPenalty(4, 7), 30);
+});
+
+test("calcIncompleteLevelPenalty: 음수로 내려가지 않는다", () => {
+  assert.equal(calcIncompleteLevelPenalty(9, 7), 0);
+});
+
+import { calcFinalScore, calcGukbapTier } from "./stageConfig.ts";
+
+function perfectLevelResults() {
+  return STAGE_CONFIG.map((s) => ({
+    pointPool: s.pointPool,
+    foundCount: s.diffCount,
+    actualDiffCount: s.diffCount,
+  }));
+}
+
+test("calcFinalScore: 완전 무결점 + 100초 이내 완주 = 1953", () => {
+  const totalAnswers = STAGE_CONFIG.reduce((sum, s) => sum + s.diffCount, 0);
+  const breakdown = calcFinalScore({
+    levelResults: perfectLevelResults(),
+    elapsedSec: 90,
+    totalWrongTouches: 0,
+    comboBankedScore: 0,
+    comboCurrentStreak: totalAnswers,
+    comboTotalAnswers: totalAnswers,
+    levelsReached: STAGE_CONFIG.length,
+  });
+  assert.equal(breakdown.total, 1953);
+});
+
+test("calcFinalScore: 오답만 찍고 강제 스킵하는 악용은 순손실이다", () => {
+  const totalAnswers = STAGE_CONFIG.reduce((sum, s) => sum + s.diffCount, 0);
+  const emptyLevelResults = STAGE_CONFIG.map((s) => ({
+    pointPool: s.pointPool,
+    foundCount: 0,
+    actualDiffCount: s.diffCount,
+  }));
+  const breakdown = calcFinalScore({
+    levelResults: emptyLevelResults,
+    elapsedSec: 35,
+    totalWrongTouches: STAGE_CONFIG.length * 3,
+    comboBankedScore: 0,
+    comboCurrentStreak: 0,
+    comboTotalAnswers: totalAnswers,
+    levelsReached: STAGE_CONFIG.length,
+  });
+  assert.equal(breakdown.total, 0);
+  assert.equal(breakdown.stageScore, 0);
+  assert.equal(breakdown.timeBonus, 0);
+  assert.equal(breakdown.comboBonus, 0);
+  assert.equal(breakdown.wrongTouchPenalty, 210);
+});
+
+test("calcFinalScore: 총점은 절대 음수로 표시되지 않는다", () => {
+  const breakdown = calcFinalScore({
+    levelResults: [],
+    elapsedSec: 300,
+    totalWrongTouches: 100,
+    comboBankedScore: 0,
+    comboCurrentStreak: 0,
+    comboTotalAnswers: 30,
+    levelsReached: 0,
+  });
+  assert.equal(breakdown.total, 0);
+});
+
+test("calcGukbapTier: 컷오프 경계값", () => {
+  assert.equal(calcGukbapTier(1953), "1953 Master");
+  assert.equal(calcGukbapTier(1500), "국밥 단골");
+  assert.equal(calcGukbapTier(1200), "국밥 미식가");
+  assert.equal(calcGukbapTier(800), "국밥 탐험가");
   assert.equal(calcGukbapTier(0), "국밥 입문생");
-});
-
-test("toDisplayScore: 0~100 비율을 1953 만점으로 반올림 환산한다", () => {
-  assert.equal(toDisplayScore(100), 1953);
-  assert.equal(toDisplayScore(0), 0);
-  assert.equal(toDisplayScore(50), 977); // round(50/100*1953)
 });

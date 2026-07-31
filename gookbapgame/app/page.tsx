@@ -38,31 +38,23 @@ export default function Home({ searchParams }: PageProps) {
         <PreloadScreen loadError={game.loadError} onRetry={game.retryPreload} />
       )}
 
-      {(game.phase === "playing" ||
-        game.phase === "stageClear" ||
-        game.phase === "stageFail") &&
-        game.session && (
-          <div className={game.phase !== "playing" ? "blur-sm pointer-events-none" : undefined}>
-            <GameScreen
-              key={`${game.stageNumber}-${game.loadNonce}`}
-              session={game.session}
-              stageNumber={game.stageNumber}
-              totalStages={game.totalStages}
-              timeLimitSec={game.timeLimitSec}
-              onStageClear={game.handleStageClear}
-              onStageTimeout={game.handleStageTimeout}
-              onWrongTouch={game.recordWrongTouch}
-            />
-          </div>
-        )}
-
-      {game.phase === "stageClear" && (
-        <StageTransitionModal type="stageClear" onNext={game.advanceToNextStage} />
+      {(game.phase === "playing" || game.phase === "stageClear") && game.session && (
+        <div className={game.phase !== "playing" ? "blur-sm pointer-events-none" : undefined}>
+          <GameScreen
+            key={`${game.stageNumber}-${game.loadNonce}`}
+            session={game.session}
+            stageNumber={game.stageNumber}
+            totalStages={game.totalStages}
+            remainingTimeSec={game.remainingTimeSec}
+            onStageClear={game.handleStageClear}
+            onForceAdvance={game.handleForceAdvance}
+            onWrongTouch={game.recordWrongTouch}
+            onCorrectFind={game.recordCorrectFind}
+          />
+        </div>
       )}
 
-      {game.phase === "stageFail" && (
-        <StageTransitionModal type="stageFail" onNext={game.retryFromStageOne} />
-      )}
+      {game.phase === "stageClear" && <StageTransitionModal onNext={game.advanceToNextStage} />}
 
       {game.phase === "gameResult" && game.scoreBreakdown && game.gukbapTier && (
         <GameResultScreen
