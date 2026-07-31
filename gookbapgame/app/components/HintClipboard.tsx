@@ -9,9 +9,10 @@ interface HintClipboardProps {
   onClose: () => void;
 }
 
-// 애셋 원본 크기 1626x2624 기준 종이 영역의 대략적 위치(래퍼 대비 백분율).
-// top이 26%인 것은 금속 집게가 종이 상단을 덮기 때문이다.
-const PAPER_INSET = { left: "13%", right: "18%", top: "26%", bottom: "14%" };
+// 애셋 원본 크기 1626x2624 기준 종이 영역의 위치(래퍼 대비 백분율).
+// top이 큰 것은 금속 집게가 종이 상단을 덮기 때문이다. 집게의 가장 아래 지점이
+// 래퍼 높이의 약 20% 위치이므로 22%가 사실상 상한이다 — 더 올리면 글자가 집게에 가린다.
+const PAPER_INSET = { left: "13%", right: "18%", top: "22%", bottom: "14%" };
 
 // 감열지 인쇄 느낌의 잉크색. 테마의 --ink는 어두운 배경용 밝은 색이라 흰 종이에서 안 보인다.
 const PAPER_INK = "#3A2E24";
@@ -30,20 +31,10 @@ export default function HintClipboard({ names, onClose }: HintClipboardProps) {
         if (e.key === "Escape" || e.key === "Enter" || e.key === " ") onClose();
       }}
     >
-      <div
-        className="relative"
-        // 세로로 긴 애셋(1626x2624)이라 기본은 높이 기준이되, 좁은 화면에서는 폭 기준으로 줄인다.
-        // 중요: maxWidth로 자르면 안 된다. 폭이 잘린 래퍼는 애셋보다 가로가 넓어지고,
-        // object-contain이 이미지를 위아래 레터박스로 축소시킨다. 그런데 아래 PAPER_INSET은
-        // 이미지가 아니라 "래퍼" 기준 백분율이라, 글자 블록이 종이에서 떨어져 나간다.
-        // aspectRatio로 래퍼를 항상 애셋 비율과 정확히 같게 유지해야 백분율이 성립한다.
-        style={{
-          aspectRatio: "1626 / 2624",
-          height: "min(88vh, calc(92vw * 2624 / 1626))",
-          width: "auto",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      {/* 크기 결정은 globals.css의 .hint-clipboard에 있다 — 방향별 분기가 필요해서
+          인라인 스타일로는 표현할 수 없다. 그 클래스가 래퍼를 애셋과 같은 비율로
+          고정하고 container-type: size를 걸어, 아래 cqh 단위가 성립하게 한다. */}
+      <div className="relative hint-clipboard" onClick={(e) => e.stopPropagation()}>
         {/* eslint-disable-next-line @next/next/no-img-element -- static local decorative asset,
             no next/image optimization needed for a fixed-size overlay graphic */}
         <img
@@ -58,11 +49,21 @@ export default function HintClipboard({ names, onClose }: HintClipboardProps) {
             ...PAPER_INSET,
             color: PAPER_INK,
             fontFamily: "monospace",
-            // 예산: 종이 세로 = (100-26-14)% × 88vh = 52.8vh.
-            // 줄 높이 1.8 × 2.2vh = 3.96vh, 10줄 = 39.6vh, 헤더+여백 ≈ 4.5vh → 약 44vh.
-            // 52.8vh 안에 여유 있게 들어간다. 이 값들을 키우려면 다시 계산할 것.
-            fontSize: "min(2.2vh, 3.0vw)",
-            lineHeight: 1.8,
+            // 1cqh = 래퍼(클립보드) 높이의 1%. 뷰포트가 아니라 클립보드에 비례하므로
+            // globals.css의 높이 상한을 바꿔도 글자와 종이의 비율은 그대로 유지된다.
+            //
+            // 예산: 종이 세로 = (100 - 22 - 14)% = 64cqh. 목표는 9줄 수용.
+            // 실제 최대 문제 수는 7개(STAGE_CONFIG)이고, 나머지 2줄은 긴 이름이
+            // 줄바꿈될 때를 위한 여유다.
+            //
+            // 줄 높이 1.5 × 4.1cqh = 6.15cqh.
+            // 본문 9줄 55.35cqh + 헤더 6.15cqh + 헤더 아래 여백 12px(≈1.8cqh) = 63.3cqh.
+            // 64cqh 안에 0.7cqh 여유.
+            //
+            // fontSize나 lineHeight를 더 키우려면 9줄 요구를 먼저 낮춰야 한다 — 넘치면
+            // overflow-hidden에 줄이 조용히 잘려서 "줄 수 == 차이 슬롯 수"가 깨진다.
+            fontSize: "4.1cqh",
+            lineHeight: 1.5,
           }}
         >
           <div className="font-bold tracking-widest border-b border-dashed border-current pb-1 mb-2">
