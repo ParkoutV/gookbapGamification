@@ -55,4 +55,6 @@ export const en: Partial<Dictionary> = {
   "game.hintButton": "Hint",
   "game.remainingCount": "Remaining: {found}/{total}",
   "game.wrongTouchAria": "{count}/{limit} wrong touches",
+  "game.hintTitle": "TODAY'S ORDER",
+  "game.hintCloseAria": "Close hint",
 };
