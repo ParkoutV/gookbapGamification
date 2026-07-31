@@ -43,8 +43,8 @@ export default function GameResultScreen({
           {rows.map((row) => (
             <div key={row.label} className="flex justify-between">
               <dt className="text-muted">{row.label}</dt>
-              <dd className={`font-bold ${row.isPenalty ? "text-error" : "text-ink"}`}>
-                {row.isPenalty ? "-" : ""}
+              <dd className="text-ink font-bold">
+                {row.isPenalty && row.value > 0 ? "-" : ""}
                 {row.value}
               </dd>
             </div>
