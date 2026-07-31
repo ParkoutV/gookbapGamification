@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, LayoutDashboard, Image as ImageIcon, LogOut, Users, Settings, MapPin, Globe, ClipboardList, Gift, BarChart3 } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Image as ImageIcon, LogOut, Users, Settings, MapPin, Globe, ClipboardList, Gift, BarChart3, Scan } from 'lucide-react'
 import { logoutUser } from '@/app/login/actions'
 
 interface SidebarProps {
@@ -18,6 +18,7 @@ export default function Sidebar({ permission, email }: SidebarProps) {
 
   const links = [
     { href: '/main', label: '대시보드', icon: LayoutDashboard },
+    { href: '/coupon', label: 'QR 쿠폰 스캔', icon: Scan },
     { href: '/main/surveys', label: '설문 관리', icon: ClipboardList },
     { href: '/main/survey-results', label: '설문 통계', icon: BarChart3 },
   ]

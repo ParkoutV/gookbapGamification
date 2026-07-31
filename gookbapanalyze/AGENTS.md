@@ -214,3 +214,20 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **DB 작업 (발급 시 INSERT)**: 쿠폰 획득 시 `issued_coupons`에 기록 (**총 발급 수** 집계).
 - **DB 작업 (사용 시 UPDATE)**: 오프라인 매장 등에서 사용 처리 시 `issued_coupons`의 `is_used`를 `true`로 갱신.
 - **KPI 연결**: `is_used = true`인 쿠폰 수를 집계하여 발급 수 대비 **쿠폰 사용률**을 자동 도출합니다.
+
+# QR Scanner Implementation Guidelines
+`/coupon` 페이지의 QR 스캐너(`html5-qrcode` 기반) 구현 시 다음의 엄격한 규칙들을 반드시 준수해야 합니다.
+
+1. **Scanner Paused 화면 차단 (핵심):**
+   - `html5-qrcode` 라이브러리는 탭 이동이나 브라우저 포커스 변경 시 모바일 환경에서 종종 카메라를 강제로 일시정지하고 검은색 "Scanner paused" 오버레이를 덮어씌우는 고질적인 문제가 있습니다.
+   - 이를 원천 차단하기 위해 생성된 `Html5Qrcode` 인스턴스의 `pause` 메서드를 강제로 오버라이딩(`scanner.pause = () => {}`)하여 무력화해야 합니다.
+   - 또한, 만약의 경우를 대비해 전역 CSS(`globals.css`)에서 `div[style*="rgba(9, 9, 9, 0.46)"]` 선택자를 통해 오버레이 자체를 `display: none !important`로 가려버려야 합니다.
+
+2. **실시간 설정 프리뷰 (Real-time Preview):**
+   - 설정 모달창(`isSettingsOpen`)이 열려 있을 때 카메라 렌더링을 완전히 멈추지(`stopScanner`) 않습니다. 반투명한 설정창 뒤로 스캐너를 계속 가동시켜, 사용자가 디스플레이 옵션(폭 맞춤 등)을 바꿀 때 즉각적인 화면 변화(피드백)를 볼 수 있도록 해야 합니다.
+   - **주의:** 스캐너가 뒤에서 계속 가동되므로, 모달창이 켜져 있을 때 발생하는 큐알코드 인식 이벤트는 반드시 무시(`if (isSettingsOpen) return`) 처리해야 합니다.
+
+3. **비디오 강제 변형 (Force Distortion for 'Fill' Mode):**
+   - "전체 늘리기(Fill)" 옵션을 선택할 경우, 이미지가 찌그러지더라도 빈 공간이나 픽셀 잘림 없이 화면(컨테이너)을 가득 채워야 합니다.
+   - 그러나 iOS WebKit 등 일부 모바일 환경에서는 WebRTC `<video>` 요소에 `object-fit: fill` CSS를 주입해도 OS 단에서 비율 유지를 강제하여 명령을 무시합니다.
+   - 따라서 'Fill' 모드일 경우에는 반드시 JavaScript `setInterval` 루프를 이용해 비디오 원본의 가로/세로 길이(`videoWidth`, `videoHeight`) 대비 뷰포트 컨테이너의 가로/세로 길이를 계산한 후, CSS `transform: scale(X, Y)`를 주입하여 렌더링을 강제로 잡아 늘려야 합니다.

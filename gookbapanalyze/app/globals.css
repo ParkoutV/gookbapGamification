@@ -24,3 +24,58 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Coupon Scanner Video Fit Styles */
+#reader > div {
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+/* 꿀팁: html5-qrcode가 몰래 생성하는 'Scanner paused' 오버레이 원천 차단 */
+#reader > div[style*="rgba(9, 9, 9, 0.46)"] {
+  display: none !important;
+}
+
+#reader[data-fit="width"] video {
+  width: 100% !important;
+  height: auto !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  object-fit: fill !important;
+}
+
+#reader[data-flipped="true"][data-fit="width"] video {
+  transform: translate(-50%, -50%) scaleX(-1) !important;
+}
+
+#reader[data-fit="height"] video {
+  height: 100% !important;
+  width: auto !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  object-fit: fill !important;
+}
+
+#reader[data-flipped="true"][data-fit="height"] video {
+  transform: translate(-50%, -50%) scaleX(-1) !important;
+}
+
+#reader[data-fit="fill"] video {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  object-fit: fill !important;
+}
+
+#reader[data-flipped="true"][data-fit="fill"] video {
+  transform: scaleX(-1) !important;
+}

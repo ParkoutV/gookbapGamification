@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
-  const isProtected = request.nextUrl.pathname.startsWith('/main') || request.nextUrl.pathname.startsWith('/admin')
+  const isProtected = request.nextUrl.pathname.startsWith('/main') || request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/coupon')
 
   if (!user && isProtected) {
     return NextResponse.redirect(new URL('/login', request.url))

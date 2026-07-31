@@ -351,7 +351,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
             minScale={0.1}
             maxScale={5}
             centerOnInit
-            wheel={{ step: 0.05 }}
+            wheel={{ disabled: true }}
             panning={{ excluded: ['rnd'] }} // Rnd 드래그 시 패닝 방지
           >
             {({ state }) => (
@@ -432,7 +432,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           </TransformWrapper>
           
           <div className="absolute bottom-4 left-4 bg-black/60 text-white px-3 py-1.5 rounded text-xs backdrop-blur">
-            휠 또는 터치 제스처로 캔버스 확대/축소
+            터치 제스처로 캔버스 확대/축소
           </div>
         </div>
 
