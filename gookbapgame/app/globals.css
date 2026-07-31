@@ -97,3 +97,37 @@ body {
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
+
+/* 힌트 클립보드 오버레이(HintClipboard.tsx)의 크기 결정.
+   인라인 스타일이 아니라 여기 있는 이유는 방향(orientation)별 분기가 필요해서다.
+
+   aspect-ratio로 래퍼를 애셋(1626x2624)과 정확히 같은 비율로 고정한다. 이게 깨지면
+   object-contain이 이미지를 레터박스로 축소시키는데, 종이 위 글자는 이미지가 아니라
+   래퍼 기준 백분율로 배치되므로 글자가 종이에서 떨어져 나간다. max-width로 폭을
+   자르면 안 되는 이유이기도 하다 — 높이 쪽에서 줄여야 한다.
+
+   container-type: size 는 안쪽 글자 크기를 cqh(래퍼 높이의 1%)로 잡기 위한 것이다.
+   뷰포트가 아니라 클립보드 자체에 비례하므로, 아래 높이 상한을 바꿔도 글자와 종이의
+   비율은 그대로 유지된다. */
+.hint-clipboard {
+  aspect-ratio: 1626 / 2624;
+  width: auto;
+  height: min(60vh, calc(69vw * 2624 / 1626));
+  container-type: size;
+}
+
+/* 씬 두 장이 좌우로 놓이는 배치에서는 클립보드를 더 줄인다.
+   이 배치에서는 씬이 화면 높이의 일부만 차지하므로, 위 기본값을 쓰면 클립보드가
+   씬을 완전히 덮어버려 어색하다.
+
+   조건은 GameScreen의 <main>이 `flex-col md:flex-row`로 배치를 바꾸는 그 지점과
+   정확히 같아야 한다. 그래서 768px을 손으로 적지 않고 Tailwind의 md 브레이크포인트
+   변수(--breakpoint-md)를 그대로 참조한다 — 나중에 md를 조정해도 같이 따라간다.
+
+   방향(orientation)으로 걸면 안 된다. 좌우 배치를 결정하는 건 뷰포트 방향이 아니라
+   너비여서, 세로로 긴 고해상도 화면에서는 씬이 이미 좌우로 놓였는데도 발동하지 않는다. */
+@media (width >= theme(--breakpoint-md)) {
+  .hint-clipboard {
+    height: min(40vh, calc(69vw * 2624 / 1626));
+  }
+}

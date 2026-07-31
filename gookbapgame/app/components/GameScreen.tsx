@@ -5,6 +5,8 @@ import { GameSession } from "../actions";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
+import HintClipboard from "./HintClipboard";
+import { resolveLocalizedName } from "../lib/i18n/localizedName";
 
 interface GameScreenProps {
   session: GameSession;
@@ -31,18 +33,23 @@ export default function GameScreen({
   onWrongTouch,
   onCorrectFind,
 }: GameScreenProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
   const [wrongTouchCount, setWrongTouchCount] = useState(0);
   const [wrongMarks, setWrongMarks] = useState<WrongMark[]>([]);
   const [isShaking, setIsShaking] = useState(false);
   const [scale, setScale] = useState(1);
+  const [isHintOpen, setIsHintOpen] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const wrongMarkIdRef = React.useRef(0);
   const forceAdvanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const differenceSlots = session.slots.filter((s) => s.isDifference);
   const totalDifferences = differenceSlots.length;
+
+  // 차이 슬롯 1개당 정확히 한 줄. 이름이 겹쳐도 dedupe 하지 않는다 —
+  // 줄이 줄어들면 플레이어가 문제를 다 찾은 것으로 착각한다.
+  const hintNames = differenceSlots.map((slot) => resolveLocalizedName(slot.categoryName, locale));
 
   const updateScale = () => {
     if (containerRef.current) {
@@ -63,6 +70,8 @@ export default function GameScreen({
 
   useEffect(() => {
     if (totalDifferences > 0 && foundSlots.size >= totalDifferences) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-off UI reset tied to this stage-clear transition, not a cascading sync loop
+      setIsHintOpen(false);
       onStageClear(foundSlots.size);
     }
   }, [foundSlots.size, totalDifferences, onStageClear]);
@@ -85,6 +94,7 @@ export default function GameScreen({
     setWrongTouchCount(next);
 
     if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
+      setIsHintOpen(false);
       setIsShaking(true);
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         navigator.vibrate(100);
@@ -211,7 +221,12 @@ export default function GameScreen({
 
       <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
         <PixelPanel size="btn">
-          <button type="button" className="w-full font-bold text-ink">
+          <button
+            type="button"
+            className="w-full font-bold text-ink"
+            onClick={() => setIsHintOpen((prev) => !prev)}
+            aria-expanded={isHintOpen}
+          >
             {t("game.hintButton")}
           </button>
         </PixelPanel>
@@ -232,6 +247,7 @@ export default function GameScreen({
           {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
         </span>
       </footer>
+      {isHintOpen && <HintClipboard names={hintNames} onClose={() => setIsHintOpen(false)} />}
     </div>
   );
 }

@@ -55,4 +55,6 @@ export const ko: Dictionary = {
   "game.hintButton": "힌트",
   "game.remainingCount": "남은 개수: {found}/{total}",
   "game.wrongTouchAria": "오답 {count}/{limit}",
+  "game.hintTitle": "오늘의 주문서",
+  "game.hintCloseAria": "힌트 닫기",
 };
