@@ -20,9 +20,10 @@ export const en: Partial<Dictionary> = {
 
   "gameResult.title": "Game Result",
   "gameResult.stageScore": "Stage Score",
-  "gameResult.completionBonus": "Completion Bonus",
   "gameResult.timeBonus": "Time Bonus",
-  "gameResult.streakBonus": "Streak Bonus",
+  "gameResult.comboBonus": "Combo Bonus",
+  "gameResult.wrongTouchPenalty": "Wrong Touch Penalty",
+  "gameResult.incompleteLevelPenalty": "Incomplete Level Penalty",
   "gameResult.totalLabel": "Total",
   "gameResult.gukbapPowerLabel": "Gukbap Power: {tier}",
   "gameResult.nextButton": "Next",
@@ -40,12 +41,9 @@ export const en: Partial<Dictionary> = {
   "gukbapTier.beginner": "Gukbap Beginner",
 
   "stageTransition.clearTitle": "Congratulations!!",
-  "stageTransition.failTitle": "Unfortunately",
   "stageTransition.clearMessage": "You cleared this stage.",
-  "stageTransition.failMessage": "Time's up.",
   "stageTransition.loading": "Loading...",
   "stageTransition.nextButton": "Next",
-  "stageTransition.retryButton": "Retry Stage",
 
   "wheel.title": "Lucky Wheel",
   "wheel.preparing": "Coming soon.",
@@ -56,4 +54,5 @@ export const en: Partial<Dictionary> = {
   "game.secondsUnit": "{seconds}s",
   "game.hintButton": "Hint",
   "game.remainingCount": "Remaining: {found}/{total}",
+  "game.wrongTouchAria": "{count}/{limit} wrong touches",
 };

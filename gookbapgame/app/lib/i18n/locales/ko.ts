@@ -20,9 +20,10 @@ export const ko: Dictionary = {
 
   "gameResult.title": "게임 결과",
   "gameResult.stageScore": "Stage 점수",
-  "gameResult.completionBonus": "완주 보너스",
   "gameResult.timeBonus": "시간 보너스",
-  "gameResult.streakBonus": "정답행진 보너스",
+  "gameResult.comboBonus": "콤보 보너스",
+  "gameResult.wrongTouchPenalty": "오답 감점",
+  "gameResult.incompleteLevelPenalty": "미완주 감점",
   "gameResult.totalLabel": "총점",
   "gameResult.gukbapPowerLabel": "국밥력: {tier}",
   "gameResult.nextButton": "다음",
@@ -40,12 +41,9 @@ export const ko: Dictionary = {
   "gukbapTier.beginner": "국밥 입문생",
 
   "stageTransition.clearTitle": "축하합니다!!",
-  "stageTransition.failTitle": "아쉽게도",
   "stageTransition.clearMessage": "이번 단계를 통과하셨습니다.",
-  "stageTransition.failMessage": "시간이 종료되었습니다.",
   "stageTransition.loading": "로딩 중...",
   "stageTransition.nextButton": "다음",
-  "stageTransition.retryButton": "재도전",
 
   "wheel.title": "행운의 돌림판",
   "wheel.preparing": "준비 중입니다.",
@@ -56,4 +54,5 @@ export const ko: Dictionary = {
   "game.secondsUnit": "{seconds}초",
   "game.hintButton": "힌트",
   "game.remainingCount": "남은 개수: {found}/{total}",
+  "game.wrongTouchAria": "오답 {count}/{limit}",
 };
