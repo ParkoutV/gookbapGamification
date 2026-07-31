@@ -7,6 +7,7 @@ import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPol
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { generateNickname } from "./lib/nickname";
+import type { LocalizedName } from "./lib/i18n/localizedName";
 
 export type GameSlot = {
   slotId: number;
@@ -16,6 +17,8 @@ export type GameSlot = {
   isDifference: boolean;
   leftHitPolygon: Point[] | null;
   rightHitPolygon: Point[] | null;
+  /** part_categories.name의 jsonb 원본. 로케일 해석은 클라이언트에서 한다. */
+  categoryName: LocalizedName;
 };
 
 export type GameSession = {
@@ -127,6 +130,22 @@ export async function fetchGameData(
       return null;
     }
 
+    // 힌트 클립보드에 표시할 카테고리명. 이 조회가 실패해도 게임 진행은 막지 않고,
+    // 해당 슬롯의 categoryName을 null로 두어 클라이언트가 플레이스홀더를 그리게 한다.
+    const usedCategoryIds = Array.from(new Set(validSlots.map((s) => s.category_id)));
+    const { data: categoryRows, error: categoriesErr } = await supabase
+      .from("part_categories")
+      .select("id,name")
+      .in("id", usedCategoryIds);
+
+    if (categoriesErr) {
+      console.warn("[fetchGameData] part_categories 조회 실패 — 힌트에 카테고리명이 비게 된다:", categoriesErr);
+    }
+
+    const categoryNameById = new Map<number, LocalizedName>(
+      (categoryRows ?? []).map((row) => [row.id as number, row.name as LocalizedName])
+    );
+
     // 3. Determine differences — GDD 7.2가 정한 스테이지별 고정 목표치를 우선하되,
     // 콘텐츠(유효 슬롯)가 그보다 적으면 있는 만큼만 차이로 지정한다(조용히 스킵하지 않음).
     const N = validSlots.length;
@@ -149,6 +168,7 @@ export async function fetchGameData(
       slotScale: number;
       leftPart: PartRow;
       rightPart: PartRow;
+      categoryName: LocalizedName;
     }[] = [];
 
     for (let i = 0; i < N; i++) {
@@ -176,6 +196,7 @@ export async function fetchGameData(
         slotScale: slot.scale ?? 1.0,
         leftPart,
         rightPart,
+        categoryName: categoryNameById.get(slot.category_id) ?? null,
       });
 
       leftImageSlots[slot.category_id] = leftPart.id;
@@ -198,6 +219,7 @@ export async function fetchGameData(
           isDifference: builder.leftPart.id !== builder.rightPart.id,
           leftHitPolygon,
           rightHitPolygon,
+          categoryName: builder.categoryName,
         };
       })
     );
