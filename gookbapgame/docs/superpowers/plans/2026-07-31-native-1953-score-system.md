@@ -1641,6 +1641,349 @@ Expected: 콘솔에 컴파일 에러 없이 기동.
 
 ---
 
+## Task 13: `GameResultScreen` 감점 표시 스타일 수정 (실사용 QA 발견)
+
+Task 12 수동 브라우저 검증 중 이란토가 실제로 발견한 표시 문제. 감점이 0일 때 "-0"으로 보이는 게 어색하고, 감점 행만 빨간색으로 강조하는 게 불필요하다는 피드백.
+
+**Files:**
+- Modify: `app/components/GameResultScreen.tsx`
+
+**Interfaces:**
+- Consumes: `ScoreBreakdown`(Task 6) — 변경 없음, 렌더링 방식만 수정
+
+- [ ] **Step 1: `rows` 렌더링 부분을 아래로 교체**
+
+기존(Task 10에서 작성한):
+```tsx
+          {rows.map((row) => (
+            <div key={row.label} className="flex justify-between">
+              <dt className="text-muted">{row.label}</dt>
+              <dd className={`font-bold ${row.isPenalty ? "text-error" : "text-ink"}`}>
+                {row.isPenalty ? "-" : ""}
+                {row.value}
+              </dd>
+            </div>
+          ))}
+```
+
+아래로 교체:
+```tsx
+          {rows.map((row) => (
+            <div key={row.label} className="flex justify-between">
+              <dt className="text-muted">{row.label}</dt>
+              <dd className="text-ink font-bold">
+                {row.isPenalty && row.value > 0 ? "-" : ""}
+                {row.value}
+              </dd>
+            </div>
+          ))}
+```
+
+변경 내용: (1) 감점 값이 0이면 "-" 접두사를 붙이지 않는다(`row.value > 0` 조건 추가). (2) 감점 행도 `text-error`(빨간색)가 아니라 `text-ink`(다른 행과 동일한 흰색/기본색)로 통일한다. `row.isPenalty` 필드 자체(및 그 위 `rows` 배열 정의)는 그대로 둔다 — "-" 접두사 조건에 여전히 필요하다.
+
+- [ ] **Step 2: 수동 확인**
+
+이 컴포넌트는 자동 테스트 대상이 아니다(저장소 컨벤션). `flatpak-spawn --host npx tsc --noEmit`으로 타입 에러 없는지만 확인.
+
+- [ ] **Step 3: 커밋**
+
+```bash
+git add app/components/GameResultScreen.tsx
+git commit -m "$(cat <<'EOF'
+GameResultScreen: 감점 0일 때 접두사 생략, 감점 행 색상 통일
+
+수동 QA에서 발견 — 감점이 0인데 "-0"으로 보이는 게 어색하고,
+감점 행만 빨간색으로 구분할 필요가 없다는 피드백 반영.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 14: `GameScreen` 오답 판정 로직 개선 + 커서 치트 방지 (실사용 QA 발견)
+
+Task 12 수동 브라우저 검증 중 이란토가 발견한 두 가지 문제:
+1. 이미 찾은 정답 슬롯을 다시 클릭하면 오답으로 처리되는 버그(정답 슬롯 오버레이의 `else` 분기로 빠짐).
+2. 슬롯에만 클릭 가능한 오버레이 div가 있어서, 마우스 커서가 손모양으로 바뀌는 위치를 더듬어 찾으면 정답 위치가 그대로 드러나는 구조적 문제.
+
+**해결 방향**: 오버레이 div는 이제 "정답(차이) 슬롯"에만 렌더링한다(오답 슬롯용 오버레이는 완전히 없앤다). 오답 판정은 "정답 슬롯이 아닌 곳 아무데나 클릭"으로 통일하고, 클릭한 정확한 좌표에 실시간으로 ✕ 표시를 띄운다. 배경에도 정답 슬롯과 동일한 `cursor-pointer`를 적용해 커서 변화로 정답 위치를 추측할 수 없게 한다. 이미 찾은 정답 슬롯을 다시 클릭하면 오버레이가 클릭을 그 자리에서 흡수(`stopPropagation`)하고 아무 효과도 없다(오답 아님).
+
+**Files:**
+- Modify: `app/components/GameScreen.tsx` (전체 재작성)
+
+**Interfaces:**
+- Consumes: `WRONG_TOUCH_LIMIT_PER_LEVEL`(Task 1) — 변경 없음
+- Produces: `GameScreenProps`는 Task 8과 동일(`session, stageNumber, totalStages, remainingTimeSec, onStageClear, onForceAdvance, onWrongTouch, onCorrectFind`) — **외부 인터페이스는 바뀌지 않는다**, `page.tsx`(Task 9) 수정 불필요.
+
+- [ ] **Step 1: `app/components/GameScreen.tsx` 전체 교체**
+
+```tsx
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { GameSession } from "../actions";
+import PixelPanel from "./PixelPanel";
+import { useLocale } from "../lib/i18n/LocaleContext";
+import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
+
+interface GameScreenProps {
+  session: GameSession;
+  stageNumber: number;
+  totalStages: number;
+  remainingTimeSec: number;
+  onStageClear: (foundCount: number) => void;
+  onForceAdvance: (foundCount: number) => void;
+  onWrongTouch: () => void;
+  onCorrectFind: () => void;
+}
+
+const FORCE_ADVANCE_DELAY_MS = 400;
+
+type WrongMark = { id: number; x: number; y: number; side: "left" | "right" };
+
+export default function GameScreen({
+  session,
+  stageNumber,
+  totalStages,
+  remainingTimeSec,
+  onStageClear,
+  onForceAdvance,
+  onWrongTouch,
+  onCorrectFind,
+}: GameScreenProps) {
+  const { t } = useLocale();
+  const [foundSlots, setFoundSlots] = useState<Set<number>>(new Set());
+  const [wrongTouchCount, setWrongTouchCount] = useState(0);
+  const [wrongMarks, setWrongMarks] = useState<WrongMark[]>([]);
+  const [isShaking, setIsShaking] = useState(false);
+  const [scale, setScale] = useState(1);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const wrongMarkIdRef = React.useRef(0);
+
+  const differenceSlots = session.slots.filter((s) => s.isDifference);
+  const totalDifferences = differenceSlots.length;
+
+  const updateScale = () => {
+    if (containerRef.current) {
+      const { clientWidth } = containerRef.current;
+      setScale(clientWidth / 1200);
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener("resize", updateScale);
+    updateScale();
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
+  const handleImageLoad = () => {
+    updateScale();
+  };
+
+  useEffect(() => {
+    if (totalDifferences > 0 && foundSlots.size >= totalDifferences) {
+      onStageClear(foundSlots.size);
+    }
+  }, [foundSlots.size, totalDifferences, onStageClear]);
+
+  const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
+    if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
+
+    setWrongMarks((prev) => [...prev, { id: wrongMarkIdRef.current++, x, y, side }]);
+    onWrongTouch();
+    setWrongTouchCount((prev) => {
+      const next = prev + 1;
+      if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
+        setIsShaking(true);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(100);
+        }
+        setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+      }
+      return next;
+    });
+  };
+
+  const handleBackgroundClick =
+    (side: "left" | "right") => (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      registerWrongTouch(e.clientX - rect.left, e.clientY - rect.top, side);
+    };
+
+  const handleSlotClick = (slotId: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
+    if (foundSlots.has(slotId)) return;
+
+    setFoundSlots((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(slotId);
+      return newSet;
+    });
+    onCorrectFind();
+  };
+
+  const FALLBACK_CLIP_PATH = "circle(25%)";
+
+  const buildClipPath = (polygon: { x: number; y: number }[] | null): string => {
+    if (!polygon || polygon.length < 3) {
+      return FALLBACK_CLIP_PATH;
+    }
+    if (polygon.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
+      return FALLBACK_CLIP_PATH;
+    }
+    const points = polygon.map((p) => `${p.x * 100}% ${p.y * 100}%`).join(", ");
+    return `polygon(${points})`;
+  };
+
+  const renderClickOverlays = (side: "left" | "right") =>
+    differenceSlots.map((slot) => (
+      <div
+        key={slot.slotId}
+        className="absolute cursor-pointer overflow-hidden"
+        style={{
+          left: `${slot.x * scale}px`,
+          top: `${slot.y * scale}px`,
+          width: `${100 * slot.slotScale * scale}px`,
+          height: `${100 * slot.slotScale * scale}px`,
+          clipPath: buildClipPath(side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon),
+          zIndex: foundSlots.has(slot.slotId) ? 2 : 1,
+        }}
+        onClick={handleSlotClick(slot.slotId)}
+      >
+        {foundSlots.has(slot.slotId) && (
+          <div className="absolute inset-0 flex items-center justify-center text-4xl bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
+            ✅
+          </div>
+        )}
+      </div>
+    ));
+
+  const renderWrongMarks = (side: "left" | "right") =>
+    wrongMarks
+      .filter((mark) => mark.side === side)
+      .map((mark) => (
+        <div
+          key={mark.id}
+          className="absolute pointer-events-none flex items-center justify-center text-3xl text-error"
+          style={{ left: mark.x - 16, top: mark.y - 16, width: 32, height: 32, zIndex: 3 }}
+        >
+          ✕
+        </div>
+      ));
+
+  return (
+    <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
+      <header className="flex justify-between items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
+        <span className="text-lg md:text-xl font-bold">
+          {t("game.stageProgress", { current: stageNumber, total: totalStages })}
+        </span>
+        <div
+          className="flex items-center gap-1"
+          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
+        >
+          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+            <span key={i} className={`text-xl ${i < wrongTouchCount ? "text-error" : "text-muted/30"}`}>
+              ✕
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
+          <span
+            className={`text-2xl md:text-3xl font-extrabold ${remainingTimeSec <= 30 ? "text-error animate-pulse" : "text-amber"}`}
+          >
+            {t("game.secondsUnit", { seconds: remainingTimeSec })}
+          </span>
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-6 overflow-auto">
+        <div
+          ref={containerRef}
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
+          style={{ aspectRatio: "1200 / 800" }}
+          onClick={handleBackgroundClick("left")}
+        >
+          <img
+            src={session.leftSceneUrl}
+            alt="Scene Left"
+            className="w-full h-full object-contain select-none pointer-events-none"
+            onLoad={handleImageLoad}
+          />
+          {renderClickOverlays("left")}
+          {renderWrongMarks("left")}
+        </div>
+
+        <div
+          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
+          style={{ aspectRatio: "1200 / 800" }}
+          onClick={handleBackgroundClick("right")}
+        >
+          <img
+            src={session.rightSceneUrl}
+            alt="Scene Right"
+            className="w-full h-full object-contain select-none pointer-events-none"
+          />
+          {renderClickOverlays("right")}
+          {renderWrongMarks("right")}
+        </div>
+      </main>
+
+      <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
+        <PixelPanel size="btn">
+          <button type="button" className="w-full font-bold text-ink">
+            {t("game.hintButton")}
+          </button>
+        </PixelPanel>
+        <span className="text-lg font-bold">
+          {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
+        </span>
+      </footer>
+    </div>
+  );
+}
+```
+
+핵심 변경점:
+- `renderClickOverlays`가 이제 `session.slots` 전체가 아니라 `differenceSlots`(정답 슬롯)만 순회한다 — 오답(디코이) 슬롯 전용 오버레이가 아예 없어진다.
+- `handleSlotClick`은 클릭 즉시 `e.stopPropagation()`을 호출해, 배경 클릭 핸들러로 이벤트가 전파되지 않게 막는다. 이미 찾은 슬롯(`foundSlots.has(slotId)`)이면 그대로 `return`— 오답 처리도, 추가 효과도 없다.
+- 컨테이너(왼쪽/오른쪽 각각)에 `onClick={handleBackgroundClick(side)}`를 새로 달았다. 정답 슬롯 오버레이가 클릭을 흡수하지 못한 모든 클릭(디코이 슬롯 자리든 진짜 배경이든)이 여기로 떨어져 오답 처리된다.
+- `registerWrongTouch(x, y, side)`가 클릭 좌표를 받아 `wrongMarks`에 追加하고, 기존 `onWrongTouch`/3회 소진 로직(흔들림·진동·강제진행)을 그대로 수행한다.
+- 컨테이너 `className`에 `cursor-pointer`를 추가해, 배경 위 커서와 정답 슬롯 위 커서가 구분되지 않게 한다(정답 위치 추측 방지).
+- `renderWrongMarks`가 클릭 좌표에 정확히 ✕ 표시를 렌더링한다(`pointer-events-none`이라 표시 자체는 클릭을 가로채지 않음).
+
+- [ ] **Step 2: 타입 체크**
+
+Run: `flatpak-spawn --host npx tsc --noEmit`
+Expected: 에러 0건. `GameScreenProps`가 Task 8과 동일하므로 `page.tsx`(Task 9) 쪽 호출부는 수정 불필요.
+
+- [ ] **Step 3: 커밋**
+
+```bash
+git add app/components/GameScreen.tsx
+git commit -m "$(cat <<'EOF'
+GameScreen: 오답 판정을 "정답 슬롯 밖 클릭"으로 통일, 커서 치트 방지
+
+이미 찾은 정답을 재클릭하면 오답으로 처리되던 버그를 고치고
+(오버레이가 클릭을 흡수만 하고 아무 효과 없음), 오답 전용
+슬롯 오버레이를 없애 배경 클릭도 동일하게 오답 처리되도록
+통일. 배경에도 cursor-pointer를 적용해 커서 변화로 정답
+위치를 추측하는 치트를 막고, 클릭 좌표에 실시간 ✕ 표시 추가.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 4: 수동 재확인**
+
+`npm run dev`로 실행 후: (1) 정답을 찾은 슬롯을 다시 클릭해도 오답 카운트가 늘지 않는지, (2) 정답이 아닌 빈 배경을 클릭하면 오답으로 처리되고 그 위치에 ✕가 뜨는지, (3) 이미지 위에서 마우스를 움직여도 정답 슬롯 근처와 배경에서 커서 모양이 동일한지 확인.
+
+---
+
 ## Self-Review 요약
 
 - **스펙 커버리지**: 게임 규칙 변경(레벨 7, 전역 300초, 오답 3회) → Task 1/7/8/9. 점수 구성 3항목(스테이지/시간/콤보) → Task 2~4, 6. 감점 2종 → Task 5~6. 검증된 엣지 케이스(오답만 찍는 악용 방지) → Task 6의 통합 테스트. UI 반영 → Task 8, 10. i18n → Task 11. 수동 검증 → Task 12. 스펙의 "범위 밖" 항목(`game_score_logs` 제출, 가챠 구간 재조정, 등급 컷오프 최종 확정)은 이 계획에 포함하지 않음(의도된 배제).
