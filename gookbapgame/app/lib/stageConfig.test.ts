@@ -167,3 +167,71 @@ test("calcIncompleteLevelPenalty: 진행 중이던 레벨은 도달로 취급해
 test("calcIncompleteLevelPenalty: 음수로 내려가지 않는다", () => {
   assert.equal(calcIncompleteLevelPenalty(9, 7), 0);
 });
+
+import { calcFinalScore, calcGukbapTier } from "./stageConfig.ts";
+
+function perfectLevelResults() {
+  return STAGE_CONFIG.map((s) => ({
+    pointPool: s.pointPool,
+    foundCount: s.diffCount,
+    actualDiffCount: s.diffCount,
+  }));
+}
+
+test("calcFinalScore: 완전 무결점 + 100초 이내 완주 = 1953", () => {
+  const totalAnswers = STAGE_CONFIG.reduce((sum, s) => sum + s.diffCount, 0);
+  const breakdown = calcFinalScore({
+    levelResults: perfectLevelResults(),
+    elapsedSec: 90,
+    totalWrongTouches: 0,
+    comboBankedScore: 0,
+    comboCurrentStreak: totalAnswers,
+    comboTotalAnswers: totalAnswers,
+    levelsReached: STAGE_CONFIG.length,
+  });
+  assert.equal(breakdown.total, 1953);
+});
+
+test("calcFinalScore: 오답만 찍고 강제 스킵하는 악용은 순손실이다", () => {
+  const totalAnswers = STAGE_CONFIG.reduce((sum, s) => sum + s.diffCount, 0);
+  const emptyLevelResults = STAGE_CONFIG.map((s) => ({
+    pointPool: s.pointPool,
+    foundCount: 0,
+    actualDiffCount: s.diffCount,
+  }));
+  const breakdown = calcFinalScore({
+    levelResults: emptyLevelResults,
+    elapsedSec: 35,
+    totalWrongTouches: STAGE_CONFIG.length * 3,
+    comboBankedScore: 0,
+    comboCurrentStreak: 0,
+    comboTotalAnswers: totalAnswers,
+    levelsReached: STAGE_CONFIG.length,
+  });
+  assert.equal(breakdown.total, 0);
+  assert.equal(breakdown.stageScore, 0);
+  assert.equal(breakdown.timeBonus, 0);
+  assert.equal(breakdown.comboBonus, 0);
+  assert.equal(breakdown.wrongTouchPenalty, 210);
+});
+
+test("calcFinalScore: 총점은 절대 음수로 표시되지 않는다", () => {
+  const breakdown = calcFinalScore({
+    levelResults: [],
+    elapsedSec: 300,
+    totalWrongTouches: 100,
+    comboBankedScore: 0,
+    comboCurrentStreak: 0,
+    comboTotalAnswers: 30,
+    levelsReached: 0,
+  });
+  assert.equal(breakdown.total, 0);
+});
+
+test("calcGukbapTier: 컷오프 경계값", () => {
+  assert.equal(calcGukbapTier(1953), "1953 Master");
+  assert.equal(calcGukbapTier(1500), "국밥 단골");
+  assert.equal(calcGukbapTier(1200), "국밥 미식가");
+  assert.equal(calcGukbapTier(800), "국밥 탐험가");
+  assert.equal(calcGukbapTier(0), "국밥 입문생");
+});
