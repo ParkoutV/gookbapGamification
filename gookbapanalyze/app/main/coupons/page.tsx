@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Gift, Plus, Trash2, AlertCircle, Save, Settings, Info, Columns, Globe, X } from 'lucide-react'
+import { Gift, Plus, Trash2, AlertCircle, Save, Settings, Info, Columns, Globe, X, HelpCircle } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { SupportedLanguage } from '../tracks/actions'
 
@@ -25,6 +25,7 @@ interface CouponEffect {
   coupon_type: string // JSON string
   description: string // JSON string
   probability: any // JSON object { [case_id]: number }
+  expire_days?: number | null
 }
 
 const SplitInput = ({ 
@@ -205,9 +206,24 @@ export default function CouponsPage() {
     setCoupons(newCoupons)
   }
 
+  // Handle Expire Days Change
+  const handleExpireDaysChange = (couponIndex: number, val: string) => {
+    const newCoupons = [...coupons]
+    if (val === '') {
+      newCoupons[couponIndex].expire_days = null
+    } else {
+      let num = parseInt(val, 10)
+      if (isNaN(num)) num = 0
+      if (num < 0) num = 0
+      if (num > 365) num = 365
+      newCoupons[couponIndex].expire_days = num
+    }
+    setCoupons(newCoupons)
+  }
+
   // Excel Navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number) => {
-    const numCols = 1 + gatchaCases.length
+    const numCols = 2 + gatchaCases.length
     const numRows = coupons.length
 
     if (e.key === 'ArrowUp' && rowIdx > 0) {
@@ -247,7 +263,8 @@ export default function CouponsPage() {
       coupon_effect_id: newId,
       coupon_type: '{}',
       description: '{}',
-      probability: {}
+      probability: {},
+      expire_days: null
     }])
   }
 
@@ -346,7 +363,8 @@ export default function CouponsPage() {
       const payload = {
         coupon_type: coup.coupon_type,
         description: coup.description,
-        probability: newProbability
+        probability: newProbability,
+        expire_days: coup.expire_days || null
       }
       
       if (coup.coupon_effect_id.startsWith('new-')) {
@@ -541,6 +559,22 @@ export default function CouponsPage() {
               <tr>
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-12 text-center"></th>
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-64 text-left">쿠폰 이름</th>
+                <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-24 text-center align-middle">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>만료일(일)</span>
+                    <div className="relative group flex items-center cursor-help">
+                      <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500 transition-colors" />
+                      
+                      {/* Tooltip Balloon */}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 p-3 bg-gray-900 dark:bg-zinc-100 text-white dark:text-gray-900 text-left text-xs leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none font-normal font-sans">
+                        <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900 dark:border-b-zinc-100"></div>
+                        <strong className="block mb-0.5 text-blue-300 dark:text-blue-600">0일 입력:</strong> 당일 23:59:59 만료<br/>
+                        <strong className="block mt-2 mb-0.5 text-blue-300 dark:text-blue-600">1 이상 입력:</strong> 입력한 N일 뒤의 23:59:59 만료<br/><span className="text-[11px] text-gray-400 dark:text-gray-600">(예: 1일 = 내일 자정 직전 만료)</span><br/>
+                        <strong className="block mt-2 mb-0.5 text-blue-300 dark:text-blue-600">빈칸:</strong> 무제한 (기한 없음)
+                      </div>
+                    </div>
+                  </div>
+                </th>
                 {gatchaCases.map(c => (
                   <th key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 bg-purple-50 dark:bg-purple-900/20 px-4 py-3 text-sm font-bold text-purple-800 dark:text-purple-300 text-right w-40">
                     {c.gatcha_case_name}<br/>
@@ -569,17 +603,30 @@ export default function CouponsPage() {
                       placeholder="Enter로 다국어 편집..."
                     />
                   </td>
+                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative bg-white dark:bg-zinc-950">
+                    <input
+                      id={`cell-${rowIdx}-1`}
+                      type="number"
+                      min="0"
+                      max="365"
+                      value={coupon.expire_days === null || coupon.expire_days === undefined ? '' : coupon.expire_days}
+                      onChange={(e) => handleExpireDaysChange(rowIdx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, rowIdx, 1)}
+                      placeholder="무제한"
+                      className="w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold dark:text-white"
+                    />
+                  </td>
                   {gatchaCases.map((c, idx) => (
                     <td key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 p-0 relative bg-white dark:bg-zinc-950">
                       <input
-                        id={`cell-${rowIdx}-${idx + 1}`}
+                        id={`cell-${rowIdx}-${idx + 2}`}
                         type="number"
                         min="0"
                         max="100"
                         step="0.01"
                         value={((coupon.probability?.[c.gatcha_case_id] || 0) * 100).toFixed(2).replace(/\.00$/, '')}
                         onChange={(e) => handleProbChange(rowIdx, c.gatcha_case_id, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 1)}
+                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 2)}
                         className="w-full h-12 px-8 text-right outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 bg-transparent text-base font-bold dark:text-white font-mono"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400 pointer-events-none opacity-50">%</span>
@@ -590,7 +637,7 @@ export default function CouponsPage() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={2} className="border-r border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 px-4 py-3 text-sm font-bold text-gray-700 dark:text-zinc-300 text-right">
+                <td colSpan={3} className="border-r border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 px-4 py-3 text-sm font-bold text-gray-700 dark:text-zinc-300 text-right">
                   확률 총합 검증 (100% 이하여야 함)
                 </td>
                 {gatchaCases.map(c => {

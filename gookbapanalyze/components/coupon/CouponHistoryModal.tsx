@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Gift, Clock, User } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import { createClient } from '@/utils/supabase/client'
 
 export interface CouponHistoryItem {
   id: string
@@ -14,6 +15,24 @@ export interface CouponHistoryItem {
 
 export default function CouponHistoryModal({ onClose }: { onClose: () => void }) {
   const [history, setHistory] = useState<CouponHistoryItem[]>([])
+  const [undoingId, setUndoingId] = useState<string | null>(null)
+  const supabase = createClient()
+
+  const handleUndo = async (id: string) => {
+    if (!confirm('정말로 이 쿠폰 사용을 취소하시겠습니까?')) return
+    setUndoingId(id)
+    const { error } = await supabase.rpc('undo_coupon', { p_coupon_id: id })
+    if (error) {
+      alert('쿠폰 사용 취소에 실패했습니다: ' + error.message)
+      setUndoingId(null)
+      return
+    }
+    const newHistory = history.filter(h => h.id !== id)
+    setHistory(newHistory)
+    localStorage.setItem('coupon_history', JSON.stringify(newHistory))
+    setUndoingId(null)
+    alert('쿠폰 사용이 취소되었습니다.')
+  }
 
   useEffect(() => {
     const historyStr = localStorage.getItem('coupon_history')
@@ -63,8 +82,17 @@ export default function CouponHistoryModal({ onClose }: { onClose: () => void })
                       {item.couponName}
                     </div>
                   </div>
-                  <div className="text-sm text-zinc-500 font-medium whitespace-nowrap ml-4">
-                    {formatDistanceToNow(new Date(item.usedAt), { addSuffix: true, locale: ko })}
+                  <div className="text-sm text-zinc-500 font-medium whitespace-nowrap ml-4 flex flex-col items-end gap-2">
+                    <span>{formatDistanceToNow(new Date(item.usedAt), { addSuffix: true, locale: ko })}</span>
+                    {Date.now() - new Date(item.usedAt).getTime() <= 10 * 60 * 1000 && (
+                      <button
+                        onClick={() => handleUndo(item.id)}
+                        disabled={undoingId === item.id}
+                        className="px-3 py-1 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        {undoingId === item.id ? '취소 중...' : '사용 취소'}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

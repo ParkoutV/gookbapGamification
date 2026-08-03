@@ -307,14 +307,32 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     setScannedData({ couponId, langCode })
     setToastStatus('loading')
 
+    const currentLangSetting = languages.find(l => l.lang_code === langCode) || languages.find(l => l.lang_code === 'ko')
+    const texts: any = currentLangSetting?.coupon_use_text || {}
+    
+    const localeMap: Record<string, string> = { ko: 'ko-KR', en: 'en-US', jp: 'ja-JP', 'zh-TW': 'zh-TW', 'zh-CN': 'zh-CN' }
+    const locale = localeMap[langCode] || 'en-US'
+
+    const expiredTemplate = texts.expired_coupon || '만료된 쿠폰입니다. (만료일: {{expired_date}})'
+    const usedText = texts.already_used_coupon || '이미 사용된 쿠폰입니다.'
+    const errorText = texts.load_error || '쿠폰 정보를 불러오지 못했습니다.'
+
     try {
       const { data, error } = await supabase.rpc('get_coupon_info_for_scan', { p_coupon_id: couponId })
       
       if (error) throw error
       
+      if (data.expired_at && new Date(data.expired_at) < new Date()) {
+        setToastStatus('error')
+        const expireDateStr = new Date(data.expired_at).toLocaleDateString(locale)
+        setToastMessage(expiredTemplate.replace('{{expired_date}}', expireDateStr))
+        setTimeout(() => setToastStatus('idle'), 3000)
+        return
+      }
+
       if (data.is_used) {
         setToastStatus('error')
-        setToastMessage('이미 사용된 쿠폰입니다.')
+        setToastMessage(usedText)
         setTimeout(() => setToastStatus('idle'), 3000)
         return
       }
@@ -324,7 +342,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     } catch (err) {
       console.error(err)
       setToastStatus('error')
-      setToastMessage('쿠폰 정보를 불러오지 못했습니다.')
+      setToastMessage(errorText)
       setTimeout(() => setToastStatus('idle'), 3000)
     }
   }

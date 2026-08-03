@@ -32,7 +32,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 # Database Tables & RLS Permissions
 모든 데이터베이스 테이블에는 강력한 RLS(Row Level Security)가 적용되어 있습니다. 권한은 `accounts` 테이블의 `permission` 값(0: Admin, 1: User)을 기준으로 동작합니다.
 
-- **`supported_languages` (지원 언어)**: 언어 정의. `lang_code`를 기반으로 구동되며, `lang_name`은 언어를 나타내는 항목입니다. 텍스트 항목에서는 `{"ko": "기본 얼굴", "en": "Base Face"}`와 같은 방식으로 다국어를 저장합니다.
+- **`supported_languages` (지원 언어)**: 언어 정의. `lang_code`를 기반으로 구동되며, `lang_name`은 언어를 나타내는 항목입니다. 텍스트 항목에서는 `{"ko": "기본 얼굴", "en": "Base Face"}`와 같은 방식으로 다국어를 저장합니다. `coupon_use_text` JSONB 컬럼에 쿠폰 사용 확인창 텍스트 및 에러 메시지(`expired_coupon`, `already_used_coupon`, `load_error` 등)가 함께 저장되며, `{{expired_date}}` 등의 변수를 지원합니다.
 - **`base_images` (기본 이미지 마스터)**: 게임에 사용되는 원본(Base) 이미지. `level` (INT, 1~9 제한) 컬럼을 통해 난이도 레벨을 지정합니다. (중복 레벨 허용)
   - **`questions_count` (INT)**: 유저에게 요구할 다른 그림의 개수. 반드시 연결된 `image_slots`의 개수 이하이어야 하며, DB 트리거(`validate_base_image_questions_count`)를 통해 유효성이 검증됩니다.
 - **`unified_images` (통합 렌더링 이미지 캐시)**: `base_images`와 덧씌워진 `parts` 조합의 결과물을 저장하는 테이블. `image_slots` 컬럼(JSONB)에 `{"카테고리ID": "파츠ID"}` 형태로 조합을 저장하며, 트리거를 통해 파츠의 존재 여부 및 카테고리 일치 여부를 DB 차원에서 강력하게 검증합니다. `ID` 의 경우 파츠 이미지가 갱신되거나 이미지 값을 수정하더라도 그대로 유지됩니다. (이미지 삭제시 초기화) (Admin: ALL, Everyone: SELECT)
@@ -54,7 +54,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **`gatcha_cases` (가챠 구간 설정)**: 0점부터 1953점까지의 점수 구간(`min_score`, `max_score`)을 정의합니다. DB 테이블 레벨에 `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 제약 조건이 설정되어 있어 유효하지 않은 점수 범위는 원천 차단됩니다. 구간 사이의 빈틈이나 겹침 여부는 프론트엔드 저장 로직에서 검증합니다. (Admin: ALL, Everyone: SELECT)
 - **`gatcha_settings` (가챠 글로벌 설정)**: 단일 row(id=1)를 유지하며 룰렛 쿨타임(`cooldown_hours`, `cooldown_minutes`) 및 최고 점수 집계 제한 시간(`aggregation_hours`, `aggregation_minutes`)을 설정합니다. (Admin: ALL, Everyone: SELECT)
 - **`coupon_effects` (쿠폰 혜택)**: 발급 가능한 쿠폰을 정의합니다. 혜택 텍스트는 다국어 처리(JSON)를 지원합니다. `probability` (JSONB) 컬럼을 통해 `{"case_id": 0.5}` 형태로 각 가챠 구간(Case)별 당첨 확률(0~1)을 유연하게 매핑하여 저장합니다. (각 Case별 총합 100% 초과 여부는 프론트엔드 편집기에서 검증합니다.) (Admin: ALL, Everyone: SELECT)
-- **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)
+- **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. `expired_at` (TIMESTAMPTZ) 컬럼을 통해 만료 여부를 판별합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다. (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)
 - **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). `question_type=0`은 질문 여러개 중 한개를 선택하는 문제, `question_type=1`은 질문 여러개 중 여러개를 선택하는 문제이며, 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
 - **`survey_responses` (설문 응답)**: 질문 결과를 저장하는 곳. `participant_id`로 유저 인식이 가능합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)
 
@@ -76,7 +76,11 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 
 *(주의: 익명 유저의 최초 생성 시 `INSERT` 로직은 기존처럼 테이블을 직접 호출해도 정상 작동합니다. 단, 보안을 위해 직접적인 `UPDATE`는 전면 차단되었습니다.)*
 
-4. **전체 랭킹 조회 (`ranking_view`)**
+4. **쿠폰 정보 스캔 및 사용 취소 (`issued_coupons` 관리자용)**
+   - 스캐너에서 쿠폰 정보를 불러올 때: `supabase.rpc('get_coupon_info_for_scan', { p_coupon_id: id })` (만료일인 `expired_at` 등의 종합 정보 반환)
+   - 쿠폰 사용 취소 (사용일시로부터 10분 이내): `supabase.rpc('undo_coupon', { p_coupon_id: id })`
+
+5. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
    - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
    - ✅ `supabase.from('ranking_view').select('*')`

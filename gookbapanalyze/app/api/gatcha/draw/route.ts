@@ -127,12 +127,31 @@ export async function POST(req: NextRequest) {
     }
 
     // 8. Insert into issued_coupons
+    let expired_at = null
+    if (selectedCoupon.expire_days !== null && selectedCoupon.expire_days !== undefined) {
+      // Get current date in KST
+      const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+      const kstDate = new Date(kstTimeStr)
+      
+      // Add days
+      kstDate.setDate(kstDate.getDate() + selectedCoupon.expire_days)
+      
+      // Set to 23:59:59.999
+      const year = kstDate.getFullYear()
+      const month = String(kstDate.getMonth() + 1).padStart(2, '0')
+      const day = String(kstDate.getDate()).padStart(2, '0')
+      
+      // Timestamptz will correctly parse the +09:00 timezone
+      expired_at = `${year}-${month}-${day}T23:59:59.999+09:00`
+    }
+
     const { error: insertError } = await supabase
       .from('issued_coupons')
       .insert([{
         participant_id: participant_id,
         coupon_effect_id: selectedCoupon.coupon_effect_id,
-        is_used: false
+        is_used: false,
+        expired_at: expired_at
       }])
 
     if (insertError) {
