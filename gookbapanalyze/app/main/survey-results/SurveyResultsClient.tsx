@@ -462,8 +462,8 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
       )}
 
       <div className="space-y-4 pb-24">
-        {renderPhaseBlock(0, "힌트 질문 (Phase 0)", "게임을 시작하거나 힌트를 얻기 전에 묻는 질문의 결과입니다.")}
-        {renderPhaseBlock(1, "쿠폰 받기 전 질문 (Phase 1)", "게임을 클리어하고 쿠폰을 발급받기 전에 묻는 질문의 결과입니다.")}
+        {permission === 0 && renderPhaseBlock(0, "힌트 질문 (Phase 0)", "게임을 시작하거나 힌트를 얻기 전에 묻는 질문의 결과입니다.")}
+        {permission === 0 && renderPhaseBlock(1, "쿠폰 받기 전 질문 (Phase 1)", "게임을 클리어하고 쿠폰을 발급받기 전에 묻는 질문의 결과입니다.")}
         {renderPhaseBlock(2, "지점 특화 질문 (Phase 2)", "특정 지점에서만 물어보는 특화 질문의 결과입니다.")}
       </div>
 

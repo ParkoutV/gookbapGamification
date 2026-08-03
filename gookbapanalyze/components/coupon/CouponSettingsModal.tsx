@@ -18,6 +18,7 @@ interface LanguageSetting {
 }
 
 interface CouponSettingsModalProps {
+  isAdmin: boolean
   languages: LanguageSetting[]
   keepScreenOn: boolean
   onKeepScreenOnChange: (val: boolean) => void
@@ -28,7 +29,7 @@ interface CouponSettingsModalProps {
   onClose: () => void
 }
 
-export default function CouponSettingsModal({ languages, keepScreenOn, onKeepScreenOnChange, videoFit, onVideoFitChange, isFlipped, onIsFlippedChange, onClose }: CouponSettingsModalProps) {
+export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, onKeepScreenOnChange, videoFit, onVideoFitChange, isFlipped, onIsFlippedChange, onClose }: CouponSettingsModalProps) {
   const [activeTab, setActiveTab] = useState(languages.length > 0 ? languages[0].lang_code : 'ko')
   
   // Clone language config into state for editing
@@ -156,8 +157,10 @@ export default function CouponSettingsModal({ languages, keepScreenOn, onKeepScr
             </div>
           </div>
 
-          <h3 className="text-lg font-bold text-white mb-4">다국어 텍스트 설정</h3>
-          <p className="text-sm text-zinc-400 mb-4">사용할 수 있는 변수: {'{{user_nickname}}'}, {'{{coupon_effects}}'}, {'{{expired_date}}'}</p>
+          {isAdmin && (
+            <>
+              <h3 className="text-lg font-bold text-white mb-4 mt-6">다국어 텍스트 설정</h3>
+              <p className="text-sm text-zinc-400 mb-4">사용할 수 있는 변수: {'{{user_nickname}}'}, {'{{coupon_effects}}'}, {'{{expired_date}}'}</p>
           
           <div className="flex space-x-2 border-b border-zinc-700 mb-6 overflow-x-auto">
             {languages.map(lang => (
@@ -248,23 +251,36 @@ export default function CouponSettingsModal({ languages, keepScreenOn, onKeepScr
               />
             </div>
           </div>
+            </>
+          )}
         </div>
 
         <div className="p-4 border-t border-zinc-800 bg-zinc-900/80 flex justify-end">
-          <button 
-            onClick={onClose}
-            className="px-6 py-2.5 text-zinc-300 font-medium hover:text-white mr-3 transition-colors"
-            disabled={saving}
-          >
-            취소
-          </button>
-          <button 
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold transition-colors flex items-center shadow-lg shadow-blue-500/20 disabled:opacity-50"
-          >
-            {saving ? '저장 중...' : <><Save className="w-5 h-5 mr-2" /> 저장</>}
-          </button>
+          {isAdmin ? (
+            <>
+              <button 
+                onClick={onClose}
+                className="px-6 py-2.5 text-zinc-300 font-medium hover:text-white mr-3 transition-colors"
+                disabled={saving}
+              >
+                취소
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold transition-colors flex items-center shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              >
+                {saving ? '저장 중...' : <><Save className="w-5 h-5 mr-2" /> 저장</>}
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={onClose}
+              className="bg-zinc-700 hover:bg-zinc-600 text-white px-8 py-2.5 rounded-xl font-bold transition-colors"
+            >
+              닫기
+            </button>
+          )}
         </div>
       </div>
     </div>

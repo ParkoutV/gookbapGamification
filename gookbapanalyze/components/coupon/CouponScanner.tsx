@@ -447,14 +447,12 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     <div className="flex-1 relative bg-black flex flex-col overflow-hidden w-full">
       
       {/* Top Left: Settings */}
-      {isAdmin && (
-        <button 
-          onClick={() => setIsSettingsOpen(true)}
-          className="absolute top-4 left-4 z-10 p-3 bg-zinc-900/80 backdrop-blur rounded-full text-white hover:bg-zinc-800 transition-colors"
-        >
-          <Settings className="w-6 h-6" />
-        </button>
-      )}
+      <button 
+        onClick={() => setIsSettingsOpen(true)}
+        className="absolute top-4 left-4 z-10 p-3 bg-zinc-900/80 backdrop-blur rounded-full text-white hover:bg-zinc-800 transition-colors"
+      >
+        <Settings className="w-6 h-6" />
+      </button>
 
       {/* Top Right: Camera Selector */}
       <div className="absolute top-4 right-4 z-50 flex items-center bg-zinc-900/80 backdrop-blur rounded-full px-2 py-1 shadow-lg">
@@ -548,6 +546,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       {/* Modals */}
       {isSettingsOpen && (
         <CouponSettingsModal 
+          isAdmin={isAdmin}
           languages={languages} 
           keepScreenOn={keepScreenOn}
           onKeepScreenOnChange={setKeepScreenOn}
