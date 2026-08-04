@@ -11,6 +11,8 @@ interface DailyResultScreenProps {
   gukbapTier: GukbapTier;
   totalScore: number;
   onRestart: () => void;
+  onSurveyAgain?: () => void;
+  onOpenMyCoupons?: () => void;
 }
 
 export default function DailyResultScreen({
@@ -18,6 +20,8 @@ export default function DailyResultScreen({
   gukbapTier,
   totalScore,
   onRestart,
+  onSurveyAgain,
+  onOpenMyCoupons,
 }: DailyResultScreenProps) {
   const { t } = useLocale();
   const stubAchievements = ["첫 만남", "형제의 눈썰미"];
@@ -46,6 +50,22 @@ export default function DailyResultScreen({
             </span>
           ))}
         </div>
+        {onSurveyAgain && (
+          <button
+            onClick={onSurveyAgain}
+            className="pixel-mask-btn-solid w-full py-3 px-6 mb-3 bg-accent text-accent-ink font-bold transition-opacity active:scale-95"
+          >
+            {t("dailyResult.surveyAgainButton")}
+          </button>
+        )}
+        {onOpenMyCoupons && (
+          <button
+            onClick={onOpenMyCoupons}
+            className="pixel-mask-btn-solid w-full py-3 px-6 mb-3 bg-accent text-accent-ink font-bold transition-opacity active:scale-95"
+          >
+            {t("coupon.myCouponsButton")}
+          </button>
+        )}
         <PixelPanel size="btn">
           <button onClick={onRestart} className="w-full font-bold text-ink">
             {t("dailyResult.restartButton")}
