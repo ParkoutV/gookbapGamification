@@ -28,3 +28,28 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 - **`ensureParticipant(trackId)`**: `participants`에 `INSERT`(uuid PK 충돌 시 `23505`는 "이미 존재하는 참여자"로 정상 처리, `ON CONFLICT`는 안 씀 — RLS가 걸린 테이블에서 `ON CONFLICT`는 SELECT 정책을 요구해서 실패하기 때문). **신규 참여자일 때만** `track_logs`에 접속 로그를 남김(재방문/새로고침마다 로그가 계속 쌓이는 것을 방지 — `game_start_count` UPDATE가 `(participant_id, track_id)`당 row 1개를 가정하기 때문).
 - **`NICKNAME_ASSIGN_API_URL`**: `gookbapanalyze`의 `/api/nickname/assign`을 가리키는 환경변수. 미설정이거나 실패 시 `generateNickname()`으로 로컬 폴백(형용사+명사 조합)하며 `nicknameSynced: false`를 반환 — 이 상태에서는 방문할 때마다 닉네임이 랜덤하게 바뀜(서버에 저장되지 않으므로 정상 동작).
 - **로컬 마이그레이션 주의**: `supabase/migrations/`의 `tracks`/`participants`/`track_logs` 관련 마이그레이션은 이란토가 공유한 ER 다이어그램 스크린샷과 산문 설명을 근거로 재구성한 로컬 전용 스키마이며, 실제 프로덕션 Supabase의 RLS 정책을 직접 확인한 적이 없음. 로컬에서 통과했다고 프로덕션에서도 동일하게 동작함이 보장되지 않으므로 **프로덕션에 `db push` 하지 말 것**. 배포 전 구자건에게 `participants`/`track_logs` 실제 RLS 정책 확인 필요.
+
+# 설문 · 쿠폰 (`app/hooks/useCouponFlow.ts`, `app/actions.ts`)
+
+게임 종료 후 흐름: `gameResult → surveyIntro → survey → wheel → dailyResult`.
+`dailyResult`에서 `myCoupons`로 진입한다.
+
+- **`GATCHA_DRAW_API_URL`**: `gookbapanalyze`의 `/api/gatcha/draw`. **로컬 폴백이 없다** —
+  닉네임과 달리 쿠폰은 서버가 DB에 INSERT해야만 유효하고, 클라이언트가 지어낸 쿠폰은
+  매장 스캐너에서 인식되지 않는다. 폴백을 추가하지 말 것.
+- **draw 응답에 `coupon_id`가 없다.** 그 API는 insert에 `.select()`를 붙이지 않는다.
+  발급 성공 후 `get_my_coupons` RPC로 최신 쿠폰을 다시 읽어 id를 얻는다.
+- **draw는 룰렛 진입당 1회.** `useCouponFlow`의 `drawStartedRef`가 중복 호출을 막는다.
+  두 번 호출되면 두 번째는 쿨타임 403을 받아 사용자에게 없던 실패로 보인다.
+- **쿨타임 403은 에러가 아니라 복구 신호다.** 대부분 룰렛 도중 새로고침이며,
+  이때는 `fetchMyCoupons()`의 최신 쿠폰을 그대로 보여준다.
+- **QR 페이로드**: `` `<coupon_id>?<locale>` ``. 스캐너는 `?` 앞이 UUID 정규식을 통과하지
+  못하면 **조용히 무시**한다(에러 표시 없음). `app/lib/couponPayload.ts`가 이 형식을 고정한다.
+- **Phase 1 문항이 0개면** 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
+- **접속 실패 시 재시도 버튼을 두지 않는다.** 안내 문구만 띄우고 흐름을 진행시킨 뒤,
+  `pendingDraw` 표시를 남겨 다음 방문 시작 화면에 뽑기 진입 버튼을 노출한다. 이 표시는
+  UI 힌트일 뿐이며 발급 자격은 언제나 서버가 판정한다.
+- **`game_score_logs` INSERT는 쿠폰 시스템의 전제다.** 점수 기록이 없으면 draw API가 찾는
+  최고 점수가 0이 되어 모든 플레이어가 최저 gatcha_cases 구간으로 뽑힌다.
+- **`issued_coupons` 직접 SELECT 금지** — RLS로 막혀 있다. `get_my_coupons` RPC 필수
+  (`gookbapanalyze/AGENTS.md`).
