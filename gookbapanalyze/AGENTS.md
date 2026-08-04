@@ -184,7 +184,18 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
     "coupon_type": {
       "ko": "국밥 1그릇 무료 뚝딱 쿠폰",
       "en": "Free Gookbap"
-    }
+    },
+    "score_used": 1500,
+    "coupon_id": "uuid-string-here"
+  }
+  ```
+- **Response (No Win / 꽝 - 200 OK)**:
+  (해당 점수 구간의 확률 총합이 100% 미만이라 어느 쿠폰에도 당첨되지 않았을 경우)
+  ```json
+  {
+    "success": true,
+    "message": "꽝",
+    "coupon_type": null
   }
   ```
 - **Response (Error - 400/500/Cooldown/NoScore)**:

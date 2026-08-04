@@ -15,11 +15,11 @@ export default async function MainPage() {
 
   const { data: account } = await adminClient
     .from('accounts')
-    .select('permission')
+    .select('permission, assigned_branch_id')
     .eq('user_id', user.id)
     .single();
 
   const isAdmin = account?.permission === 0;
 
-  return <DashboardClient isAdmin={isAdmin} />;
+  return <DashboardClient isAdmin={isAdmin} assignedBranchId={account?.assigned_branch_id} />;
 }
