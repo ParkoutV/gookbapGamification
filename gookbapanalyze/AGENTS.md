@@ -47,7 +47,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
   - 파라미터 생략 시 전체 기간을 조회하며 `await supabase.rpc('get_track_kpi_dashboard', { start_date: '2026-07-01T00:00:00Z', end_date: '2026-07-31T23:59:59Z' })` 처럼 기간 조회가 가능합니다. 
   - **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 있습니다. 최고 관리자(Admin)가 호출할 경우 전체 지점의 데이터가 반환되지만, 일반 가맹점 관리자(User)가 호출할 경우 외부 파라미터와 무관하게 무조건 본인의 `assigned_branch_id`와 일치하는 트랙만 자동 필터링되어 안전하게 반환됩니다.
   - 리턴 데이터는 `track_id`별 2개의 행(일반 트랙 / 공유 트랙)으로 나뉘어 반환되므로, 지점 단위의 합계 통계는 프론트엔드에서 두 데이터를 더하여 처리(Formatting)하는 것을 권장합니다.
-- **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. `nickname_first_id`, `nickname_last_id` 컬럼으로 무작위 할당된 닉네임 조합 정보를 외래키(FK) 형태로 유지합니다. (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
+- **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. 중복 방지 및 정규화를 위해 `nickname` 컬럼은 완전히 삭제되었으며, 오직 `nickname_first_id`, `nickname_last_id` (UUID) 컬럼으로 무작위 할당된 닉네임 조합 정보를 외래키(FK) 형태로 유지합니다. (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
 - **`nickname_presets` (닉네임 프리셋)**: 닉네임 조합에 사용될 앞글자(first_word)와 뒷글자(last_word) 데이터를 정의합니다. `type`으로 구분하며 다국어(`text` JSONB)를 지원합니다. (Admin: ALL, Everyone: SELECT)
 - **`nickname_exclusions` (닉네임 제외 조합)**: 특정 앞글자와 뒷글자의 결합을 금지하는 블랙리스트입니다. `assign_random_nickname` RPC 및 할당 로직에서 무작위 추출 시 해당 테이블에 정의된 쌍은 결과에서 배제됩니다. (Admin: ALL, Everyone: SELECT)
 - **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
@@ -172,13 +172,16 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
   ```json
   {
     "success": true,
-    "coupon_type": "{\"ko\":\"국밥 1그릇 무료 뚝딱 쿠폰\",\"en\":\"Free Gookbap\"}"
+    "coupon_type": {
+      "ko": "국밥 1그릇 무료 뚝딱 쿠폰",
+      "en": "Free Gookbap"
+    }
   }
   ```
 - **Response (Error - 400/500/Cooldown/NoScore)**:
   ```json
   {
-    "error": "아직 룰렛을 돌릴 수 없습니다. / 최근 플레이 기록이 없습니다."
+    "error": "아직 룰렛을 돌릴 수 없습니다."
   }
   ```
 
@@ -212,7 +215,7 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 
 ### 6단계: 설문 제출 (설문 완료율)
 - **DB 작업 (INSERT)**: `survey_responses`에 답변 기록.
-- **KPI 연결**: 제출된 응답 중, `survey_questions` 테이블의 **`question_type = 1`인 문항(주요 설문)에 답변한 이력이 있는 유저**만을 추려내어 **설문 완료율**로 자동 집계합니다.
+- **KPI 연결**: 제출된 응답 중, `survey_questions` 테이블의 **`survey_phase = 1`인 문항(주요 설문)에 답변한 이력이 있는 유저**만을 추려내어 **설문 완료율**로 자동 집계합니다.
 
 ### 7단계: 쿠폰 발급 및 사용 (쿠폰 사용률)
 - **DB 작업 (발급 시 INSERT)**: 쿠폰 획득 시 `issued_coupons`에 기록 (**총 발급 수** 집계).

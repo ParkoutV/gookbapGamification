@@ -310,8 +310,6 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     const currentLangSetting = languages.find(l => l.lang_code === langCode) || languages.find(l => l.lang_code === 'ko')
     const texts: any = currentLangSetting?.coupon_use_text || {}
     
-    const localeMap: Record<string, string> = { ko: 'ko-KR', en: 'en-US', jp: 'ja-JP', 'zh-TW': 'zh-TW', 'zh-CN': 'zh-CN' }
-    const locale = localeMap[langCode] || 'en-US'
 
     const expiredTemplate = texts.expired_coupon || '만료된 쿠폰입니다. (만료일: {{expired_date}})'
     const usedText = texts.already_used_coupon || '이미 사용된 쿠폰입니다.'
@@ -324,7 +322,8 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       
       if (data.expired_at && new Date(data.expired_at) < new Date()) {
         setToastStatus('error')
-        const expireDateStr = new Date(data.expired_at).toLocaleDateString(locale)
+        const expireDateObj = new Date(data.expired_at)
+        const expireDateStr = `${expireDateObj.getFullYear()}.${String(expireDateObj.getMonth() + 1).padStart(2, '0')}.${String(expireDateObj.getDate()).padStart(2, '0')}`
         setToastMessage(expiredTemplate.replace('{{expired_date}}', expireDateStr))
         setTimeout(() => setToastStatus('idle'), 3000)
         return

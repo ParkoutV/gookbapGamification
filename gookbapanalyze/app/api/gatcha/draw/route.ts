@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       const cooldownMs = (settings.cooldown_hours * 60 * 60 * 1000) + (settings.cooldown_minutes * 60 * 1000)
       
       if (now - lastJoined < cooldownMs) {
-        return NextResponse.json({ error: '쿨타임이 아직 지나지 않았습니다.' }, { status: 403 })
+        return NextResponse.json({ error: '쿨타임이 아직 지나지 않았습니다.', code: 'COOLDOWN' }, { status: 403 })
       }
     }
 
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         .limit(1)
 
       if (p1Error || !p1Responses || p1Responses.length === 0) {
-        return NextResponse.json({ error: '설문조사를 먼저 완료해주세요.' }, { status: 403 })
+        return NextResponse.json({ error: '설문조사를 먼저 완료해주세요.', code: 'SURVEY_REQUIRED' }, { status: 403 })
       }
     }
 
@@ -88,13 +88,13 @@ export async function POST(req: NextRequest) {
       .select('gatcha_case_id')
       .lte('min_score', bestScore)
       .gte('max_score', bestScore)
-      .single()
+      .limit(1)
 
-    if (caseError || !gatchaCase) {
+    if (caseError || !gatchaCase || gatchaCase.length === 0) {
       return NextResponse.json({ error: '해당 점수에 맞는 가챠 확률 그룹을 찾을 수 없습니다.' }, { status: 500 })
     }
 
-    const gatchaCaseId = gatchaCase.gatcha_case_id
+    const gatchaCaseId = gatchaCase[0].gatcha_case_id
 
     // 6. Fetch Coupon Effects
     const { data: coupons, error: couponError } = await supabase
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
       expired_at = `${year}-${month}-${day}T23:59:59.999+09:00`
     }
 
-    const { error: insertError } = await supabase
+    const { data: insertedCoupon, error: insertError } = await supabase
       .from('issued_coupons')
       .insert([{
         participant_id: participant_id,
@@ -153,8 +153,10 @@ export async function POST(req: NextRequest) {
         is_used: false,
         expired_at: expired_at
       }])
+      .select('coupon_id')
+      .single()
 
-    if (insertError) {
+    if (insertError || !insertedCoupon) {
       return NextResponse.json({ error: '쿠폰 발급에 실패했습니다.' }, { status: 500 })
     }
 
@@ -168,7 +170,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       coupon_type: selectedCoupon.coupon_type,
-      score_used: bestScore
+      score_used: bestScore,
+      coupon_id: insertedCoupon.coupon_id
     })
 
   } catch (err: any) {
