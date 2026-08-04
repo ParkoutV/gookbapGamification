@@ -371,25 +371,30 @@ type SurveyQuestionRow = {
  * (gookbapanalyze/AGENTS.md).
  */
 export async function fetchSurveyQuestions(): Promise<SurveyQuestion[]> {
-  const { data, error } = await supabase
-    .from("survey_questions")
-    .select("question_id, question_type, question_text, options")
-    .eq("survey_phase", 1)
-    .order("order_index", { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from("survey_questions")
+      .select("question_id, question_type, question_text, options")
+      .eq("survey_phase", 1)
+      .order("order_index", { ascending: true });
 
-  if (error) {
-    console.error("[fetchSurveyQuestions] 조회 실패:", error);
+    if (error) {
+      console.error("[fetchSurveyQuestions] 조회 실패:", error);
+      return [];
+    }
+
+    return (data ?? []).map((row: SurveyQuestionRow) => ({
+      questionId: row.question_id,
+      questionType: (row.question_type === 1 || row.question_type === 2
+        ? row.question_type
+        : 0) as 0 | 1 | 2,
+      text: row.question_text,
+      options: row.options ?? [],
+    }));
+  } catch (error) {
+    console.error("[fetchSurveyQuestions] 예기치 못한 예외:", error);
     return [];
   }
-
-  return (data ?? []).map((row: SurveyQuestionRow) => ({
-    questionId: row.question_id,
-    questionType: (row.question_type === 1 || row.question_type === 2
-      ? row.question_type
-      : 0) as 0 | 1 | 2,
-    text: row.question_text,
-    options: row.options ?? [],
-  }));
 }
 
 export async function submitSurveyResponses(
