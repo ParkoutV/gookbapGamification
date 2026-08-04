@@ -8,6 +8,12 @@ import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
+import { requestGatchaDraw } from "./lib/gatchaApi";
+import {
+  buildSurveyResponseRows,
+  type SurveyAnswerMap,
+  type SurveyQuestion,
+} from "./lib/surveyAnswers";
 
 export type GameSlot = {
   slotId: number;
@@ -349,5 +355,200 @@ export async function reassignNickname(): Promise<ParticipantResult> {
   } catch (error) {
     console.error("[reassignNickname] 예기치 못한 예외:", error);
     return localFallback();
+  }
+}
+
+type SurveyQuestionRow = {
+  question_id: number;
+  question_type: number;
+  question_text: LocalizedName;
+  options: LocalizedName[] | null;
+};
+
+/**
+ * 쿠폰 받기 전 노출되는 Phase 1 설문 문항을 가져온다.
+ * survey_questions는 Everyone SELECT가 허용되어 있어 직접 조회해도 된다
+ * (gookbapanalyze/AGENTS.md).
+ */
+export async function fetchSurveyQuestions(): Promise<SurveyQuestion[]> {
+  try {
+    const { data, error } = await supabase
+      .from("survey_questions")
+      .select("question_id, question_type, question_text, options")
+      .eq("survey_phase", 1)
+      .order("order_index", { ascending: true });
+
+    if (error) {
+      console.error("[fetchSurveyQuestions] 조회 실패:", error);
+      return [];
+    }
+
+    return (data ?? []).map((row: SurveyQuestionRow) => ({
+      questionId: row.question_id,
+      questionType: (row.question_type === 1 || row.question_type === 2
+        ? row.question_type
+        : 0) as 0 | 1 | 2,
+      text: row.question_text,
+      options: row.options ?? [],
+    }));
+  } catch (error) {
+    console.error("[fetchSurveyQuestions] 예기치 못한 예외:", error);
+    return [];
+  }
+}
+
+export async function submitSurveyResponses(
+  questions: SurveyQuestion[],
+  answers: SurveyAnswerMap
+): Promise<{ ok: boolean }> {
+  try {
+    const participantId = await resolveParticipantId();
+    const rows = buildSurveyResponseRows(questions, answers);
+    if (rows.length === 0) return { ok: false };
+
+    // 중복 제출 방지를 여기서 SELECT로 하지 않는다. survey_responses는
+    // Everyone INSERT만 열려 있고 SELECT 권한이 없어(gookbapanalyze/AGENTS.md),
+    // RLS가 막으면 error 없이 빈 배열이 돌아와 가드가 항상 통과하는 죽은 코드가 된다.
+    // 재제출 차단은 useCouponFlow의 hasSubmittedRef가 클라이언트에서 담당한다.
+    const { error } = await supabase
+      .from("survey_responses")
+      .insert(rows.map((row) => ({ ...row, participant_id: participantId })));
+
+    if (error) {
+      console.error("[submitSurveyResponses] insert 실패:", error);
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error("[submitSurveyResponses] 예기치 못한 예외:", error);
+    return { ok: false };
+  }
+}
+
+export type IssuedCoupon = {
+  couponId: string;
+  couponType: LocalizedName;
+  isUsed: boolean;
+  /** ISO 문자열. null이면 만료 없음. */
+  expiredAt: string | null;
+};
+
+export type DrawCouponResult =
+  | { status: "won"; coupon: IssuedCoupon }
+  /** 발급은 됐는데 get_my_coupons로 읽지 못한 상태. 설계 문서 미해결 항목 1번. */
+  | { status: "wonButHidden" }
+  | { status: "miss" }
+  /** 서버가 조건을 보고 거절(쿨타임 등). 재시도 무의미. */
+  | { status: "rejected"; message: string }
+  /** 네트워크·설정 오류. 재시도 버튼을 보여줄 상황. */
+  | { status: "error"; message: string };
+
+type IssuedCouponRow = {
+  coupon_id: string;
+  coupon_type: LocalizedName;
+  is_used: boolean;
+  expired_at: string | null;
+};
+
+function toIssuedCoupon(row: IssuedCouponRow): IssuedCoupon {
+  return {
+    couponId: row.coupon_id,
+    couponType: row.coupon_type,
+    isUsed: row.is_used,
+    expiredAt: row.expired_at,
+  };
+}
+
+/**
+ * 내 쿠폰 목록. issued_coupons 직접 SELECT는 RLS로 막혀 있어 RPC가 필수다
+ * (gookbapanalyze/AGENTS.md).
+ */
+export async function fetchMyCoupons(): Promise<IssuedCoupon[]> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { data, error } = await supabase.rpc("get_my_coupons", { p_id: participantId });
+    if (error) {
+      console.error("[fetchMyCoupons] get_my_coupons 실패:", error);
+      return [];
+    }
+
+    // RPC의 정렬 순서는 코드로 확인할 수 없다(마이그레이션 파일이 없는 프로덕션 전용 함수).
+    // drawCoupon()이 [0]을 "방금 발급된 쿠폰"으로 쓰기 때문에 순서가 뒤집히면
+    // 오래된 쿠폰의 QR을 새 당첨 상품으로 내보이게 된다 — 에러 없이 조용히 틀린다.
+    // 발급 시각 컬럼이 있으면 여기서 최신순으로 강제한다. Step 4에서 실제 반환 컬럼을
+    // 확인한 뒤 아래 컬럼명을 맞출 것.
+    const rows = (data ?? []) as (IssuedCouponRow & { created_at?: string })[];
+    const sorted = rows.every((r) => typeof r.created_at === "string")
+      ? [...rows].sort((a, b) => (a.created_at! < b.created_at! ? 1 : -1))
+      : rows;
+
+    return sorted.map(toIssuedCoupon);
+  } catch (error) {
+    console.error("[fetchMyCoupons] 예기치 못한 예외:", error);
+    return [];
+  }
+}
+
+/**
+ * 룰렛 1회 실행. gookbapanalyze의 /api/gatcha/draw가 쿨타임·설문 완료를 검증하고
+ * issued_coupons에 INSERT까지 수행한다.
+ *
+ * 로컬 폴백을 만들지 말 것. 닉네임과 달리 쿠폰은 서버가 DB에 기록해야만 유효하며,
+ * 클라이언트가 지어낸 쿠폰은 매장에서 스캔되지 않는다.
+ */
+export async function drawCoupon(): Promise<DrawCouponResult> {
+  const apiUrl = process.env.GATCHA_DRAW_API_URL;
+  if (!apiUrl) {
+    console.error("[drawCoupon] GATCHA_DRAW_API_URL 미설정");
+    return { status: "error", message: "GATCHA_DRAW_API_URL이 설정되지 않았습니다." };
+  }
+
+  try {
+    const participantId = await resolveParticipantId();
+    const result = await requestGatchaDraw(apiUrl, participantId);
+
+    if (!result.ok) {
+      return result.rejected
+        ? { status: "rejected", message: result.error }
+        : { status: "error", message: result.error };
+    }
+
+    if (!result.won) return { status: "miss" };
+
+    // draw 응답에는 coupon_id가 없다(insert에 .select()가 없음).
+    // 방금 발급된 쿠폰의 id는 get_my_coupons로 다시 읽어서 얻는다.
+    const coupons = await fetchMyCoupons();
+    const latest = coupons[0];
+    if (!latest) return { status: "wonButHidden" };
+
+    return { status: "won", coupon: latest };
+  } catch (error) {
+    console.error("[drawCoupon] 예기치 못한 예외:", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "알 수 없는 오류",
+    };
+  }
+}
+
+/**
+ * 게임 완주 시 점수를 기록한다. game_score_logs는 Anon INSERT가 허용되어 있다.
+ *
+ * 이 기록이 없으면 /api/gatcha/draw가 찾는 최고 점수가 0이 되어 모든 플레이어가
+ * 최저 gatcha_cases 구간으로 뽑히게 된다 — 쿠폰 확률 설계가 통째로 무력화된다.
+ *
+ * best-effort다. 실패해도 결과 화면 흐름을 막지 않는다.
+ */
+export async function submitGameScore(gookbapScore: number): Promise<void> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { error } = await supabase.from("game_score_logs").insert({
+      participant_id: participantId,
+      gookbap_score: gookbapScore,
+      joined_time: new Date().toISOString(),
+    });
+    if (error) console.error("[submitGameScore] insert 실패(무시, best-effort):", error);
+  } catch (error) {
+    console.error("[submitGameScore] 예기치 못한 예외:", error);
   }
 }

@@ -138,9 +138,13 @@ app/actions.ts ("use server")  — 전부 쿠키에서 resolveParticipantId()
 ## 미해결 항목 (구자건 확인 필요)
 
 1. **`get_my_coupons` RPC의 anon 실행 권한** — 이 RPC는 어떤 마이그레이션 파일에도 없고 `AGENTS.md` 문서에만 존재한다(프로덕션 전용). 게임의 anon 키로 실행 가능한지(`SECURITY DEFINER` + `GRANT EXECUTE TO anon`) 확인이 필요하다. 열리지 않으면 `/api/gatcha/draw`의 INSERT에 `.select('coupon_id').single()`을 추가해 응답에 `coupon_id`를 실어달라고 요청한다.
+   - **(2026-08-04 구현 후 갱신) 여전히 미해결.** 로컬 Supabase 인스턴스에는 이 프로젝트의 RPC(`get_my_coupons`, `get_participant`, `get_my_score_logs`, `undo_coupon`, `get_coupon_info_for_scan`)가 하나도 없다 — 전부 프로덕션에만 존재하고 리포지토리 어디에도 마이그레이션 파일이 없다. 코드는 응답 컬럼이 `coupon_id`/`coupon_type`/`is_used`/`expired_at`라고 가정하며, RPC의 정렬 순서를 신뢰할 수 없어 `created_at` 컬럼이 있으면 방어적으로 재정렬한다. `drawCoupon()`은 배열의 `[0]`을 방금 발급된 쿠폰으로 취급하므로, 정렬이 예상과 다르면 에러 없이 예전 쿠폰의 QR을 새 당첨 쿠폰인 것처럼 보여줄 수 있다 — 쿠폰을 2개 이상 보유한 참여자로 반드시 검증할 것.
 2. **`supported_languages.lang_code`의 실제 일본어 코드** — DB에 `ja`가 들어 있다면 `CouponScanner.tsx`의 `localeMap`이 `jp`로 잘못 하드코딩된 것이므로 그쪽을 고쳐야 한다. DB에 `jp`가 들어 있다면 DB 값을 `ja`로 정정한다. 어느 쪽이든 게임은 `ja`를 보낸다.
+   - **(2026-08-04 구현 후 갱신) 여전히 미해결.** 게임은 자체 로케일 코드를 변환 없이 그대로 보낸다. 로컬 픽스처는 `ja`로 시딩했지만, 매장 스캐너 앱은 `localeMap`에 `jp`를 하드코딩하고 있고, 프로덕션 `supported_languages`의 실제 값은 확인하지 못했다.
 3. **`game_score_logs`의 컬럼 구성** — 코드로 확인된 것은 `participant_id`, `gookbap_score`, `joined_time` 셋뿐이다. `ranking_view`는 `best_score`와 `gookbap_score`를 서로 다른 값으로 노출하는데(커밋 `6af1458`의 내부 0~100 비율 / 표시 1953 환산 분리), `best_score`가 이 테이블에 있고 NOT NULL이라면 무엇을 넣어야 하는지 확인이 필요하다.
+   - **(2026-08-04 구현 후 갱신) 여전히 미해결이며, 이제 실사용에 직결된다.** 이 테이블도 로컬에는 존재하지 않는다. INSERT는 프로덕션 draw API 자체의 쿼리에서 그대로 읽어낸 `participant_id`/`gookbap_score`/`joined_time`을 사용한다. 만약 이 INSERT가 빠뜨린 NOT NULL 컬럼이 있다면(`best_score`가 유력 용의자) 점수 기록이 조용히 실패하고, gatcha 확률 구간이 모든 플레이어에 대해 최저 구간으로 붕괴한다.
 4. **draw API 403의 사유 구분** — 현재 쿨타임과 설문 미완료가 모두 `code` 없는 한국어 문자열 403이다. 게임이 사유를 구분해 다국어로 안내하려면 `code` 필드가 필요하다. 이번 스펙에서는 설문을 선행 완료시켜 우회하므로 차단 요인은 아니다.
+   - **(2026-08-04 구현 후 갱신) 변동 없음.** 여전히 기계 판별 불가능한 한국어 문자열뿐이다. 게임은 draw 전에 설문을 완료시켜 우회하므로 여전히 차단 요인은 아니다.
 
 ## 함께 포함하는 것 — 게임 점수 제출
 
