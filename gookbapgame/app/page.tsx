@@ -64,9 +64,10 @@ export default function Home({ searchParams }: PageProps) {
   }, [goToPhase, loadQuestions]);
 
   const enterDrawFromStart = useCallback(async () => {
+    resetCoupon();
     setFromStartScreen(true);
     await enterSurveyFlow();
-  }, [enterSurveyFlow]);
+  }, [resetCoupon, enterSurveyFlow]);
 
   const handleSurveySubmit = useCallback(
     async (answers: SurveyAnswerMap) => {
