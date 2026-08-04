@@ -6,14 +6,9 @@ import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import PixelPanel from "./PixelPanel";
 import CouponQR from "./CouponQR";
 import type { IssuedCoupon } from "../actions";
+import { isCouponExpired } from "../lib/couponUsability";
 
 const DATE_LOCALES: Record<string, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP" };
-
-function isExpired(coupon: IssuedCoupon): boolean {
-  // expired_at은 KST 23:59:59.999로 저장된다(가챠 API 참고). Date 비교는 UTC 기준으로
-  // 이뤄지므로 타임존 변환을 따로 하지 않아도 시점 비교는 정확하다.
-  return coupon.expiredAt !== null && new Date(coupon.expiredAt) < new Date();
-}
 
 export default function MyCouponsScreen({
   coupons,
@@ -36,7 +31,7 @@ export default function MyCouponsScreen({
 
         <div className="flex flex-col gap-3 mb-6">
           {coupons.map((coupon) => {
-            const expired = isExpired(coupon);
+            const expired = isCouponExpired(coupon);
             const unusable = expired || coupon.isUsed;
             const isOpen = openCouponId === coupon.couponId;
 

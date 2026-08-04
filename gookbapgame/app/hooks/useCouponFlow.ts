@@ -11,6 +11,8 @@ import {
 } from "../actions";
 import type { SurveyAnswerMap, SurveyQuestion } from "../lib/surveyAnswers";
 import { clearPendingDraw, markPendingDraw } from "../lib/pendingDraw";
+import { hasSurveySubmitted, markSurveySubmitted } from "../lib/surveySubmitted";
+import { isCouponUnusable } from "../lib/couponUsability";
 
 export type CouponFlowState =
   | "idle"
@@ -46,11 +48,10 @@ export function useCouponFlow() {
   // 재제출 차단. 서버에서 SELECT로 막을 수 없어(survey_responses는 INSERT만 열림)
   // 여기서 막는다. reset()으로 풀리지 않는다 — 같은 세션에서 '설문하고 쿠폰 받기'로
   // 재진입해도 응답이 두 번 쌓이면 설문 완료율 KPI가 왜곡된다.
-  const hasSubmittedRef = useRef(false);
-
+  // ref만으로는 새로고침에 씻겨나가므로 localStorage(surveySubmitted.ts)에도 남긴다.
   const submitAnswers = useCallback(
     async (answers: SurveyAnswerMap): Promise<boolean> => {
-      if (hasSubmittedRef.current) return true;
+      if (hasSurveySubmitted()) return true;
       setState("submitting");
       setSubmitError(null);
       const result = await submitSurveyResponses(questions, answers);
@@ -59,7 +60,7 @@ export function useCouponFlow() {
         setState("survey");
         return false;
       }
-      hasSubmittedRef.current = true;
+      markSurveySubmitted();
       setState("idle");
       return true;
     },
@@ -80,7 +81,8 @@ export function useCouponFlow() {
       clearPendingDraw();
       const existing = await fetchMyCoupons();
       setCoupons(existing);
-      setDrawResult(existing[0] ? { status: "won", coupon: existing[0] } : result);
+      const usable = existing.find((c) => !isCouponUnusable(c));
+      setDrawResult(usable ? { status: "won", coupon: usable } : result);
       setState("done");
       return;
     }

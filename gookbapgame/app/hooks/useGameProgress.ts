@@ -261,7 +261,6 @@ export function useGameProgress(trackId: string | null) {
     finishGame(STAGE_CONFIG.length, levelResults);
   }, [stageIndex, levelResults, finishGame]);
 
-  const proceedToWheel = useCallback(() => setPhase("wheel"), []);
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
   const goToPhase = useCallback((next: GamePhase) => setPhase(next), []);
 
@@ -303,7 +302,6 @@ export function useGameProgress(trackId: string | null) {
     handleStageClear,
     handleForceAdvance,
     advanceToNextStage,
-    proceedToWheel,
     proceedToDailyResult,
     goToPhase,
     resetToStart,

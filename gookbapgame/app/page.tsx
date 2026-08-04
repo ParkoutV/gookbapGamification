@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import StartScreen from "./components/StartScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
@@ -34,7 +34,7 @@ export default function Home({ searchParams }: PageProps) {
   // 두 훅 모두 매 렌더마다 새 객체를 반환하므로, 객체를 그대로 의존성에 넣으면
   // 아래 콜백들이 매 렌더 재생성된다. 개별 함수는 useCallback([])로 안정적이니
   // 구조 분해해서 그것만 의존성에 넣는다.
-  const { goToPhase, proceedToDailyResult } = game;
+  const { goToPhase, proceedToDailyResult, phase, scoreBreakdown } = game;
   const { loadQuestions, submitAnswers, spin, refreshCoupons, reset: resetCoupon } = coupon;
 
   // localStorage는 서버 렌더링 시점에 없다. 마운트 후에 읽어야 하이드레이션이 어긋나지 않는다.
@@ -46,28 +46,41 @@ export default function Home({ searchParams }: PageProps) {
   // 시작 화면에서 뽑기로 들어온 경우, 룰렛이 끝나도 오늘의 결과로 보내면 안 된다.
   // resetToStart가 scoreBreakdown/gukbapTier를 이미 비웠기 때문에 그 화면은
   // 렌더 조건을 만족하지 못해 빈 화면이 된다. 시작 화면으로 되돌린다.
+  // scoreBreakdown이 아예 없는 경우(이번 세션에 게임을 안 한 경우)도 같은 이유로
+  // start로 보낸다 — fromStartScreen 플래그 하나만 믿으면, 설문 로딩 중 이탈처럼
+  // 그 플래그가 이미 꺼진 채로 여기 도달하는 경로에서 빈 화면이 뜬다.
   const [fromStartScreen, setFromStartScreen] = useState(false);
   const leaveDrawFlow = useCallback(() => {
-    if (fromStartScreen) {
+    if (fromStartScreen || !scoreBreakdown) {
       setFromStartScreen(false);
       goToPhase("start");
       return;
     }
     proceedToDailyResult();
-  }, [fromStartScreen, goToPhase, proceedToDailyResult]);
+  }, [fromStartScreen, scoreBreakdown, goToPhase, proceedToDailyResult]);
+
+  // 현재 phase를 async 콜백 재개 시점에도 읽을 수 있도록 ref로 미러링한다.
+  // enterSurveyFlow의 클로저는 호출 시점의 phase만 알고 있어서, await 도중
+  // 사용자가 다른 phase로 이동했는지는 이 ref로만 확인할 수 있다.
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   // 설문 안내로 들어가되, Phase 1 문항이 0개면 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
+  // loadQuestions는 비동기이므로, 그 사이 사용자가 설문 안내를 벗어났다면(예: 참여
+  // 거부) 되돌아온 뒤 강제로 wheel로 보내면 안 된다 — 여전히 surveyIntro일 때만 전환한다.
   const enterSurveyFlow = useCallback(async () => {
+    resetCoupon();
     goToPhase("surveyIntro");
     const hasQuestions = await loadQuestions();
-    if (!hasQuestions) goToPhase("wheel");
-  }, [goToPhase, loadQuestions]);
+    if (!hasQuestions && phaseRef.current === "surveyIntro") goToPhase("wheel");
+  }, [resetCoupon, goToPhase, loadQuestions]);
 
   const enterDrawFromStart = useCallback(async () => {
-    resetCoupon();
     setFromStartScreen(true);
     await enterSurveyFlow();
-  }, [resetCoupon, enterSurveyFlow]);
+  }, [enterSurveyFlow]);
 
   const handleSurveySubmit = useCallback(
     async (answers: SurveyAnswerMap) => {
@@ -78,9 +91,8 @@ export default function Home({ searchParams }: PageProps) {
   );
 
   const handleSurveyAgain = useCallback(async () => {
-    resetCoupon();
     await enterSurveyFlow();
-  }, [resetCoupon, enterSurveyFlow]);
+  }, [enterSurveyFlow]);
 
   const openMyCoupons = useCallback(async () => {
     await refreshCoupons();
