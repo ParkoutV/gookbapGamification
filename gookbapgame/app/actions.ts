@@ -530,3 +530,25 @@ export async function drawCoupon(): Promise<DrawCouponResult> {
     };
   }
 }
+
+/**
+ * 게임 완주 시 점수를 기록한다. game_score_logs는 Anon INSERT가 허용되어 있다.
+ *
+ * 이 기록이 없으면 /api/gatcha/draw가 찾는 최고 점수가 0이 되어 모든 플레이어가
+ * 최저 gatcha_cases 구간으로 뽑히게 된다 — 쿠폰 확률 설계가 통째로 무력화된다.
+ *
+ * best-effort다. 실패해도 결과 화면 흐름을 막지 않는다.
+ */
+export async function submitGameScore(gookbapScore: number): Promise<void> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { error } = await supabase.from("game_score_logs").insert({
+      participant_id: participantId,
+      gookbap_score: gookbapScore,
+      joined_time: new Date().toISOString(),
+    });
+    if (error) console.error("[submitGameScore] insert 실패(무시, best-effort):", error);
+  } catch (error) {
+    console.error("[submitGameScore] 예기치 못한 예외:", error);
+  }
+}
