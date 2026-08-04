@@ -22,8 +22,11 @@ export type GamePhase =
   | "playing"
   | "stageClear"
   | "gameResult"
+  | "surveyIntro"
+  | "survey"
   | "wheel"
-  | "dailyResult";
+  | "dailyResult"
+  | "myCoupons";
 
 function countDifferences(session: GameSession): number {
   return session.slots.filter((s) => s.isDifference).length;
@@ -260,6 +263,7 @@ export function useGameProgress(trackId: string | null) {
 
   const proceedToWheel = useCallback(() => setPhase("wheel"), []);
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
+  const goToPhase = useCallback((next: GamePhase) => setPhase(next), []);
 
   const resetToStart = useCallback(() => {
     setPhase("start");
@@ -301,6 +305,7 @@ export function useGameProgress(trackId: string | null) {
     advanceToNextStage,
     proceedToWheel,
     proceedToDailyResult,
+    goToPhase,
     resetToStart,
   };
 }
