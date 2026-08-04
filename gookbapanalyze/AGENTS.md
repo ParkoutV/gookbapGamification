@@ -57,6 +57,8 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 - **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. `expired_at` (TIMESTAMPTZ) 컬럼을 통해 만료 여부를 판별합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다. (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)
 - **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). `question_type=0`은 질문 여러개 중 한개를 선택하는 문제, `question_type=1`은 질문 여러개 중 여러개를 선택하는 문제이며, 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
 - **`survey_responses` (설문 응답)**: 질문 결과를 저장하는 곳. `participant_id`로 유저 인식이 가능합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)
+- **`web_coupons` (웹페이지 전용 할인 쿠폰)**: 외부(게임 클라이언트)에서 100% 확률로 지급하는 이벤트용 쿠폰 목록. `participant_id`에 UUID가 할당되면 배정된 것으로 간주합니다. (Admin: ALL, *조회 및 할당은 익명 유저가 RPC 함수를 통해 수행*)
+- **`web_coupon_settings` (웹 쿠폰 메타데이터)**: 단일 row(id=1)를 유지하며, 웹 쿠폰의 제목(`title`)과 설명(`description`)을 다국어 JSONB 형태로 저장합니다. (Admin: ALL, Everyone: SELECT)
 
 # Frontend RPC Guidelines & Anonymous Users
 일반 유저(게임 참가자)는 Supabase Auth 로그인을 사용하지 않고 LocalStorage의 `participant_id` (UUID)를 사용해 익명(Anon)으로 동작합니다. 
@@ -70,20 +72,27 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
    - ❌ `supabase.from('issued_coupons').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_coupons', { p_id: id })`
 
-3. **내 게임 점수 기록 조회 (`game_score_logs`)**
+3. **내 웹 쿠폰 목록 조회 (`web_coupons`)**
+   - ❌ `supabase.from('web_coupons').select('*').eq('participant_id', id)`
+   - ✅ `supabase.rpc('get_my_web_coupons', { p_id: id })`
+   - **주의**: 프론트엔드(게임 클라이언트)에서는 기존 가챠 쿠폰(`get_my_coupons`)과 별개로 이 함수를 함께 호출하여, 두 결과를 화면에 병합해서 보여주어야 합니다.
+
+4. **내 게임 점수 기록 조회 (`game_score_logs`)**
    - ❌ `supabase.from('game_score_logs').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_score_logs', { p_id: id })`
 
 *(주의: 익명 유저의 최초 생성 시 `INSERT` 로직은 기존처럼 테이블을 직접 호출해도 정상 작동합니다. 단, 보안을 위해 직접적인 `UPDATE`는 전면 차단되었습니다.)*
 
-4. **쿠폰 정보 스캔 및 사용 취소 (`issued_coupons` 관리자용)**
+5. **쿠폰 정보 스캔 및 사용 취소 (`issued_coupons` 관리자용)**
    - 스캐너에서 쿠폰 정보를 불러올 때: `supabase.rpc('get_coupon_info_for_scan', { p_coupon_id: id })` (만료일인 `expired_at` 등의 종합 정보 반환)
    - 쿠폰 사용 취소 (사용일시로부터 10분 이내): `supabase.rpc('undo_coupon', { p_coupon_id: id })`
 
-5. **전체 랭킹 조회 (`ranking_view`)**
+6. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
    - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
    - ✅ `supabase.from('ranking_view').select('*')`
+
+
 
 # Multilingual Support Manual
 본 프로젝트의 다국어 대응은 다음의 5가지 원칙을 따릅니다:
@@ -184,6 +193,43 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
     "error": "아직 룰렛을 돌릴 수 없습니다."
   }
   ```
+
+# Web Coupon API Guide
+웹게임 클라이언트에서 유저에게 100% 확정 웹 쿠폰을 발급할 때 사용하는 API입니다.
+내부적으로 `assign_web_coupon` RPC(SECURITY DEFINER)를 호출하므로, 익명 유저가 안전하게 미배정 쿠폰을 가져갈 수 있습니다.
+
+- **Endpoint**: `POST /api/web-coupons/assign`
+- **Headers**: `Content-Type: application/json`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "participant_id": "유저의 UUID 문자열"
+  }
+  ```
+- **Response (Success - 200 OK)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "success": true,
+      "code": "A1B2C3D4",
+      "already_assigned": false
+    }
+  }
+  ```
+- **Response (Already Assigned - 200 OK)**:
+  (이미 발급받은 유저가 재요청을 보낼 경우, 새로운 쿠폰을 차감하지 않고 기존 쿠폰 번호를 그대로 반환합니다)
+  ```json
+  {
+    "success": true,
+    "data": {
+      "success": true,
+      "code": "A1B2C3D4",
+      "already_assigned": true
+    }
+  }
+  ```
+
 
 # KPI Data Collection & Event Tracking Guide
 프론트엔드 및 게임 클라이언트에서 9대 핵심 KPI를 대시보드에 정확히 집계하기 위해, 유저 행동 단계별로 수행해야 할 DB 연동 가이드입니다.
