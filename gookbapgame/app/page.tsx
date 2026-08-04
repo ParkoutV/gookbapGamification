@@ -17,6 +17,7 @@ import { useCouponFlow } from "./hooks/useCouponFlow";
 import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
+import { hasSurveySubmitted } from "./lib/surveySubmitted";
 
 type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -70,9 +71,26 @@ export default function Home({ searchParams }: PageProps) {
   // 설문 안내로 들어가되, Phase 1 문항이 0개면 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
   // loadQuestions는 비동기이므로, 그 사이 사용자가 설문 안내를 벗어났다면(예: 참여
   // 거부) 되돌아온 뒤 강제로 wheel로 보내면 안 된다 — 여전히 surveyIntro일 때만 전환한다.
+  //
+  // 이미 설문을 제출한 적 있는 참여자(hasSurveySubmitted)라면 설문은 짐이 아니라 이미
+  // 획득한 혜택이다 — 다시 답하게 하지 않고 곧장 룰렛으로 보낸다. 이 경우 questions를
+  // 로드할 이유도 없다(어차피 렌더하지 않는다).
+  //
+  // 여기서는 phaseRef 가드를 넣지 않는다: goToPhase("surveyIntro") 직후 이 값을 확인하면,
+  // 그 setState가 아직 커밋되지 않아 phaseRef.current가 "이전" phase를 가리키는 상태라
+  // 가드가 오탐(항상 false)해 wheel 전환이 죽는다. phaseRef는 await로 실제 시간이 흐른
+  // 뒤(zero-questions 분기)에만 의미가 있다 — 여기는 동기 경로라 그 사이 사용자가 다른
+  // 곳으로 이동할 틈이 없으므로 가드가 필요 없다.
+  // hasSurveySubmitted()는 localStorage를 읽지만, 이 콜백은 사용자 클릭 이벤트로만
+  // 트리거되어 서버 렌더 중에는 절대 호출되지 않으므로 안전하다 — submitAnswers의 기존
+  // 호출과 같은 전제.
   const enterSurveyFlow = useCallback(async () => {
     resetCoupon();
     goToPhase("surveyIntro");
+    if (hasSurveySubmitted()) {
+      goToPhase("wheel");
+      return;
+    }
     const hasQuestions = await loadQuestions();
     if (!hasQuestions && phaseRef.current === "surveyIntro") goToPhase("wheel");
   }, [resetCoupon, goToPhase, loadQuestions]);
