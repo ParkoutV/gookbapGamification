@@ -8,6 +8,7 @@ interface StartScreenProps {
   onRegenerateNickname: () => void;
   isRegeneratingNickname: boolean;
   onStart: () => void;
+  onGoToDraw?: () => void;
 }
 
 export default function StartScreen({
@@ -15,6 +16,7 @@ export default function StartScreen({
   onRegenerateNickname,
   isRegeneratingNickname,
   onStart,
+  onGoToDraw,
 }: StartScreenProps) {
   const { t } = useLocale();
 
@@ -42,6 +44,14 @@ export default function StartScreen({
         >
           {t("start.playButton")}
         </button>
+        {onGoToDraw && (
+          <button
+            onClick={onGoToDraw}
+            className="mt-3 text-sm text-muted underline underline-offset-4 bg-transparent border-0 p-0"
+          >
+            {t("start.goToDrawButton")}
+          </button>
+        )}
         <div className="flex gap-3 w-full">
           <PixelPanel size="btn" className="flex-1">
             <button type="button" className="w-full font-bold text-ink">{t("start.myResult")}</button>

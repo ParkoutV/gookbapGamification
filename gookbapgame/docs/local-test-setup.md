@@ -130,6 +130,18 @@ curl -s -X POST -H 'Content-Type: application/json' \
 
 **로컬 스택에 `db push` 하지 말 것.**
 
+## 설문 · 쿠폰 흐름을 확인할 때
+
+`seed.sql`에는 `survey_phase = 1` 문항 3개(단일 선택 / 다중 선택 / 주관식)와
+`supported_languages` 3행(ko/en/ja)이 들어 있다. 설문 화면을 건너뛰는 분기
+(문항 0개)를 확인하려면 `delete from survey_questions where survey_phase = 1;`로
+지웠다가 seed를 다시 넣으면 된다.
+
+쿠폰 발급은 로컬 DB만으로는 확인할 수 없다. `GATCHA_DRAW_API_URL`이
+`gookbapanalyze`의 `/api/gatcha/draw`를 가리켜야 하고, 그쪽은 `gatcha_settings`·
+`gatcha_cases`·`coupon_effects` 데이터를 요구한다. 이 테이블들은 대시보드에서
+관리하는 것이라 여기 픽스처에 포함하지 않았다.
+
 ## Flatpak 샌드박스 주의
 
 VS Code를 Flatpak으로 쓰는 환경에서는 샌드박스 안에 `node`/`npm`/`npx`/`docker`가

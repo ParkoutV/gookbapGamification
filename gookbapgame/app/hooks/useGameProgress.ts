@@ -14,7 +14,7 @@ import {
   GukbapTier,
   LevelResult,
 } from "../lib/stageConfig";
-import { ensureParticipant, reassignNickname as reassignNicknameAction } from "../actions";
+import { ensureParticipant, reassignNickname as reassignNicknameAction, submitGameScore } from "../actions";
 
 export type GamePhase =
   | "start"
@@ -22,8 +22,11 @@ export type GamePhase =
   | "playing"
   | "stageClear"
   | "gameResult"
+  | "surveyIntro"
+  | "survey"
   | "wheel"
-  | "dailyResult";
+  | "dailyResult"
+  | "myCoupons";
 
 function countDifferences(session: GameSession): number {
   return session.slots.filter((s) => s.isDifference).length;
@@ -107,6 +110,9 @@ export function useGameProgress(trackId: string | null) {
       });
       setScoreBreakdown(breakdown);
       setGukbapTier(calcGukbapTier(breakdown.total));
+      // 점수 기록은 결과 화면을 막지 않는다(await하지 않는다). 다만 쿠폰 뽑기가
+      // 이 기록을 근거로 확률 구간을 고르므로, 룰렛 진입 전에는 들어가 있어야 한다.
+      void submitGameScore(breakdown.total);
       setPhase("gameResult");
     },
     []
@@ -255,8 +261,8 @@ export function useGameProgress(trackId: string | null) {
     finishGame(STAGE_CONFIG.length, levelResults);
   }, [stageIndex, levelResults, finishGame]);
 
-  const proceedToWheel = useCallback(() => setPhase("wheel"), []);
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
+  const goToPhase = useCallback((next: GamePhase) => setPhase(next), []);
 
   const resetToStart = useCallback(() => {
     setPhase("start");
@@ -296,8 +302,8 @@ export function useGameProgress(trackId: string | null) {
     handleStageClear,
     handleForceAdvance,
     advanceToNextStage,
-    proceedToWheel,
     proceedToDailyResult,
+    goToPhase,
     resetToStart,
   };
 }

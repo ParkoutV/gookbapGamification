@@ -1,2 +1,4 @@
 .claude/node-portable/
 .worktrees/
+.playwright-mcp/
+.playwright-mcp/**

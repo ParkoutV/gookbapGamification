@@ -139,3 +139,36 @@ grant all on all sequences in schema public to service_role, postgres;
 insert into storage.buckets (id, name, public)
 values ('game_assets', 'game_assets', true)
 on conflict (id) do update set public = true;
+
+-- ---------------------------------------------------------------------------
+-- 6. 설문 / 지원 언어
+-- ---------------------------------------------------------------------------
+-- 컬럼 구성은 gookbapanalyze/app/main/surveys/page.tsx와 AGENTS.md에서 확인한 것을 따른다.
+
+create table if not exists supported_languages (
+  lang_code text primary key,
+  lang_name text not null,
+  is_active boolean not null default true,
+  order_index int not null default 0,
+  coupon_use_text jsonb
+);
+
+create table if not exists survey_questions (
+  question_id bigserial primary key,
+  survey_phase int not null,
+  question_type int not null,
+  question_text jsonb not null,
+  options jsonb not null default '[]'::jsonb,
+  order_index int not null default 0,
+  track_id uuid
+);
+
+-- 컬럼 구성은 gookbapanalyze/app/main/survey-results/actions.ts:54가 조회하는
+-- response_id, question_id, participant_id, answer_data, created_at 그대로다.
+create table if not exists survey_responses (
+  response_id bigserial primary key,
+  participant_id uuid not null,
+  question_id bigint not null references survey_questions(question_id),
+  answer_data jsonb,
+  created_at timestamptz not null default now()
+);

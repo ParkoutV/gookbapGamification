@@ -1,15 +1,23 @@
 "use client";
 
-import { use } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import StartScreen from "./components/StartScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
 import StageTransitionModal from "./components/StageTransitionModal";
 import GameResultScreen from "./components/GameResultScreen";
+import SurveyIntroScreen from "./components/SurveyIntroScreen";
+import SurveyScreen from "./components/SurveyScreen";
 import WheelScreen from "./components/WheelScreen";
+import MyCouponsScreen from "./components/MyCouponsScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
 import { useGameProgress } from "./hooks/useGameProgress";
+import { useCouponFlow } from "./hooks/useCouponFlow";
+import type { SurveyAnswerMap } from "./lib/surveyAnswers";
+import { useLocale } from "./lib/i18n/LocaleContext";
+import { hasPendingDraw } from "./lib/pendingDraw";
+import { hasSurveySubmitted } from "./lib/surveySubmitted";
 
 type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -21,6 +29,93 @@ export default function Home({ searchParams }: PageProps) {
   const trackId = typeof rawTrackId === "string" ? rawTrackId : null;
 
   const game = useGameProgress(trackId);
+  const coupon = useCouponFlow();
+  const { t } = useLocale();
+
+  // 두 훅 모두 매 렌더마다 새 객체를 반환하므로, 객체를 그대로 의존성에 넣으면
+  // 아래 콜백들이 매 렌더 재생성된다. 개별 함수는 useCallback([])로 안정적이니
+  // 구조 분해해서 그것만 의존성에 넣는다.
+  const { goToPhase, proceedToDailyResult, phase, scoreBreakdown } = game;
+  const { loadQuestions, submitAnswers, spin, refreshCoupons, reset: resetCoupon } = coupon;
+
+  // localStorage는 서버 렌더링 시점에 없다. 마운트 후에 읽어야 하이드레이션이 어긋나지 않는다.
+  const [showDrawEntry, setShowDrawEntry] = useState(false);
+  useEffect(() => {
+    setShowDrawEntry(hasPendingDraw());
+  }, [game.phase]);
+
+  // 시작 화면에서 뽑기로 들어온 경우, 룰렛이 끝나도 오늘의 결과로 보내면 안 된다.
+  // resetToStart가 scoreBreakdown/gukbapTier를 이미 비웠기 때문에 그 화면은
+  // 렌더 조건을 만족하지 못해 빈 화면이 된다. 시작 화면으로 되돌린다.
+  // scoreBreakdown이 아예 없는 경우(이번 세션에 게임을 안 한 경우)도 같은 이유로
+  // start로 보낸다 — fromStartScreen 플래그 하나만 믿으면, 설문 로딩 중 이탈처럼
+  // 그 플래그가 이미 꺼진 채로 여기 도달하는 경로에서 빈 화면이 뜬다.
+  const [fromStartScreen, setFromStartScreen] = useState(false);
+  const leaveDrawFlow = useCallback(() => {
+    if (fromStartScreen || !scoreBreakdown) {
+      setFromStartScreen(false);
+      goToPhase("start");
+      return;
+    }
+    proceedToDailyResult();
+  }, [fromStartScreen, scoreBreakdown, goToPhase, proceedToDailyResult]);
+
+  // 현재 phase를 async 콜백 재개 시점에도 읽을 수 있도록 ref로 미러링한다.
+  // enterSurveyFlow의 클로저는 호출 시점의 phase만 알고 있어서, await 도중
+  // 사용자가 다른 phase로 이동했는지는 이 ref로만 확인할 수 있다.
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // 설문 안내로 들어가되, Phase 1 문항이 0개면 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
+  // loadQuestions는 비동기이므로, 그 사이 사용자가 설문 안내를 벗어났다면(예: 참여
+  // 거부) 되돌아온 뒤 강제로 wheel로 보내면 안 된다 — 여전히 surveyIntro일 때만 전환한다.
+  //
+  // 이미 설문을 제출한 적 있는 참여자(hasSurveySubmitted)라면 설문은 짐이 아니라 이미
+  // 획득한 혜택이다 — 다시 답하게 하지 않고 곧장 룰렛으로 보낸다. 이 경우 questions를
+  // 로드할 이유도 없다(어차피 렌더하지 않는다).
+  //
+  // 여기서는 phaseRef 가드를 넣지 않는다: goToPhase("surveyIntro") 직후 이 값을 확인하면,
+  // 그 setState가 아직 커밋되지 않아 phaseRef.current가 "이전" phase를 가리키는 상태라
+  // 가드가 오탐(항상 false)해 wheel 전환이 죽는다. phaseRef는 await로 실제 시간이 흐른
+  // 뒤(zero-questions 분기)에만 의미가 있다 — 여기는 동기 경로라 그 사이 사용자가 다른
+  // 곳으로 이동할 틈이 없으므로 가드가 필요 없다.
+  // hasSurveySubmitted()는 localStorage를 읽지만, 이 콜백은 사용자 클릭 이벤트로만
+  // 트리거되어 서버 렌더 중에는 절대 호출되지 않으므로 안전하다 — submitAnswers의 기존
+  // 호출과 같은 전제.
+  const enterSurveyFlow = useCallback(async () => {
+    resetCoupon();
+    goToPhase("surveyIntro");
+    if (hasSurveySubmitted()) {
+      goToPhase("wheel");
+      return;
+    }
+    const hasQuestions = await loadQuestions();
+    if (!hasQuestions && phaseRef.current === "surveyIntro") goToPhase("wheel");
+  }, [resetCoupon, goToPhase, loadQuestions]);
+
+  const enterDrawFromStart = useCallback(async () => {
+    setFromStartScreen(true);
+    await enterSurveyFlow();
+  }, [enterSurveyFlow]);
+
+  const handleSurveySubmit = useCallback(
+    async (answers: SurveyAnswerMap) => {
+      const ok = await submitAnswers(answers);
+      if (ok) goToPhase("wheel");
+    },
+    [goToPhase, submitAnswers]
+  );
+
+  const handleSurveyAgain = useCallback(async () => {
+    await enterSurveyFlow();
+  }, [enterSurveyFlow]);
+
+  const openMyCoupons = useCallback(async () => {
+    await refreshCoupons();
+    goToPhase("myCoupons");
+  }, [goToPhase, refreshCoupons]);
 
   return (
     <div className="min-h-screen bg-black">
@@ -31,6 +126,7 @@ export default function Home({ searchParams }: PageProps) {
           onRegenerateNickname={game.regenerateNickname}
           isRegeneratingNickname={game.isRegenerating}
           onStart={game.startGame}
+          onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
         />
       )}
 
@@ -60,11 +156,38 @@ export default function Home({ searchParams }: PageProps) {
         <GameResultScreen
           scoreBreakdown={game.scoreBreakdown}
           gukbapTier={game.gukbapTier}
-          onNext={game.proceedToWheel}
+          onNext={enterSurveyFlow}
         />
       )}
 
-      {game.phase === "wheel" && <WheelScreen onNext={game.proceedToDailyResult} />}
+      {game.phase === "surveyIntro" && (
+        <SurveyIntroScreen
+          onParticipate={() => goToPhase("survey")}
+          onDecline={leaveDrawFlow}
+        />
+      )}
+
+      {game.phase === "survey" && (
+        <SurveyScreen
+          questions={coupon.questions}
+          isSubmitting={coupon.state === "submitting"}
+          errorMessage={coupon.submitError ? t(coupon.submitError) : null}
+          onSubmit={handleSurveySubmit}
+        />
+      )}
+
+      {game.phase === "wheel" && (
+        <WheelScreen
+          drawResult={coupon.drawResult}
+          isDrawing={coupon.state === "drawing"}
+          onSpin={spin}
+          onNext={leaveDrawFlow}
+        />
+      )}
+
+      {game.phase === "myCoupons" && (
+        <MyCouponsScreen coupons={coupon.coupons} onClose={() => goToPhase("dailyResult")} />
+      )}
 
       {game.phase === "dailyResult" && game.scoreBreakdown && game.gukbapTier && (
         <DailyResultScreen
@@ -72,6 +195,8 @@ export default function Home({ searchParams }: PageProps) {
           gukbapTier={game.gukbapTier}
           totalScore={game.scoreBreakdown.total}
           onRestart={game.resetToStart}
+          onSurveyAgain={handleSurveyAgain}
+          onOpenMyCoupons={openMyCoupons}
         />
       )}
     </div>
