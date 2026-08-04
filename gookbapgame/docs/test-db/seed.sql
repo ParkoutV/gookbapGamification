@@ -98,3 +98,24 @@ insert into image_slots (base_image_id, category_id, x_coordinate, y_coordinate,
   (7, 1,  250, 550, 1, 1),
   (7, 1,  600, 550, 1, 1),
   (7, 1,  950, 550, 1, 1);
+
+-- ---------------------------------------------------------------------------
+-- 지원 언어 / 설문 문항
+-- ---------------------------------------------------------------------------
+insert into supported_languages (lang_code, lang_name, is_active, order_index, coupon_use_text)
+values
+  ('ko', '한국어', true, 1, '{"expired_coupon": "만료된 쿠폰입니다. (만료일: {{expired_date}})", "already_used_coupon": "이미 사용된 쿠폰입니다.", "load_error": "쿠폰 정보를 불러오지 못했습니다."}'::jsonb),
+  ('en', 'English', true, 2, '{"expired_coupon": "This coupon expired on {{expired_date}}.", "already_used_coupon": "This coupon was already used.", "load_error": "Failed to load coupon."}'::jsonb),
+  ('ja', '日本語', true, 3, '{"expired_coupon": "このクーポンは{{expired_date}}に期限切れです。", "already_used_coupon": "使用済みのクーポンです。", "load_error": "クーポン情報を取得できませんでした。"}'::jsonb)
+on conflict (lang_code) do nothing;
+
+-- Phase 1 = 쿠폰 받기 전 노출되는 질문. question_id를 고정해 멱등하게 만든다.
+insert into survey_questions (question_id, survey_phase, question_type, question_text, options, order_index)
+values
+  (9001, 1, 0, '{"ko": "국밥을 얼마나 자주 드시나요?", "en": "How often do you eat gookbap?"}'::jsonb,
+         '[{"ko": "주 1회", "en": "Once a week"}, {"ko": "주 3회 이상", "en": "3+ times a week"}]'::jsonb, 1),
+  (9002, 1, 1, '{"ko": "좋아하는 반찬을 모두 고르세요", "en": "Pick all side dishes you like"}'::jsonb,
+         '[{"ko": "깍두기", "en": "Kkakdugi"}, {"ko": "김치", "en": "Kimchi"}, {"ko": "양파", "en": "Onion"}]'::jsonb, 2),
+  (9003, 1, 2, '{"ko": "한마디 남겨주세요", "en": "Leave us a comment"}'::jsonb,
+         '[{"ko": "자유롭게 적어주세요", "en": "Write freely"}]'::jsonb, 3)
+on conflict (question_id) do nothing;
