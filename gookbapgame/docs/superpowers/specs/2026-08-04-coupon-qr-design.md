@@ -119,7 +119,7 @@ app/actions.ts ("use server")  — 전부 쿠키에서 resolveParticipantId()
 | 꽝 (`coupon_type: null`) | 룰렛 연출 후 "아쉽네요" 화면. 꽝에도 `roulette_joined`가 갱신되어 쿨타임이 소모되므로, 다음 도전 가능 시각을 안내한다 |
 | 룰렛 도중 새로고침 | draw가 쿨타임 403 → 에러 대신 `fetchMyCoupons()`의 최신 쿠폰을 표시한다. **draw는 일회성 이벤트이고 쿠폰 목록이 영속적 진실이다** |
 | draw 403 | 설문은 게임이 선행 완료시키므로 남는 403은 사실상 쿨타임뿐이다. 재도전 안내를 띄운다. (draw API의 403은 기계 판독용 `code` 없이 한국어 문자열만 반환하므로 문자열 매칭은 하지 않는다) |
-| `GATCHA_DRAW_API_URL` 미설정 / 네트워크 실패 | 로컬 폴백 금지. 재시도 버튼 + 에러 표시 |
+| `GATCHA_DRAW_API_URL` 미설정 / 네트워크 실패 | 로컬 폴백 금지. "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요."를 띄우고 **그대로 다음 화면으로 진행**한다. 발급도 쿨타임 갱신도 일어나지 않았으므로 기회는 살아 있다 — `pendingDraw` 표시를 남겨 다음 방문 시작 화면에 뽑기 진입 버튼을 노출한다. 전용 재시도 버튼은 두지 않는다(하루 한 번뿐인 기능에 과한 장치) |
 | `get_my_coupons` 호출 실패/권한 없음 | 발급은 되었으나 QR을 그릴 수 없는 상태. "쿠폰은 발급되었으나 지금 표시할 수 없어요 — 잠시 후 다시 확인해주세요"로 안내하고 목록 화면에서 재조회를 유도한다 |
 | 만료 / 사용완료 쿠폰 | 목록에 흐리게 표시하고 QR 탭을 비활성화한다. 만료 판정은 `expired_at`(KST 23:59:59.999 기준) |
 | 설문 중복 제출 | 제출 버튼 disable + 서버 액션에서 기존 응답이 있으면 INSERT를 건너뛴다 |
@@ -139,7 +139,14 @@ app/actions.ts ("use server")  — 전부 쿠키에서 resolveParticipantId()
 
 1. **`get_my_coupons` RPC의 anon 실행 권한** — 이 RPC는 어떤 마이그레이션 파일에도 없고 `AGENTS.md` 문서에만 존재한다(프로덕션 전용). 게임의 anon 키로 실행 가능한지(`SECURITY DEFINER` + `GRANT EXECUTE TO anon`) 확인이 필요하다. 열리지 않으면 `/api/gatcha/draw`의 INSERT에 `.select('coupon_id').single()`을 추가해 응답에 `coupon_id`를 실어달라고 요청한다.
 2. **`supported_languages.lang_code`의 실제 일본어 코드** — DB에 `ja`가 들어 있다면 `CouponScanner.tsx`의 `localeMap`이 `jp`로 잘못 하드코딩된 것이므로 그쪽을 고쳐야 한다. DB에 `jp`가 들어 있다면 DB 값을 `ja`로 정정한다. 어느 쪽이든 게임은 `ja`를 보낸다.
-3. **draw API 403의 사유 구분** — 현재 쿨타임과 설문 미완료가 모두 `code` 없는 한국어 문자열 403이다. 게임이 사유를 구분해 다국어로 안내하려면 `code` 필드가 필요하다. 이번 스펙에서는 설문을 선행 완료시켜 우회하므로 차단 요인은 아니다.
+3. **`game_score_logs`의 컬럼 구성** — 코드로 확인된 것은 `participant_id`, `gookbap_score`, `joined_time` 셋뿐이다. `ranking_view`는 `best_score`와 `gookbap_score`를 서로 다른 값으로 노출하는데(커밋 `6af1458`의 내부 0~100 비율 / 표시 1953 환산 분리), `best_score`가 이 테이블에 있고 NOT NULL이라면 무엇을 넣어야 하는지 확인이 필요하다.
+4. **draw API 403의 사유 구분** — 현재 쿨타임과 설문 미완료가 모두 `code` 없는 한국어 문자열 403이다. 게임이 사유를 구분해 다국어로 안내하려면 `code` 필드가 필요하다. 이번 스펙에서는 설문을 선행 완료시켜 우회하므로 차단 요인은 아니다.
+
+## 함께 포함하는 것 — 게임 점수 제출
+
+`gookbapgame`은 현재 `game_score_logs`에 아무것도 쓰지 않는다(2026-07-30 참여자 식별 스펙에서 후속으로 분리된 뒤 미구현). draw API는 집계 시간 내 최고 점수로 `gatcha_cases` 구간을 고르므로, 기록이 없으면 `bestScore`가 항상 0이 되어 **모든 플레이어가 최저 구간 확률 풀로만 뽑는다.** 점수 구간별 확률 설계가 통째로 무력화되므로 이번 스펙에 포함한다.
+
+게임 완주 시 `game_score_logs`에 INSERT한다(Anon INSERT 허용). 이 기록은 KPI의 게임 완주율에도 함께 쓰인다.
 
 ## 범위 밖
 
