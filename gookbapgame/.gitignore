@@ -58,3 +58,4 @@ test/fixtures/diff-output-*.png
 
 # playwright MCP 세션 산출물 (콘솔 로그, 스냅샷)
 .playwright-mcp/
+.playwright-mcp/**
