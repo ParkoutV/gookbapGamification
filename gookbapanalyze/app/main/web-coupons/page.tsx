@@ -266,16 +266,17 @@ export default function WebCouponsPage() {
     }
   }
 
-  const handleBulkProcess = async () => {
-    const targetIdsToDelete = Array.from(selectedCoupons).filter(id => !coupons.find(c => c.id === id)?.participant_id)
-    const assignedCouponsToReplace = coupons.filter(c => selectedCoupons.has(c.id) && c.participant_id)
+  const handleBulkProcess = async (overrideSelected?: Set<string>) => {
+    const couponsToProcess = overrideSelected || selectedCoupons;
+    const targetIdsToDelete = Array.from(couponsToProcess).filter(id => !coupons.find(c => c.id === id)?.participant_id)
+    const assignedCouponsToReplace = coupons.filter(c => couponsToProcess.has(c.id) && c.participant_id)
     
     if (targetIdsToDelete.length === 0 && assignedCouponsToReplace.length === 0) {
       alert('선택된 쿠폰이 없습니다.')
       return
     }
 
-    if (!confirm(`총 ${selectedCoupons.size}개의 쿠폰을 처리하시겠습니까?\n- 미배정 쿠폰 삭제: ${targetIdsToDelete.length}개\n- 기배정 쿠폰 재배정(기존 삭제): ${assignedCouponsToReplace.length}개\n\n(안전한 충돌 방지를 위해 '삭제' 로직이 우선적으로 수행됩니다)`)) return
+    if (!confirm(`총 ${couponsToProcess.size}개의 쿠폰을 처리하시겠습니까?\n- 미배정 쿠폰 삭제: ${targetIdsToDelete.length}개\n- 기배정 쿠폰 재배정(기존 삭제): ${assignedCouponsToReplace.length}개\n\n(안전한 충돌 방지를 위해 '삭제' 로직이 우선적으로 수행됩니다)`)) return
     
     setSaving(true)
     const supabase = createClient()
@@ -407,7 +408,7 @@ export default function WebCouponsPage() {
                 <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800">
                   {selectedCoupons.size}개 선택됨
                 </span>
-                <button onClick={handleBulkProcess} disabled={saving} className="text-sm bg-white dark:bg-zinc-800 border border-indigo-200 dark:border-indigo-900/50 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                <button onClick={() => handleBulkProcess()} disabled={saving} className="text-sm bg-white dark:bg-zinc-800 border border-indigo-200 dark:border-indigo-900/50 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-1.5 rounded-lg font-medium transition-colors">
                   선택 일괄 처리 (삭제/재배정)
                 </button>
               </div>
@@ -465,11 +466,11 @@ export default function WebCouponsPage() {
                 </td>
                 <td className="px-6 py-3 text-right flex justify-end gap-2">
                   {c.participant_id ? (
-                    <button onClick={() => { setSelectedCoupons(new Set([c.id])); handleBulkReassign(); }} disabled={saving} className="text-xs bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                    <button onClick={() => { const s = new Set([c.id]); setSelectedCoupons(s); handleBulkProcess(s); }} disabled={saving} className="text-xs bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 px-3 py-1.5 rounded-lg font-medium transition-colors">
                       재배정
                     </button>
                   ) : (
-                    <button onClick={() => { setSelectedCoupons(new Set([c.id])); handleBulkDelete(); }} disabled={saving} className="text-gray-400 hover:text-red-600 p-1.5 rounded transition-colors">
+                    <button onClick={() => { const s = new Set([c.id]); setSelectedCoupons(s); handleBulkProcess(s); }} disabled={saving} className="text-gray-400 hover:text-red-600 p-1.5 rounded transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
