@@ -41,10 +41,6 @@ export const en: Partial<Dictionary> = {
   "gukbapTier.explorer": "Gukbap Explorer",
   "gukbapTier.beginner": "Gukbap Beginner",
 
-  "stageTransition.clearTitle": "Congratulations!!",
-  "stageTransition.clearMessage": "You cleared this stage.",
-  "stageTransition.loading": "Loading...",
-  "stageTransition.nextButton": "Next",
 
   "surveyIntro.title": "Care to take a quick survey?",
   "surveyIntro.description": "Answer a few questions to spin the coupon wheel.",
