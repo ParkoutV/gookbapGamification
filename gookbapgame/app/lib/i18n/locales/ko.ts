@@ -41,10 +41,6 @@ export const ko: Dictionary = {
   "gukbapTier.explorer": "국밥 탐험가",
   "gukbapTier.beginner": "국밥 입문생",
 
-  "stageTransition.clearTitle": "축하합니다!!",
-  "stageTransition.clearMessage": "이번 단계를 통과하셨습니다.",
-  "stageTransition.loading": "로딩 중...",
-  "stageTransition.nextButton": "다음",
 
   "surveyIntro.title": "설문에 참여하시겠어요?",
   "surveyIntro.description": "설문에 답하면 쿠폰 룰렛을 돌릴 수 있어요.",
