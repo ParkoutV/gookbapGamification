@@ -23,42 +23,200 @@ This version has breaking changes — APIs, conventions, and file structure may 
    - 설문 수정 권한
    - user 계정 생성 및 삭제 권한 (비밀번호 설정 제외)
 
-# Database Schema & Accounts
-Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 정보를 위해 커스텀 `accounts` 테이블을 사용합니다.
-- **`accounts` 테이블**: `auth.users`와 1:1 매칭 (PK: `user_id` uuid). 시스템 전반의 계정 연계 키(Central Key)로 이 `user_id` (UUID)를 사용합니다.
-- **`permission`**: `0` = Admin(본사), `1` = User(가맹점).
+# Database Schema & Tables
 
+모든 데이터베이스 테이블에는 강력한 RLS(Row Level Security)가 적용되어 있습니다. 기본 권한은 `accounts` 테이블의 `permission` 값(0: Admin, 1: User)을 기준으로 동작합니다.
 
-# Database Tables & RLS Permissions
-모든 데이터베이스 테이블에는 강력한 RLS(Row Level Security)가 적용되어 있습니다. 권한은 `accounts` 테이블의 `permission` 값(0: Admin, 1: User)을 기준으로 동작합니다.
+### 1. `accounts` (사용자 계정 및 권한)
+Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 권한 관리 테이블입니다.
+* **`user_id`** (`uuid`, Primary Key): 사용자 고유 식별자입니다. 시스템 전반의 연계 키(Central Key)로 사용됩니다.
+  * *제약조건:* `auth.users(id)`와 외래키 관계로 연결되어 있으며, 유저 삭제 시 연쇄 삭제(`ON DELETE CASCADE`)됩니다.
+* **`account_id`** (`text`): 관리자가 로그인할 때 사용하는 아이디(문자열)입니다.
+  * *제약조건:* 고유값(`UNIQUE`)을 가져야 하며 `NOT NULL`입니다.
+* **`permission`** (`integer`): 계정의 권한 등급을 나타냅니다.
+  * *제약조건:* `NOT NULL`이며, 반드시 `0`(최고 관리자) 또는 `1`(일반/지점 관리자)만 들어갈 수 있도록 `CHECK (permission IN (0, 1))` 제약이 걸려 있습니다.
+* **`created_at`** (`timestamp with time zone`): 계정 생성 일시입니다. (기본값: `now()`)
+* **`is_setup_completed`** (`boolean`): 계정의 초기 세팅 완료 여부입니다. (기본값: `false`)
+* **`assigned_branch_id`** (`uuid`, Nullable): 해당 관리자가 소속된 지점의 ID입니다. 최고 관리자(`permission: 0`)의 경우 null일 수 있습니다.
+  * *제약조건:* `branches(branch_id)`와 외래키 관계이며, 지점 삭제 시 `ON DELETE SET NULL` 처리됩니다.
 
-- **`supported_languages` (지원 언어)**: 언어 정의. `lang_code`를 기반으로 구동되며, `lang_name`은 언어를 나타내는 항목입니다. 텍스트 항목에서는 `{"ko": "기본 얼굴", "en": "Base Face"}`와 같은 방식으로 다국어를 저장합니다. `coupon_use_text` JSONB 컬럼에 쿠폰 사용 확인창 텍스트 및 에러 메시지(`expired_coupon`, `already_used_coupon`, `load_error` 등)가 함께 저장되며, `{{expired_date}}` 등의 변수를 지원합니다.
-- **`base_images` (기본 이미지 마스터)**: 게임에 사용되는 원본(Base) 이미지. `level` (INT, 1~9 제한) 컬럼을 통해 난이도 레벨을 지정합니다. (중복 레벨 허용)
-  - **`questions_count` (INT)**: 유저에게 요구할 다른 그림의 개수. 반드시 연결된 `image_slots`의 개수 이하이어야 하며, DB 트리거(`validate_base_image_questions_count`)를 통해 유효성이 검증됩니다.
-- **`unified_images` (통합 렌더링 이미지 캐시)**: `base_images`와 덧씌워진 `parts` 조합의 결과물을 저장하는 테이블. `image_slots` 컬럼(JSONB)에 `{"카테고리ID": "파츠ID"}` 형태로 조합을 저장하며, 트리거를 통해 파츠의 존재 여부 및 카테고리 일치 여부를 DB 차원에서 강력하게 검증합니다. `ID` 의 경우 파츠 이미지가 갱신되거나 이미지 값을 수정하더라도 그대로 유지됩니다. (이미지 삭제시 초기화) (Admin: ALL, Everyone: SELECT)
-  - **Lazy Loading (온디맨드) 정책:** `/api/generate-unified` API는 요청된 조합이 `unified_images`에 존재하면 즉시 반환하고, 없을 경우에만 1장을 실시간으로 합성(JIT)하여 DB와 스토리지에 저장한 뒤 반환합니다. 관리자가 편집 내용을 저장할 때, 기존의 캐시(`unified_images`)는 모두 삭제되며 프리뷰를 위한 1장의 이미지(파츠 ID가 가장 작은 조합)만 동기적으로 재생성됩니다.
-- **`branches` (지점 마스터)**: 지점 정의. 지점 구분을 `branch_id`(UUID)를 기반으로 구별하며, `branch_name`이 지점명 (다국어 지원 있음)입니다. (Admin: ALL, Everyone: SELECT)
-- **`tracks` (접속 링크 마스터)**: 트랙(track) 쿼리문을 정의하는 부분. 지점 ID(`branch_id`)와 공유 여부(`is_shared`)로 구분됩니다. (Admin: ALL, Everyone: SELECT)
-- **`track_logs` (접속 로그)**: 트랙 로그를 기반으로 유저 접속 및 행동 기록을 저장합니다. `game_start_count` (INT)는 재도전율 집계 및 게임 참여 판별을 위한 시작 횟수 누적 카운터이며, `share_clicked` (BOOLEAN)는 공유하기 클릭 여부를 직관적으로 기록합니다. (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)
-- **`get_track_kpi_dashboard` (KPI 통계 RPC)**: 9대 지표(방문자수, 시작/완주/재도전율, 공유 참여/유입, 설문/쿠폰)를 시간 조건에 맞춰 동적으로 필터링하여 집계해주는 강력한 함수입니다.
-  - **파라미터 (Parameters):**
-    - `start_date` (TIMESTAMPTZ, 선택): 조회 시작 일시. 생략 시 과거 무한대(`-infinity`)가 적용되어 처음부터 조회합니다.
-    - `end_date` (TIMESTAMPTZ, 선택): 조회 종료 일시. 생략 시 미래 무한대(`infinity`)가 적용되어 현재까지 조회합니다.
-  - 파라미터 생략 시 전체 기간을 조회하며 `await supabase.rpc('get_track_kpi_dashboard', { start_date: '2026-07-01T00:00:00Z', end_date: '2026-07-31T23:59:59Z' })` 처럼 기간 조회가 가능합니다. 
-  - **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 있습니다. 최고 관리자(Admin)가 호출할 경우 전체 지점의 데이터가 반환되지만, 일반 가맹점 관리자(User)가 호출할 경우 외부 파라미터와 무관하게 무조건 본인의 `assigned_branch_id`와 일치하는 트랙만 자동 필터링되어 안전하게 반환됩니다.
-  - 리턴 데이터는 `track_id`별 2개의 행(일반 트랙 / 공유 트랙)으로 나뉘어 반환되므로, 지점 단위의 합계 통계는 프론트엔드에서 두 데이터를 더하여 처리(Formatting)하는 것을 권장합니다.
-- **`participants` (게임 참여자)**: 유저 기본 정보 저장. (점수는 `game_score_logs`에 저장됨). 랭킹 조회를 위해서는 본 테이블이 아닌 `ranking_view` 뷰(View)를 이용해야 합니다. 중복 방지 및 정규화를 위해 `nickname` 컬럼은 완전히 삭제되었으며, 오직 `nickname_first_id`, `nickname_last_id` (UUID) 컬럼으로 무작위 할당된 닉네임 조합 정보를 외래키(FK) 형태로 유지합니다. (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
-- **`nickname_presets` (닉네임 프리셋)**: 닉네임 조합에 사용될 앞글자(first_word)와 뒷글자(last_word) 데이터를 정의합니다. `type`으로 구분하며 다국어(`text` JSONB)를 지원합니다. (Admin: ALL, Everyone: SELECT)
-- **`nickname_exclusions` (닉네임 제외 조합)**: 특정 앞글자와 뒷글자의 결합을 금지하는 블랙리스트입니다. `assign_random_nickname` RPC 및 할당 로직에서 무작위 추출 시 해당 테이블에 정의된 쌍은 결과에서 배제됩니다. (Admin: ALL, Everyone: SELECT)
-- **`game_score_logs` (게임 점수 로그)**: 매 게임 플레이마다 획득한 점수를 누적해서 저장하는 테이블 (1:N 구조). (Admin: ALL, Anon: INSERT. *조회는 RPC 함수 필수*)
-- **`gatcha_cases` (가챠 구간 설정)**: 0점부터 1953점까지의 점수 구간(`min_score`, `max_score`)을 정의합니다. DB 테이블 레벨에 `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 제약 조건이 설정되어 있어 유효하지 않은 점수 범위는 원천 차단됩니다. 구간 사이의 빈틈이나 겹침 여부는 프론트엔드 저장 로직에서 검증합니다. (Admin: ALL, Everyone: SELECT)
-- **`gatcha_settings` (가챠 글로벌 설정)**: 단일 row(id=1)를 유지하며 룰렛 쿨타임(`cooldown_hours`, `cooldown_minutes`) 및 최고 점수 집계 제한 시간(`aggregation_hours`, `aggregation_minutes`)을 설정합니다. (Admin: ALL, Everyone: SELECT)
-- **`coupon_effects` (쿠폰 혜택)**: 발급 가능한 쿠폰을 정의합니다. 혜택 텍스트는 다국어 처리(JSON)를 지원합니다. `probability` (JSONB) 컬럼을 통해 `{"case_id": 0.5}` 형태로 각 가챠 구간(Case)별 당첨 확률(0~1)을 유연하게 매핑하여 저장합니다. (각 Case별 총합 100% 초과 여부는 프론트엔드 편집기에서 검증합니다.) (Admin: ALL, Everyone: SELECT)
-- **`issued_coupons` (발급된 쿠폰)**: 유저가 획득한 쿠폰. `participant_id`와 연동되며, 본인의 쿠폰 조회가 가능합니다. `expired_at` (TIMESTAMPTZ) 컬럼을 통해 만료 여부를 판별합니다. 데이터를 불러오기 위해선 반드시 RPC 함수 사용이 필수입니다. 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다. (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)
-- **`survey_questions` (설문 문항)**: 질문 정의. 관리자(Admin)는 전부 수정 가능하며, 지점(User)은 본인 지점 한정으로 수정 가능합니다. `survey_phase`(int)로 내용이 정의됩니다 (0: 힌트 질문, 1: 쿠폰 받기 전 질문, 2: 지점 특화 질문). `question_type=0`은 질문 여러개 중 한개를 선택하는 문제, `question_type=1`은 질문 여러개 중 여러개를 선택하는 문제이며, 주관식(단답형, `question_type=2`)의 경우 다언어 부가설명/Placeholder 텍스트를 `options[0]` 배열에 저장합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)
-- **`survey_responses` (설문 응답)**: 질문 결과를 저장하는 곳. `participant_id`로 유저 인식이 가능합니다. (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)
-- **`web_coupons` (웹페이지 전용 할인 쿠폰)**: 외부(게임 클라이언트)에서 100% 확률로 지급하는 이벤트용 쿠폰 목록. `participant_id`에 UUID가 할당되면 배정된 것으로 간주합니다. (Admin: ALL, *조회 및 할당은 익명 유저가 RPC 함수를 통해 수행*)
-- **`web_coupon_settings` (웹 쿠폰 메타데이터)**: 단일 row(id=1)를 유지하며, 웹 쿠폰의 제목(`title`)과 설명(`description`)을 다국어 JSONB 형태로 저장합니다. (Admin: ALL, Everyone: SELECT)
+### 2. `base_images` (기본 게임 이미지)
+게임(다른그림찾기)의 배경이 되는 원본 이미지를 정의합니다.
+* **`id`** (`bigint`, Primary Key): 이미지 고유 번호.
+* **`title`** (`jsonb`): 이미지의 다국어 제목. (예: `{"ko": "기본", "en": "Base"}`)
+* **`image_url`** (`text`): 원본 이미지의 스토리지 저장 경로(URL).
+* **`created_at`** (`timestamp with time zone`): 생성 일시. (기본값: `now()`)
+* **`level`** (`integer`): 이미지의 난이도 레벨(1~9)입니다.
+  * *제약조건:* `CHECK (level >= 1 AND level <= 9)`로 값이 보호됩니다.
+* **`questions_count`** (`integer`): 이 이미지에서 찾도록 요구할 다른 그림의 개수입니다. (기본값: 3)
+  * *제약조건:* DB 트리거(`validate_base_image_questions_count`)를 통해 연결된 `image_slots`의 개수 이하인지 무결성이 항상 검증됩니다.
+
+### 3. `image_slots` (이미지 파츠 조합 슬롯)
+`base_images` 위에 파츠(다른 그림 요소)가 올라갈 좌표 위치를 정의합니다.
+* **`id`** (`bigint`, Primary Key): 슬롯 고유 번호.
+* **`base_image_id`** (`bigint`): 어느 기본 이미지에 종속된 슬롯인지 식별합니다. (`base_images(id)` 외래키, `CASCADE`)
+* **`category_id`** (`bigint`): 이 위치에 들어갈 수 있는 파츠의 카테고리입니다. (`part_categories(id)` 외래키, `CASCADE`)
+* **`x_coordinate`** (`integer`, NOT NULL): 파츠가 합성될 X 좌표.
+* **`y_coordinate`** (`integer`, NOT NULL): 파츠가 합성될 Y 좌표.
+* **`z_index`** (`integer`): 레이어 겹침 순서(Z-index). (기본값: 1)
+* **`scale`** (`real`): 이미지 확대/축소 배율. (기본값: 1.0)
+
+### 4. `unified_images` (통합 렌더링 이미지 캐시)
+기본 이미지 위에 여러 파츠를 합성한 완성본 렌더링 결과(JIT 렌더링 캐시)를 저장합니다.
+* **`id`** (`uuid`, Primary Key): 캐시 고유 번호 (기본값: `gen_random_uuid()`).
+* **`base_image_id`** (`bigint`): 사용된 기본 이미지. (`base_images(id)` 외래키, `CASCADE`)
+* **`image_slots`** (`jsonb`): 어떠한 파츠들의 조합으로 만들어졌는지 저장합니다. (예: `{"카테고리ID": "파츠ID"}`)
+  * *제약조건:* DB 차원의 트리거를 통해 파츠의 존재 여부와 카테고리 일치 여부가 강제로 검증됩니다.
+* **`unified_image_url`** (`text`): 합성 완료된 이미지의 스토리지 URL.
+* **`created_at`** (`timestamp with time zone`): 캐시 생성 일시. (기본값: `now()`)
+* **Lazy Loading 정책:** `/api/generate-unified` 호출 시 기존에 조합이 존재하면 즉시 반환, 없을 경우 1장을 합성하여 캐싱합니다. 편집 저장 시 캐시는 전부 초기화됩니다. (Admin: ALL, Everyone: SELECT)
+
+### 5. `part_categories` & `parts` (이미지 파츠 정의)
+**[`part_categories`]**
+* **`id`** (`bigint`, Primary Key): 카테고리 고유 번호.
+* **`name`** (`jsonb`): 카테고리 다국어 이름.
+
+**[`parts`]**
+* **`id`** (`bigint`, Primary Key): 파츠 고유 번호.
+* **`category_id`** (`bigint`): 소속 카테고리. (`part_categories(id)` 외래키, `CASCADE`)
+* **`name`** (`jsonb`): 파츠의 다국어 이름.
+* **`image_url`** (`text`): 파츠 이미지 스토리지 URL.
+* **`offset_x` / `offset_y`** (`integer`): 슬롯 기준 세부 오프셋. (기본값: 0)
+* **`scale`** (`real`): 파츠 자체의 크기 배율. (기본값: 1.0)
+
+### 6. `branches` & `tracks` & `track_logs` (지점, 링크, 접속 통계)
+**[`branches` - 지점 마스터] (Admin: ALL, Everyone: SELECT)**
+* **`branch_id`** (`uuid`, Primary Key): 지점 식별자.
+* **`branch_name`** (`text`): 지점의 다국어 이름 (문자열 직렬화(JSON.stringify)로 저장).
+  * *제약조건:* 유일해야 합니다. (`UNIQUE`)
+* **`created_at`** (`timestamp with time zone`): 생성 일시.
+
+**[`tracks` - 접속 링크(트랙) 마스터] (Admin: ALL, Everyone: SELECT)**
+* **`track_id`** (`varchar`, Primary Key): 링크 URL에 삽입될 트랙 고유 문자열.
+* **`is_shared`** (`boolean`): 다른 유저가 공유하기를 통해 배포한 링크인지 여부. (공유 유입 KPI 계산용)
+* **`created_at`** (`timestamp with time zone`): 생성 일시.
+* **`branch_id`** (`uuid`): 해당 트랙이 소속된 지점. (`branches(branch_id)` 외래키, `CASCADE`)
+
+**[`track_logs` - KPI 측정을 위한 유저 행동 로그] (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)**
+* **`log_id`** (`uuid`, Primary Key): 로그 식별자.
+* **`participant_id`** (`uuid`): 방문 유저 식별자. (`participants` 외래키, `CASCADE`)
+* **`track_id`** (`varchar`, Nullable): 접속한 트랙 문자열.
+  * *제약조건:* `tracks.track_id`와 직접적인 외래키(Foreign Key)가 걸려있진 않으나, 존재하지 않는 URL(트랙)로 접속한 경우나 지정하지 않았을 때 앱 차원에서 Null 처리되거나 기본 트랙으로 맵핑됩니다.
+* **`access_time`** (`timestamp with time zone`): 접속/방문 시간. (방문자 수 KPI 연결)
+* **`game_start_count`** (`integer`): 해당 유저가 게임을 재시도/시작한 누적 횟수. (게임 시작자, 재도전 유저 KPI 연결)
+* **`share_clicked`** (`boolean`): 이 유저가 게임 종료 후 '공유하기' 버튼을 눌렀는지 여부. (공유 참여율 KPI 연결)
+
+**[`get_track_kpi_dashboard` (KPI 통계 RPC)]** 
+9대 지표(방문자수, 시작/완주/재도전율, 공유 참여/유입, 설문/쿠폰)를 시간 조건에 맞춰 동적으로 필터링하여 집계해주는 강력한 함수입니다.
+* **파라미터 (Parameters):**
+  * `start_date` (TIMESTAMPTZ, 선택): 조회 시작 일시. 생략 시 `-infinity`
+  * `end_date` (TIMESTAMPTZ, 선택): 조회 종료 일시. 생략 시 `infinity`
+* **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 일반 가맹점 관리자(User)는 본인 지점 트랙만 자동 조회됩니다.
+
+### 7. `participants` (유저 및 익명 정보) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*)
+* **`participant_id`** (`uuid`, Primary Key): 게임에 참가한 익명 유저의 기기(LocalStorage) 식별자입니다.
+* **`roulette_joined`** (`timestamp with time zone`, Nullable): 가장 마지막에 가챠(룰렛)를 돌린 시간입니다. (룰렛 쿨타임 제한 검증용)
+* **`last_participated_at`** (`timestamp with time zone`): 마지막 방문 일시.
+* **`created_at`** (`timestamp with time zone`): 최초 방문 일시.
+* **`nickname_first_id` / `nickname_last_id`** (`uuid`, Nullable): 닉네임 구성을 위해 할당받은 단어 ID입니다.
+  * *제약조건:* 중복 방지 및 정규화를 위해 텍스트 자체가 아닌 `nickname_presets(id)` 외래키(`ON DELETE SET NULL`)로 구성됩니다.
+
+### 8. `nickname_presets` & `nickname_exclusions` (닉네임 관리) (Admin: ALL, Everyone: SELECT)
+**[`nickname_presets`]**
+* **`id`** (`uuid`, Primary Key): 단어 프리셋 식별자.
+* **`type`** (`varchar`): 'first_word'(앞글자) 또는 'last_word'(뒷글자) 인지를 구분합니다.
+  * *제약조건:* `CHECK (type IN ('first_word', 'last_word'))`
+* **`text`** (`jsonb`): 단어의 다국어 데이터.
+* **`is_active`** (`boolean`): 할당 풀(Pool) 활성화 여부.
+* **`created_at`** (`timestamp with time zone`): 생성 일시.
+
+**[`nickname_exclusions`]**
+* **`id`** (`uuid`, Primary Key): 제외 규칙 식별자.
+* **`first_word_id` & `last_word_id`** (`uuid`): 서로 결합할 수 없는 앞/뒷 단어 쌍. (`nickname_presets` 외래키)
+  * *제약조건:* `UNIQUE (first_word_id, last_word_id)`로 동일 규칙 중복 등록 방지.
+
+### 9. `game_score_logs` (게임 점수 기록) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*)
+* **`log_id`** (`uuid`, Primary Key): 점수 기록 식별자.
+* **`participant_id`** (`uuid`): 플레이한 참가자. (`participants` 외래키, `CASCADE`)
+* **`best_score`** (`integer`): 해당 게임에서 획득한 최고 점수.
+* **`gookbap_score`** (`integer`): 획득한 국밥(재화) 점수.
+* **`joined_time`** (`timestamp with time zone`): 게임 플레이 일시. (이 시간이 랭킹 계산 시 동점자 우위(먼저 플레이한 순) 정렬의 기준이 됩니다.)
+
+### 10. `gatcha_cases` & `gatcha_settings` (가챠/룰렛 설정) (Admin: ALL, Everyone: SELECT)
+**[`gatcha_cases` - 가챠 점수 구간]**
+* **`gatcha_case_id`** (`uuid`, Primary Key): 점수 구간 식별자.
+* **`gatcha_case_name`** (`text`): "브론즈", "골드" 등 점수 구간의 이름.
+* **`min_score` / `max_score`** (`integer`): 구간의 최소/최대 점수.
+  * *제약조건:* `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 로 DB 레벨에서 구간 무결성이 강제됩니다. 1953점을 초과하는 구간 설정은 원천 차단됩니다.
+
+**[`gatcha_settings` - 가챠 글로벌 쿨타임]**
+* **`id`** (`integer`, Primary Key): 글로벌 세팅.
+  * *제약조건:* `CHECK (id = 1)`로 단 한 줄의 Row만 유지하도록 강제됩니다.
+* **`cooldown_hours` / `cooldown_minutes`** (`integer`): 룰렛을 다시 돌리기 위한 쿨타임. (`CHECK (0~99 및 0~59)` 제한)
+* **`aggregation_hours` / `aggregation_minutes`** (`integer`): 이 시간 이내의 플레이 기록(`game_score_logs`)만을 집계하여 최고 점수를 기반으로 가챠 구간에 배치합니다.
+
+### 11. `coupon_effects` & `issued_coupons` (쿠폰 마스터 및 발급 정보)
+**[`coupon_effects` - 혜택 정의] (Admin: ALL, Everyone: SELECT)**
+* **`coupon_effect_id`** (`uuid`, Primary Key): 쿠폰 식별자.
+* **`coupon_type`** (`text`): 다국어 혜택명 (JSON 파싱).
+* **`description`** (`text`): 부가 설명.
+* **`probability`** (`jsonb`): 가챠 구간별 당첨 확률이 저장된 맵입니다. `{"case_id": 0.5}` 형태.
+* **`expire_days`** (`integer`, Nullable): 발급 후 만료 기한(일수).
+  * *제약조건:* `CHECK (expire_days IS NULL OR (expire_days >= 0 AND expire_days <= 365))`
+
+**[`issued_coupons` - 유저에게 발급된 쿠폰] (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)**
+* **`coupon_id`** (`uuid`, Primary Key): 발급 식별자.
+* **`participant_id`** (`uuid`): 소유자. (`participants` 외래키, `CASCADE`)
+* **`coupon_effect_id`** (`uuid`): 혜택 원본. (`coupon_effects` 외래키)
+* **`is_used`** (`boolean`): 쿠폰 사용(매장 스캔) 완료 여부.
+* **`issued_at` / `used_at` / `expired_at`** (`timestamp with time zone`): 각각 발급/사용/만료 일시. 만료 일시는 쿠폰 정보 획득 및 무효 판별에 활용됩니다.
+  * *참고:* 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다.
+
+### 12. `web_coupons` & `web_coupon_settings` (웹 전용 이벤트 쿠폰) (Admin: ALL)
+**[`web_coupons`] (*조회 및 할당은 익명 유저가 RPC 함수를 통해 수행*)**
+* **`id`** (`uuid`, Primary Key): 쿠폰 로우 식별자.
+* **`coupon_code`** (`text`, UNIQUE): 사전 생성된 웹 쿠폰 번호 문자열 (예: 'A1B2C3D4').
+* **`participant_id`** (`uuid`, UNIQUE, Nullable): 이 쿠폰 번호를 가져간 유저 ID. (Null일 경우 아직 배정되지 않은 잔여 쿠폰입니다.)
+* **`assigned_at` / `created_at`** (`timestamp with time zone`): 배정/생성 일시.
+
+**[`web_coupon_settings`] (Everyone: SELECT)**
+* **`id`** (`integer`, Primary Key): 단일 Row를 식별합니다.
+* **`title` / `description`** (`jsonb`): 게임 클라이언트에서 웹 쿠폰을 보여줄 때 사용할 다국어 팝업 제목 및 설명 템플릿입니다.
+
+### 13. `survey_questions` & `survey_responses` (설문조사 기능)
+**[`survey_questions`] (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)**
+* **`question_id`** (`uuid`, Primary Key): 문항 식별자.
+* **`survey_phase`** (`integer`): 0(힌트), 1(주요 질문), 2(지점 특화 질문) 등 설문 시점을 나타냅니다. 
+* **`question_text`** (`text`): 다국어 질문 내용 (문자열 직렬화).
+* **`question_type`** (`integer`): 0(단일 선택), 1(다중 선택), 2(주관식/단답형).
+* **`options`** (`jsonb`): 질문의 객관식 선택지. 주관식(`type=2`)인 경우 `options[0]`에 Placeholder 텍스트를 저장합니다.
+* **`image_url`** (`text`, Nullable): 첨부 이미지.
+* **`is_required`** (`boolean`): 응답 필수 여부.
+* **`order_index`** (`integer`): 표시 정렬 순서.
+* **`is_active`** (`boolean`): 설문 표시 여부.
+* **`branch_id`** (`uuid`, Nullable): `survey_phase=2`일 경우 특정 지점에만 표시하기 위한 지점 지정용 아이디입니다. (`branches` 외래키, `CASCADE`)
+
+**[`survey_responses`] (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)**
+* **`response_id`** (`uuid`, Primary Key): 응답 식별자.
+* **`question_id`** (`uuid`): 문항. (`survey_questions` 외래키, `CASCADE`)
+* **`participant_id`** (`uuid`): 답변자. (`participants` 외래키, `CASCADE`)
+* **`answer_data`** (`jsonb`): 사용자가 제출한 결과 데이터.
+* **`created_at`** (`timestamp with time zone`): 제출 일시.
+  * *제약조건:* `UNIQUE (question_id, participant_id)`를 통해 사용자가 동일한 설문에 두 번 답변하는 것을 원천 차단합니다.
+
+### 14. `supported_languages` (다국어 설정)
+* **`lang_code`** (`varchar`, Primary Key): 'ko', 'en' 등의 언어 식별 코드.
+* **`lang_name`** (`varchar`, NOT NULL): '한국어', 'English' 등의 화면 표기 언어명.
+* **`is_active`** (`boolean`): 대시보드 편집기 등에 표시하고 실제 시스템에서 지원할지 여부.
+* **`order_index`** (`integer`): 표기 순서.
+* **`created_at`** (`timestamp with time zone`): 생성 일시.
+* **`coupon_use_text`** (`jsonb`): 앱 상에서 쿠폰을 사용하거나 오류가 발생했을 때 보여지는 `{{expired_date}}` 등 템플릿 변수가 포함된 각종 다국어 알림/에러 텍스트가 저장됩니다.
+
+### 15. `ranking_view` (데이터 조회를 위한 전용 View)
+직접적인 테이블이 아니며, `participants` 조회 차단 정책을 보완하여 유저 랭킹보드 표시 목적으로 가공된 가상의 뷰(View)입니다.
+* **`nickname_first` / `nickname_last`** (`jsonb`): 조인되어 가져온 닉네임의 각 단어 다국어 정보.
+* **`best_score` / `gookbap_score`** (`integer`): 유저별 집계된 스코어.
+* **`joined_time`** (`timestamp with time zone`): 동점자 발생 시 랭킹을 판가름하기 위해 정렬 시 참조되는 시간입니다.
 
 # Frontend RPC Guidelines & Anonymous Users
 일반 유저(게임 참가자)는 Supabase Auth 로그인을 사용하지 않고 LocalStorage의 `participant_id` (UUID)를 사용해 익명(Anon)으로 동작합니다. 

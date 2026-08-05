@@ -57,6 +57,23 @@ export default function WebCouponsPage() {
   const [recommendedCol, setRecommendedCol] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Alert/Confirm Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean
+    title: string
+    message: React.ReactNode | string
+    isConfirm: boolean
+    onConfirm?: () => void
+  }>({ isOpen: false, title: '', message: '', isConfirm: false })
+
+  const showAlert = (title: string, message: React.ReactNode | string) => {
+    setModalState({ isOpen: true, title, message, isConfirm: false })
+  }
+
+  const showConfirm = (title: string, message: React.ReactNode | string, onConfirm: () => void) => {
+    setModalState({ isOpen: true, title, message, isConfirm: true, onConfirm })
+  }
+
   const fetchAll = async () => {
     setLoading(true)
     const supabase = createClient()
@@ -128,7 +145,7 @@ export default function WebCouponsPage() {
     setSettings({ id: 1, ...payload })
     setIsLangModalOpen(false)
     setSaving(false)
-    alert('다국어 설정이 저장되었습니다.')
+    showAlert('성공', '다국어 설정이 저장되었습니다.')
   }
 
   // --- Upsert Logic ---
@@ -159,7 +176,7 @@ export default function WebCouponsPage() {
     }
     
     setSaving(false)
-    alert(`업로드 완료!\n성공: ${inserted}개 등록됨\n중복 무시: ${duplicates}개`)
+    showAlert('업로드 완료', `성공: ${inserted}개 등록됨\n중복 무시: ${duplicates}개`)
     setTextUpload('')
     setIsExcelModalOpen(false)
     setExcelData([])
@@ -169,7 +186,7 @@ export default function WebCouponsPage() {
   const handleTextUpload = () => {
     const codes = textUpload.split(/[\n\s,]+/).map(c => c.trim()).filter(c => c)
     if (codes.length === 0) {
-      alert('입력된 쿠폰이 없습니다.')
+      showAlert('알림', '입력된 쿠폰이 없습니다.')
       return
     }
     bulkInsertCoupons(codes)
@@ -189,7 +206,7 @@ export default function WebCouponsPage() {
       
       const filtered = data.filter(row => row.length > 0)
       if (filtered.length === 0) {
-        alert('엑셀에 데이터가 없습니다.')
+        showAlert('알림', '엑셀에 데이터가 없습니다.')
         return
       }
 
@@ -244,7 +261,7 @@ export default function WebCouponsPage() {
 
     const codes = excelData.slice(headerRowIdx + 1).map(row => (row[colIndex] || '').toString().trim()).filter(c => c)
     if (codes.length === 0) {
-      alert('해당 열에 쿠폰 데이터가 없습니다.')
+      showAlert('알림', '해당 열에 쿠폰 데이터가 없습니다.')
       return
     }
     bulkInsertCoupons(codes)
@@ -272,52 +289,56 @@ export default function WebCouponsPage() {
     const assignedCouponsToReplace = coupons.filter(c => couponsToProcess.has(c.id) && c.participant_id)
     
     if (targetIdsToDelete.length === 0 && assignedCouponsToReplace.length === 0) {
-      alert('선택된 쿠폰이 없습니다.')
+      showAlert('알림', '선택된 쿠폰이 없습니다.')
       return
     }
 
-    if (!confirm(`총 ${couponsToProcess.size}개의 쿠폰을 처리하시겠습니까?\n- 미배정 쿠폰 삭제: ${targetIdsToDelete.length}개\n- 기배정 쿠폰 재배정(기존 삭제): ${assignedCouponsToReplace.length}개\n\n(안전한 충돌 방지를 위해 '삭제' 로직이 우선적으로 수행됩니다)`)) return
-    
-    setSaving(true)
-    const supabase = createClient()
-    
-    if (assignedCouponsToReplace.length > 0) {
-      // Fetch all unassigned coupons to check if we have enough AFTER deletion
-      const { data: availableUnassigned } = await supabase.from('web_coupons')
-        .select('id, coupon_code')
-        .is('participant_id', null)
-        .order('created_at', { ascending: false })
-      
-      // Filter out the ones that are about to be deleted
-      const trulyAvailable = availableUnassigned?.filter(c => !targetIdsToDelete.includes(c.id)) || []
+    showConfirm(
+      '일괄 처리 확인',
+      `총 ${couponsToProcess.size}개의 쿠폰을 처리하시겠습니까?\n- 미배정 쿠폰 삭제: ${targetIdsToDelete.length}개\n- 기배정 쿠폰 재배정(기존 삭제): ${assignedCouponsToReplace.length}개\n\n(안전한 충돌 방지를 위해 '삭제' 로직이 우선적으로 수행됩니다)`,
+      async () => {
+        setSaving(true)
+        const supabase = createClient()
+        
+        if (assignedCouponsToReplace.length > 0) {
+          // Fetch all unassigned coupons to check if we have enough AFTER deletion
+          const { data: availableUnassigned } = await supabase.from('web_coupons')
+            .select('id, coupon_code')
+            .is('participant_id', null)
+            .order('created_at', { ascending: false })
+          
+          // Filter out the ones that are about to be deleted
+          const trulyAvailable = availableUnassigned?.filter(c => !targetIdsToDelete.includes(c.id)) || []
 
-      if (trulyAvailable.length < assignedCouponsToReplace.length) {
-        alert(`삭제 후 재배정할 미배정 쿠폰이 부족합니다!\n필요: ${assignedCouponsToReplace.length}개, 남은 쿠폰: ${trulyAvailable.length}개\n\n먼저 새로운 쿠폰을 추가로 등록해 주세요.`)
+          if (trulyAvailable.length < assignedCouponsToReplace.length) {
+            showAlert('알림', `삭제 후 재배정할 미배정 쿠폰이 부족합니다!\n필요: ${assignedCouponsToReplace.length}개, 남은 쿠폰: ${trulyAvailable.length}개\n\n먼저 새로운 쿠폰을 추가로 등록해 주세요.`)
+            setSaving(false)
+            return
+          }
+
+          // Priority 1: Deletion
+          if (targetIdsToDelete.length > 0) {
+            await supabase.from('web_coupons').delete().in('id', targetIdsToDelete)
+          }
+
+          // Priority 2: Reassignment
+          for (let i = 0; i < assignedCouponsToReplace.length; i++) {
+            const oldCoupon = assignedCouponsToReplace[i]
+            const newCoupon = trulyAvailable[i]
+            await supabase.from('web_coupons').update({ participant_id: oldCoupon.participant_id, assigned_at: new Date().toISOString() }).eq('id', newCoupon.id)
+            await supabase.from('web_coupons').delete().eq('id', oldCoupon.id)
+          }
+        } else {
+          // Only deletion is required
+          await supabase.from('web_coupons').delete().in('id', targetIdsToDelete)
+        }
+
+        showAlert('성공', `처리가 완료되었습니다!\n- 삭제: ${targetIdsToDelete.length}개\n- 재배정: ${assignedCouponsToReplace.length}개`)
         setSaving(false)
-        return
+        setSelectedCoupons(new Set())
+        fetchAll()
       }
-
-      // Priority 1: Deletion
-      if (targetIdsToDelete.length > 0) {
-        await supabase.from('web_coupons').delete().in('id', targetIdsToDelete)
-      }
-
-      // Priority 2: Reassignment
-      for (let i = 0; i < assignedCouponsToReplace.length; i++) {
-        const oldCoupon = assignedCouponsToReplace[i]
-        const newCoupon = trulyAvailable[i]
-        await supabase.from('web_coupons').update({ participant_id: oldCoupon.participant_id, assigned_at: new Date().toISOString() }).eq('id', newCoupon.id)
-        await supabase.from('web_coupons').delete().eq('id', oldCoupon.id)
-      }
-    } else {
-      // Only deletion is required
-      await supabase.from('web_coupons').delete().in('id', targetIdsToDelete)
-    }
-
-    alert(`처리가 완료되었습니다!\n- 삭제: ${targetIdsToDelete.length}개\n- 재배정: ${assignedCouponsToReplace.length}개`)
-    setSaving(false)
-    setSelectedCoupons(new Set())
-    fetchAll()
+    )
   }
 
   if (loading && stats.total === 0) return <div className="p-12 text-center text-gray-500">로딩 중...</div>
@@ -618,6 +639,48 @@ export default function WebCouponsPage() {
               <button onClick={saveLangModal} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
                 저장하기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Alert / Confirm Modal */}
+      {modalState.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalState({ ...modalState, isOpen: false })} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-sm ring-1 ring-gray-200 dark:ring-zinc-800 flex flex-col transform transition-all">
+            <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2 text-blue-500" />
+                {modalState.title}
+              </h3>
+              <button onClick={() => setModalState({ ...modalState, isOpen: false })} className="text-gray-400 hover:text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <div className="text-sm text-gray-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                {modalState.message}
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-100 dark:border-zinc-800 flex justify-end gap-3 shrink-0">
+              <button 
+                onClick={() => setModalState({ ...modalState, isOpen: false })} 
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                {modalState.isConfirm ? '취소' : '닫기'}
+              </button>
+              {modalState.isConfirm && (
+                <button 
+                  onClick={() => {
+                    setModalState({ ...modalState, isOpen: false })
+                    if (modalState.onConfirm) modalState.onConfirm()
+                  }} 
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  확인
+                </button>
+              )}
             </div>
           </div>
         </div>
