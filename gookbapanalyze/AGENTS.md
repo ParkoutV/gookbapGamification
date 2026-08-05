@@ -311,6 +311,12 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
      ]
      ```
 
+7. **방문 로그 액션 업데이트 (`track_logs` - 익명 유저용)**
+   - 익명 유저는 `track_logs` 테이블에 대한 직접적인 `UPDATE` 권한이 없습니다. 
+   - 따라서 익명 유저의 액션(게임 시작, 공유하기)을 업데이트하려면 RLS를 우회하도록 `SECURITY DEFINER`로 생성된 아래의 RPC 함수를 호출해야 합니다.
+   - **게임 시작/재도전 카운트 +1 증가:** ✅ `supabase.rpc('update_track_log_action', { p_log_id: '유저의 접속 log_id', p_action: 'game_start' })`
+   - **공유하기 클릭 상태 갱신:** ✅ `supabase.rpc('update_track_log_action', { p_log_id: '유저의 접속 log_id', p_action: 'share_click' })`
+
 
 
 # Multilingual Support Manual
@@ -471,7 +477,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 2단계: 게임 시작 및 재도전 (게임 시작률 / 재도전율)
 유저가 게임을 시작할 때마다 카운터를 증가시킵니다.
-- **DB 작업 (UPDATE)**: `track_logs`에서 현재 `track_id`와 `participant_id` 조건으로 `game_start_count`를 1씩 증가.
+- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_log_id: log_id, p_action: 'game_start' })`를 호출하여 카운트를 1 증가시킵니다.
 - **KPI 연결**: 값이 1 이상이면 **게임 시작자**, 2 이상이면 **재도전 유저**로 자동 집계됩니다.
 
 ### 3단계: 게임 완료 (게임 완주율)
@@ -481,7 +487,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 4단계: 공유하기 버튼 클릭 (공유 참여율)
 유저가 공유하기를 누른 시점에 클릭 여부를 갱신합니다.
-- **DB 작업 (UPDATE)**: `track_logs`에서 해당 유저의 `share_clicked`를 `true`로 갱신.
+- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_log_id: log_id, p_action: 'share_click' })`를 호출하여 `share_clicked`를 `true`로 갱신합니다.
 - **KPI 연결**: 이 값이 `true`가 된 유저 수를 합산하여 **공유 참여율**을 도출합니다.
 
 ### 5단계: 공유 링크 생성 (바이럴 확산 준비)
