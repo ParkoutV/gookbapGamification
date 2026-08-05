@@ -20,7 +20,6 @@ export type GamePhase =
   | "start"
   | "loading"
   | "playing"
-  | "stageClear"
   | "gameResult"
   | "surveyIntro"
   | "survey"
@@ -118,20 +117,14 @@ export function useGameProgress(trackId: string | null) {
     []
   );
 
-  // 전체 300초 단일 타이머: playing/stageClear 구간 내내 흐르고, 0이 되면 그 자리에서 즉시 종료한다.
-  // phase가 "playing"일 때 타임아웃되면, 그 순간 진행 중이던 레벨에서 찾은 정답
-  // (currentLevelFoundCountRef)을 합성한 LevelResult를 만들어 반드시 점수에 포함시킨다 —
-  // 그렇지 않으면 "그때까지 찾은 정답은 인정한다"는 스펙을 어기고 그 레벨이 0점 처리된다.
-  // phase가 "stageClear"일 때 타임아웃되면 그 레벨은 이미 handleStageClear가 levelResults에
-  // 기록했으므로 추가로 합성하지 않는다(중복 계상 방지).
+  // 전체 300초 단일 타이머: playing 구간 내내 흐르고, 0이 되면 그 자리에서 즉시 종료한다.
+  // 타임아웃되면 그 순간 진행 중이던 레벨에서 찾은 정답(currentLevelFoundCountRef)을 합성한
+  // LevelResult를 만들어 반드시 점수에 포함시킨다 — 그렇지 않으면 "그때까지 찾은 정답은
+  // 인정한다"는 스펙을 어기고 그 레벨이 0점 처리된다.
   useEffect(() => {
-    if (phase !== "playing" && phase !== "stageClear") return;
+    if (phase !== "playing") return;
     if (remainingTimeSec <= 0) {
-      if (phase === "playing") {
-        finishGame(stageIndex + 1, [...levelResults, buildLevelResult(currentLevelFoundCountRef.current)]);
-      } else {
-        finishGame(stageIndex + 1, levelResults);
-      }
+      finishGame(stageIndex + 1, [...levelResults, buildLevelResult(currentLevelFoundCountRef.current)]);
       return;
     }
     const timer = setInterval(() => {
@@ -221,14 +214,6 @@ export function useGameProgress(trackId: string | null) {
     comboCurrentStreakRef.current = 0;
   }, [comboCurrentStreak]);
 
-  const handleStageClear = useCallback(
-    (foundCount: number) => {
-      setLevelResults((prev) => [...prev, buildLevelResult(foundCount)]);
-      setPhase("stageClear");
-    },
-    [buildLevelResult]
-  );
-
   // 마지막 레벨에서 강제진행되는 경우, 방금 조립한 updatedLevelResults를 finishGame에
   // "직접" 넘긴다 — setLevelResults(state) 갱신을 기다렸다가 다시 읽지 않는다(그게 문제 1의 원인이었다).
   const handleForceAdvance = useCallback(
@@ -248,18 +233,11 @@ export function useGameProgress(trackId: string | null) {
     [stageIndex, levelResults, buildLevelResult, finishGame]
   );
 
-  // "다음" 버튼 클릭은 handleStageClear가 levelResults를 커밋한 뒤(별도 렌더/커밋 사이클)
-  // 일어나는 별개의 이벤트이므로, 여기서는 state를 그대로 읽어도 안전하다(stale 문제 없음).
-  const advanceToNextStage = useCallback(() => {
-    currentLevelFoundCountRef.current = 0;
-    const nextIndex = stageIndex + 1;
-    if (nextIndex < STAGE_CONFIG.length) {
-      setStageIndex(nextIndex);
-      setPhase("playing");
-      return;
-    }
-    finishGame(STAGE_CONFIG.length, levelResults);
-  }, [stageIndex, levelResults, finishGame]);
+  // 정답을 다 맞힌 경우와 오답 기회를 다 쓴 경우의 처리가 같다 — 둘 다 축하 모달 없이
+  // 그 자리에서 다음 레벨로 넘어간다. 예전에는 다 맞히면 "stageClear" phase로 가서
+  // StageTransitionModal의 "다음" 버튼을 눌러야 했는데, 제한시간이 레벨당 60초에서
+  // 전체 300초로 바뀌면서 진행을 멈춰 세울 이유가 없어져 그 단계를 걷어냈다.
+  const handleStageClear = handleForceAdvance;
 
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
   const goToPhase = useCallback((next: GamePhase) => setPhase(next), []);
@@ -301,7 +279,6 @@ export function useGameProgress(trackId: string | null) {
     recordWrongTouch,
     handleStageClear,
     handleForceAdvance,
-    advanceToNextStage,
     proceedToDailyResult,
     goToPhase,
     resetToStart,

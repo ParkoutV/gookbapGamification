@@ -68,12 +68,16 @@ export default function GameScreen({
     updateScale();
   };
 
+  // 다 맞히면 축하 모달 없이 다음 레벨로 넘어간다(제한시간이 레벨당 60초가 아니라
+  // 전체 300초로 바뀌면서 중간에 멈춰 세울 이유가 없어졌다).
+  // 오답 소진 경로와 같은 지연을 주는 이유는, 방금 맞힌 마지막 정답 표시를 볼 틈도 없이
+  // 화면이 바뀌는 것을 막기 위해서다.
   useEffect(() => {
-    if (totalDifferences > 0 && foundSlots.size >= totalDifferences) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-off UI reset tied to this stage-clear transition, not a cascading sync loop
-      setIsHintOpen(false);
-      onStageClear(foundSlots.size);
-    }
+    if (totalDifferences === 0 || foundSlots.size < totalDifferences) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-off UI reset tied to this stage-clear transition, not a cascading sync loop
+    setIsHintOpen(false);
+    const timeoutId = setTimeout(() => onStageClear(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
+    return () => clearTimeout(timeoutId);
   }, [foundSlots.size, totalDifferences, onStageClear]);
 
   useEffect(() => {

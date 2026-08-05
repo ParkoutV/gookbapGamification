@@ -4,7 +4,6 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import StartScreen from "./components/StartScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
-import StageTransitionModal from "./components/StageTransitionModal";
 import GameResultScreen from "./components/GameResultScreen";
 import SurveyIntroScreen from "./components/SurveyIntroScreen";
 import SurveyScreen from "./components/SurveyScreen";
@@ -134,7 +133,7 @@ export default function Home({ searchParams }: PageProps) {
         <PreloadScreen loadError={game.loadError} onRetry={game.retryPreload} />
       )}
 
-      {(game.phase === "playing" || game.phase === "stageClear") && game.session && (
+      {game.phase === "playing" && game.session && (
         <div className={game.phase !== "playing" ? "blur-sm pointer-events-none" : undefined}>
           <GameScreen
             key={`${game.stageNumber}-${game.loadNonce}`}
@@ -149,8 +148,6 @@ export default function Home({ searchParams }: PageProps) {
           />
         </div>
       )}
-
-      {game.phase === "stageClear" && <StageTransitionModal onNext={game.advanceToNextStage} />}
 
       {game.phase === "gameResult" && game.scoreBreakdown && game.gukbapTier && (
         <GameResultScreen
