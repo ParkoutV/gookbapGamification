@@ -155,7 +155,7 @@ export default function GameScreen({
         onClick={handleSlotClick(slot.slotId)}
       >
         {foundSlots.has(slot.slotId) && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full animate-in zoom-in [clip-path:none]">
+          <div className="absolute inset-0 flex items-center justify-center animate-in zoom-in [clip-path:none]">
             <img src="/icons/check-success.svg" alt="" className="w-8 h-8" />
           </div>
         )}
@@ -224,14 +224,17 @@ export default function GameScreen({
       </main>
 
       <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
-        <PixelPanel size="btn">
+        {/* 라벨 대신 '?' 아이콘. 글자가 사라졌으므로 버튼의 의미는 aria-label로 남긴다
+            — 화면에 안 보여도 스크린리더에는 "힌트"로 읽혀야 한다. */}
+        <PixelPanel size="btn" className="min-w-12">
           <button
             type="button"
-            className="w-full font-bold text-ink"
+            className="w-full font-bold text-ink text-xl leading-none py-1"
             onClick={() => setIsHintOpen((prev) => !prev)}
             aria-expanded={isHintOpen}
+            aria-label={t("game.hintButton")}
           >
-            {t("game.hintButton")}
+            ?
           </button>
         </PixelPanel>
         <div
