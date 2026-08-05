@@ -121,9 +121,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 8. Update participant roulette_joined (꽝이어도 쿨타임이 돌게끔 먼저 처리)
+    await supabase
+      .from('participants')
+      .update({ roulette_joined: new Date().toISOString() })
+      .eq('participant_id', participant_id)
+
     // If total probabilities < 1, there's a chance no coupon is selected (꽝)
     if (!selectedCoupon) {
-      return NextResponse.json({ success: true, message: '꽝', coupon_type: null })
+      return NextResponse.json({ success: true, message: '꽝', coupon_type: null, score_used: bestScore })
     }
 
     // 8. Insert into issued_coupons
@@ -160,11 +166,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '쿠폰 발급에 실패했습니다.' }, { status: 500 })
     }
 
-    // 9. Update participant roulette_joined
-    await supabase
-      .from('participants')
-      .update({ roulette_joined: new Date().toISOString() })
-      .eq('participant_id', participant_id)
+
 
     // 10. Return result
     return NextResponse.json({
