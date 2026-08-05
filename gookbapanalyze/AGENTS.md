@@ -67,19 +67,68 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
 1. **내 참여 정보 조회 (`participants`)**
    - ❌ `supabase.from('participants').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_participant', { p_id: id })`
+   - **반환 예시:**
+     ```json
+     [
+       {
+         "participant_id": "uuid...",
+         "created_at": "2026-08-05...",
+         "nickname_first_id": "uuid...",
+         "nickname_last_id": "uuid...",
+         "nickname_first": { "ko": "든든한", "en": "Hearty" },
+         "nickname_last": { "ko": "국밥", "en": "Gookbap" }
+       }
+     ]
+     ```
 
 2. **내 쿠폰 목록 조회 (`issued_coupons`)**
    - ❌ `supabase.from('issued_coupons').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_coupons', { p_id: id })`
+   - **반환 예시:**
+     ```json
+     [
+       {
+         "coupon_id": "uuid...",
+         "participant_id": "uuid...",
+         "coupon_effect_id": "uuid...",
+         "is_used": false,
+         "issued_at": "2026-08-05...",
+         "expired_at": "2026-08-12..."
+       }
+     ]
+     ```
 
 3. **내 웹 쿠폰 목록 조회 (`web_coupons`)**
    - ❌ `supabase.from('web_coupons').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_web_coupons', { p_id: id })`
+   - **반환 예시:**
+     ```json
+     [
+       {
+         "id": 1,
+         "participant_id": "uuid...",
+         "code": "A1B2C3D4",
+         "assigned_at": "2026-08-05..."
+       }
+     ]
+     ```
    - **주의**: 프론트엔드(게임 클라이언트)에서는 기존 가챠 쿠폰(`get_my_coupons`)과 별개로 이 함수를 함께 호출하여, 두 결과를 화면에 병합해서 보여주어야 합니다.
 
 4. **내 게임 점수 기록 조회 (`game_score_logs`)**
    - ❌ `supabase.from('game_score_logs').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_score_logs', { p_id: id })`
+   - **반환 예시:**
+     ```json
+     [
+       {
+         "log_id": "uuid...",
+         "participant_id": "uuid...",
+         "best_score": 1500,
+         "gookbap_score": 1500,
+         "joined_time": "2026-08-05..."
+       }
+     ]
+     ```
 
 *(주의: 익명 유저의 최초 생성 시 `INSERT` 로직은 기존처럼 테이블을 직접 호출해도 정상 작동합니다. 단, 보안을 위해 직접적인 `UPDATE`는 전면 차단되었습니다.)*
 
@@ -91,6 +140,18 @@ Supabase의 내장 `auth.users`를 기반으로 인증을 처리하며, 추가 �
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
    - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
    - ✅ `supabase.from('ranking_view').select('*')`
+   - **반환 예시:**
+     ```json
+     [
+       {
+         "nickname_first": { "ko": "든든한", "en": "Hearty" },
+         "nickname_last": { "ko": "국밥", "en": "Gookbap" },
+         "best_score": 1953,
+         "gookbap_score": 1953,
+         "joined_time": "2026-08-05..."
+       }
+     ]
+     ```
 
 
 
