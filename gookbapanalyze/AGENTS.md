@@ -214,9 +214,10 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 15. `ranking_view` (데이터 조회를 위한 전용 View)
 직접적인 테이블이 아니며, `participants` 조회 차단 정책을 보완하여 유저 랭킹보드 표시 목적으로 가공된 가상의 뷰(View)입니다.
+* **`participant_id`** (`uuid`): 게임 기록의 주인 유저 식별자. 프론트엔드에서 주간/월간 등 유저별로 그룹핑(필터링)할 때 사용됩니다.
 * **`nickname_first` / `nickname_last`** (`jsonb`): 조인되어 가져온 닉네임의 각 단어 다국어 정보.
-* **`best_score` / `gookbap_score`** (`integer`): 유저별 집계된 스코어.
-* **`joined_time`** (`timestamp with time zone`): 동점자 발생 시 랭킹을 판가름하기 위해 정렬 시 참조되는 시간입니다.
+* **`best_score` / `gookbap_score`** (`integer`): 유저가 해당 게임에서 획득한 점수.
+* **`joined_time`** (`timestamp with time zone`): 동점자 발생 시 랭킹을 판가름하기 위해 정렬 시 참조되는 시간입니다. 1명의 유저가 여러 번 플레이한 경우, 필터링 없이 **모든 기록(중복 포함)이 그대로 노출**됩니다.
 
 # Frontend RPC Guidelines & Anonymous Users
 일반 유저(게임 참가자)는 Supabase Auth 로그인을 사용하지 않고 LocalStorage의 `participant_id` (UUID)를 사용해 익명(Anon)으로 동작합니다. 
@@ -296,12 +297,13 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 6. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
-   - `ranking_view`는 보안상 민감한 데이터를 제외하고 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`만 제공합니다. (동점자 발생 시 `joined_time`이 빠른 순으로 순위가 결정되며, 전체 데이터는 `best_score` 기준 내림차순 정렬되어 반환됩니다.)
+   - `ranking_view`는 보안상 민감한 데이터를 제외하고 `participant_id`, 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`을 제공합니다. (사전 필터링 없이 1명의 유저가 낸 **모든 기록이 중복을 포함하여 반환**되므로 프론트엔드 구현단에서 주간/월간 랭킹 등 용도에 맞게 필터링해야 합니다.)
    - ✅ `supabase.from('ranking_view').select('*')`
    - **반환 예시:**
      ```json
      [
        {
+         "participant_id": "uuid...",
          "nickname_first": { "ko": "든든한", "en": "Hearty" },
          "nickname_last": { "ko": "국밥", "en": "Gookbap" },
          "best_score": 1953,
