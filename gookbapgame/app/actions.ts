@@ -6,6 +6,7 @@ import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
+import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
@@ -286,6 +287,21 @@ function localFallback(): ParticipantResult {
   return { nickname: generateNickname(), nicknameSynced: false };
 }
 
+/**
+ * 이미 배정된 닉네임을 조회한다. 없거나 조회에 실패하면 null(→ 호출부가 배정으로 넘어감).
+ *
+ * `participants` 직접 SELECT는 RLS로 막혀 있어 `get_participant` RPC를 써야 한다
+ * (gookbapanalyze/AGENTS.md).
+ */
+async function lookupExistingNickname(participantId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_participant", { p_id: participantId });
+  if (error) {
+    console.error("[lookupExistingNickname] get_participant 실패:", error);
+    return null;
+  }
+  return nicknameFromParticipantRows(data);
+}
+
 async function assignNicknameOrFallback(participantId: string): Promise<ParticipantResult> {
   const apiUrl = process.env.NICKNAME_ASSIGN_API_URL;
   if (!apiUrl) {
@@ -334,6 +350,15 @@ async function ensureParticipantUnsafe(trackId: string | null): Promise<Particip
     if (trackLogError) {
       console.error("[ensureParticipant] track_logs insert 실패(무시, best-effort):", trackLogError);
     }
+  }
+
+  // 재방문자에게 배정 API를 다시 호출하면 닉네임이 새로 뽑혀서 새로고침마다 바뀐다
+  // (assign_random_nickname은 멱등하지 않음 — 2026-08-05 실제 배포에서 확인).
+  // 그래서 재방문일 때는 배정 대신 이미 저장된 닉네임을 읽어온다.
+  // 조회가 실패하거나 아직 닉네임이 없으면 아래 배정 경로로 떨어진다.
+  if (!isNewParticipant) {
+    const existing = await lookupExistingNickname(participantId);
+    if (existing) return { nickname: existing, nicknameSynced: true };
   }
 
   return assignNicknameOrFallback(participantId);
