@@ -5,7 +5,11 @@ import { createClient } from '@/utils/supabase/client';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
 import { FilterControls, IsSharedFilter } from '@/components/dashboard/FilterControls';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { DailyParticipantsChart, ConversionFunnelChart, CouponStatsChart } from '@/components/dashboard/Charts';
+import dynamic from 'next/dynamic';
+
+const DailyParticipantsChart = dynamic(() => import('@/components/dashboard/Charts').then(mod => mod.DailyParticipantsChart), { ssr: false });
+const ConversionFunnelChart = dynamic(() => import('@/components/dashboard/Charts').then(mod => mod.ConversionFunnelChart), { ssr: false });
+const CouponStatsChart = dynamic(() => import('@/components/dashboard/Charts').then(mod => mod.CouponStatsChart), { ssr: false });
 import { Users, PlayCircle, CheckCircle, Ticket, CheckSquare, Search, Link as LinkIcon, QrCode, X } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { QRCodeCanvas } from 'qrcode.react';
