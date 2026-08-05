@@ -422,7 +422,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   {
     "success": true,
     "message": "꽝",
-    "coupon_type": null
+    "coupon_type": null,
+    "score_used": 1500
   }
   ```
 - **Response (Error - 400/500/Cooldown/NoScore)**:
