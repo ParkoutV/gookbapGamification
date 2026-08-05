@@ -96,11 +96,11 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
       
       // Filter by branch
       if (isAdmin && branchId) {
-        filteredAgg = filteredAgg.filter((row: any) => row.track_id?.includes(branchId)); // Approximation since get_track_kpi_dashboard returns track_id
-        // Wait, if it doesn't return branch_id, how do we filter?
-        // Actually get_track_kpi_dashboard is designed to return all if admin, and frontend filters.
-        // Let's assume branch_id is part of track_id or the RPC returns branch_id. If it doesn't, we might need a workaround, but let's assume track_id has branch_id or branch_id is returned.
-        // I will filter by track_id containing branch_id for now.
+        if (branchId === 'DIRECT') {
+          filteredAgg = filteredAgg.filter((row: any) => row.track_id === null);
+        } else {
+          filteredAgg = filteredAgg.filter((row: any) => row.branch_id === branchId || row.track_id?.includes(branchId));
+        }
       }
       
       // Filter by is_shared
@@ -210,7 +210,11 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
       const newDailyData = dailyResults.map((res, index) => {
         let dAgg = res.data || [];
         if (isAdmin && branchId) {
-          dAgg = dAgg.filter((row: any) => row.track_id?.includes(branchId));
+          if (branchId === 'DIRECT') {
+            dAgg = dAgg.filter((row: any) => row.track_id === null);
+          } else {
+            dAgg = dAgg.filter((row: any) => row.branch_id === branchId || row.track_id?.includes(branchId));
+          }
         }
         if (isShared === 'TRUE') {
           dAgg = dAgg.filter((row: any) => row.is_shared === true);
