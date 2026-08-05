@@ -82,6 +82,9 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
   const [couponInfo, setCouponInfo] = useState<any>(null)
   const [toastMessage, setToastMessage] = useState<string>('')
   
+  // handleScan을 참조하기 위한 ref (카메라 재시작 없이 항상 최신 함수 호출)
+  const handleScanRef = useRef<((text: string) => Promise<void>) | null>(null)
+  
   const supabase = createClient()
 
   // Initialize Wake Lock API if supported
@@ -201,8 +204,8 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       }
       if (!active) return
 
-      // 모달창이 열려있어도 카메라는 계속 켜두어 실시간 프리뷰를 제공하되, 스캔 결과만 무시하도록 설정
-      if (isVisible && selectedCameraId && toastStatus === 'idle') {
+      // 모달창이 열려있거나 스캔이 진행중이어도 카메라는 계속 켜두어 실시간 프리뷰를 제공하되, 스캔 결과만 무시하도록 설정
+      if (isVisible && selectedCameraId) {
         
         // Debounce slightly for smooth transitions
         await new Promise(r => setTimeout(r, 100))
@@ -236,7 +239,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
               }
             },
             (decodedText) => {
-              handleScan(decodedText)
+              if (handleScanRef.current) handleScanRef.current(decodedText)
             },
             (errorMessage) => {
               // ignore background errors
@@ -278,7 +281,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       }
       stopPromiseRef.current = stopAndClear()
     }
-  }, [isVisible, selectedCameraId, toastStatus])
+  }, [isVisible, selectedCameraId])
 
   // Visibility effect is handled separately to update the state
 
@@ -345,14 +348,15 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       setTimeout(() => setToastStatus('idle'), 3000)
     }
   }
+  handleScanRef.current = handleScan
 
   const parseText = (template: string, info: any, targetLang: string) => {
     let text = template || ''
     
-    // 닉네임 다국어 파싱
+    // 닉네임 다국어 파싱 (띄어쓰기에서 줄바꿈 방지를 위해 non-breaking space 사용)
     let nickname = ''
     if (info.nickname_first && info.nickname_last) {
-      nickname = (info.nickname_first[targetLang] || info.nickname_first['ko'] || '') + ' ' +
+      nickname = (info.nickname_first[targetLang] || info.nickname_first['ko'] || '') + '\u00A0' +
                  (info.nickname_last[targetLang] || info.nickname_last['ko'] || '')
     }
     
@@ -362,7 +366,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       const parsedTypes = JSON.parse(info.coupon_type)
       couponName = parsedTypes[targetLang] || parsedTypes['ko'] || ''
       if (targetLang !== 'ko' && parsedTypes['ko']) {
-        couponName += ` (${parsedTypes['ko']})`
+        couponName += `\n(${parsedTypes['ko']})`
       }
     } catch (e) {
       couponName = info.coupon_type
@@ -410,14 +414,9 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
 
       setToastStatus('success')
       
-      // Show for 3s, then switch language to KO if needed, then close
+      // 3초 후 한국어로 언어 전환 (자동 닫힘 제거, 유저가 직접 닫기 버튼 누르도록)
       setTimeout(() => {
         setScannedData(prev => prev ? { ...prev, langCode: 'ko' } : null)
-        setTimeout(() => {
-          setToastStatus('idle')
-          setScannedData(null)
-          setCouponInfo(null)
-        }, 1500)
       }, 3000)
       
     } catch (err) {
@@ -508,7 +507,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
                 <div className="w-20 h-20 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Gift className="w-10 h-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-8 leading-relaxed break-keep">
+                <h2 className="text-2xl font-bold text-white mb-8 leading-relaxed break-keep whitespace-pre-wrap text-center">
                   {displayQuestion}
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
@@ -529,12 +528,18 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
             )}
 
             {toastStatus === 'success' && (
-              <div className="py-10">
-                <div className="w-20 h-20 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="py-10 flex flex-col items-center">
+                <div className="w-20 h-20 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mb-6">
                   <Check className="w-10 h-10" />
                 </div>
                 <h2 className="text-3xl font-bold text-green-400 mb-4">완료!</h2>
-                <p className="text-2xl text-white font-medium leading-relaxed break-keep">{displaySuccess}</p>
+                <p className="text-2xl text-white font-medium leading-relaxed break-keep whitespace-pre-wrap text-center mb-10">{displaySuccess}</p>
+                <button 
+                  onClick={handleCancelUse}
+                  className="w-full max-w-[200px] py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl text-xl font-bold transition-colors mx-auto"
+                >
+                  닫기
+                </button>
               </div>
             )}
 
