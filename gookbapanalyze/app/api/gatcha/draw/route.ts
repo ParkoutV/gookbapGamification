@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       const p1Ids = p1Questions.map(q => q.question_id)
       const { data: p1Responses, error: p1Error } = await supabase
         .from('survey_responses')
-        .select('id')
+        .select('response_id')
         .eq('participant_id', participant_id)
         .in('question_id', p1Ids)
         .limit(1)
