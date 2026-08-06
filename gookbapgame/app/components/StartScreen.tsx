@@ -8,6 +8,7 @@ interface StartScreenProps {
   onRegenerateNickname: () => void;
   isRegeneratingNickname: boolean;
   onStart: () => void;
+  onOpenTutorial: () => void;
   onGoToDraw?: () => void;
 }
 
@@ -16,6 +17,7 @@ export default function StartScreen({
   onRegenerateNickname,
   isRegeneratingNickname,
   onStart,
+  onOpenTutorial,
   onGoToDraw,
 }: StartScreenProps) {
   const { t } = useLocale();
@@ -52,12 +54,17 @@ export default function StartScreen({
             {t("start.goToDrawButton")}
           </button>
         )}
-        <div className="flex gap-3 w-full">
-          <PixelPanel size="btn" className="flex-1">
-            <button type="button" className="w-full font-bold text-ink">{t("start.myResult")}</button>
+        <div className="grid grid-cols-3 gap-2 w-full">
+          <PixelPanel size="btn">
+            <button type="button" className="w-full font-bold text-ink text-sm">{t("start.myResult")}</button>
           </PixelPanel>
-          <PixelPanel size="btn" className="flex-1">
-            <button type="button" className="w-full font-bold text-ink">{t("start.ranking")}</button>
+          <PixelPanel size="btn">
+            <button type="button" className="w-full font-bold text-ink text-sm">{t("start.ranking")}</button>
+          </PixelPanel>
+          <PixelPanel size="btn">
+            <button type="button" onClick={onOpenTutorial} className="w-full font-bold text-ink text-sm">
+              {t("tutorial.openButton")}
+            </button>
           </PixelPanel>
         </div>
       </PixelPanel>
