@@ -124,7 +124,7 @@ export default function Home({ searchParams }: PageProps) {
           nickname={game.nickname}
           onRegenerateNickname={game.regenerateNickname}
           isRegeneratingNickname={game.isRegenerating}
-          onStart={game.startGame}
+          onStart={() => game.startGame()}
           onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
         />
       )}
