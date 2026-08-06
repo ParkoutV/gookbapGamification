@@ -278,12 +278,17 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
    - ✅ `supabase.rpc('check_pending_survey', { p_survey_phase: phase, p_participant_id: id, p_track_id: track_id })`
    - 입력 배열에 `p_servey_phase`에는 설문조사 페이즈를 입력해야 합니다. 이는 특정 페이즈에서 어느 설문을 보여줘야 하는지 직관적으로 알기 쉽도록 하기 위함입니다.
    - 반환 배열에 `question_id` 목록이 돌아옵니다. (`survey_responses`에 이미 답변한 항목 및 `survey_settings.optional_survey_once = true`일 때 `optional_survey_records`에 기록된 선택 질문은 제외됩니다.)
-   - **반환 예시:**
+   - **주의 (Phase 2)**: `survey_phase = 2`인 경우 `track_id`를 통해 지점을 파악합니다. 만약 `track_id`가 없거나 유효하지 않은 트랙인 경우, 오류를 반환하지 않고 **단순히 빈 배열(설문거리 없음)**을 반환합니다.
+   - **반환 예시 (질문이 남은 경우):**
      ```json
      [
        { "question_id": "uuid-1..." },
        { "question_id": "uuid-2..." }
      ]
+     ```
+   - **반환 예시 (남은 질문이 없는 경우):**
+     ```json
+     []
      ```
 
 4. **선택 질문 노출 기록 처리 (`optional_survey_records`)**
