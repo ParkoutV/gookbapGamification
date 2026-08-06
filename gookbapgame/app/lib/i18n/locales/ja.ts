@@ -26,6 +26,32 @@ export const ja: Partial<Dictionary> = {
   "term.agreeNotice": "「確認」を押すと、上記の内容に同意したものとみなします。",
   "term.confirmButton": "確認",
 
+  "tutorial.openButton": "遊び方",
+  "tutorial.progress": "{current} / {total}",
+  "tutorial.prevButton": "戻る",
+  "tutorial.nextButton": "次へ",
+  "tutorial.startButton": "はじめる",
+  "tutorial.closeButton": "閉じる",
+  "tutorial.exitAria": "チュートリアルを閉じる",
+  "tutorial.waiting": "準備中...",
+
+  "tutorial.what.title": "違うところを探そう",
+  "tutorial.what.body":
+    "左右の絵で違うところを見つけてタッチしてください。\n" +
+    "全7ステージ、各ステージに5か所ずつ隠れています。最後の7ステージだけ7か所です。",
+
+  "tutorial.limit.title": "制限時間とチャンス",
+  "tutorial.limit.body":
+    "制限時間はステージごとではなく、全体で300秒です。\n" +
+    "1つのステージで3回間違えると、そのステージは終了して次に進みます。\n" +
+    "間違えるたびに10点減点されます。",
+
+  "tutorial.score.title": "スコアを伸ばす",
+  "tutorial.score.body":
+    "早く終えるほどタイムボーナスが付きます。\n" +
+    "連続で正解するとコンボボーナスが加算されます。\n" +
+    "ゲーム終了後はクッパ力ランクが出て、クーポン抽選に進みます。",
+
   "preload.preparing": "クッパを準備中...",
   "preload.sessionError": "ゲームデータの読み込みに失敗しました。ネットワーク状況をご確認ください。",
   "preload.levelSessionError": "ステージ{level}のゲームデータを読み込めませんでした。",

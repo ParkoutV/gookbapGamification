@@ -24,6 +24,32 @@ export const en: Partial<Dictionary> = {
   "term.agreeNotice": "Tapping Confirm means you agree to the above.",
   "term.confirmButton": "Confirm",
 
+  "tutorial.openButton": "How to Play",
+  "tutorial.progress": "{current} / {total}",
+  "tutorial.prevButton": "Back",
+  "tutorial.nextButton": "Next",
+  "tutorial.startButton": "Start",
+  "tutorial.closeButton": "Close",
+  "tutorial.exitAria": "Close tutorial",
+  "tutorial.waiting": "Getting ready...",
+
+  "tutorial.what.title": "Spot the Difference",
+  "tutorial.what.body":
+    "Tap the spots that differ between the two pictures.\n" +
+    "There are 7 stages with 5 differences each — except the final stage, which has 7.",
+
+  "tutorial.limit.title": "Time and Chances",
+  "tutorial.limit.body":
+    "You get 300 seconds for the whole game, not per stage.\n" +
+    "Three wrong taps in a stage ends that stage and moves you on.\n" +
+    "Each wrong tap costs 10 points.",
+
+  "tutorial.score.title": "Scoring",
+  "tutorial.score.body":
+    "Finishing faster earns a time bonus.\n" +
+    "Consecutive correct taps build a combo bonus.\n" +
+    "When the game ends you get a Gukbap rank, then a coupon draw.",
+
   "preload.preparing": "Preparing gukbap...",
   "preload.sessionError": "Failed to load game data. Please check your network connection.",
   "preload.levelSessionError": "Failed to load game data for stage {level}.",
