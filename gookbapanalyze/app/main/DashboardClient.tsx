@@ -310,25 +310,21 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         <StatCard title="설문 완료율" value={`${surveyCompletionRate}%`} icon={<CheckSquare className="w-5 h-5" />} subtitle={`완료 ${kpis.surveyCompletions}건`} />
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Charts & KPIs Grid */}
+      <div className="grid grid-cols-1 gap-6">
         <DailyParticipantsChart data={dailyData} />
         <ConversionFunnelChart data={funnelData} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Bottom Left: Share KPIs */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Share KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title="공유 참여율" value={`${shareParticipationRate}%`} />
           <StatCard title="공유 횟수" value={kpis.shares.toLocaleString()} />
           <StatCard title="공유 유입 수" value={kpis.shareInflows.toLocaleString()} />
           <StatCard title="공유당 유입 수" value={inflowPerShare} />
         </div>
 
-        {/* Bottom Right: Coupon Stats */}
+        {/* Coupon Stats */}
         <CouponStatsChart data={couponData} />
-
       </div>
 
       {/* QR Code Modal */}
