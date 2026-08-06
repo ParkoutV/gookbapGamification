@@ -95,8 +95,10 @@ export default function Home({ searchParams }: PageProps) {
     goToPhase("playing");
   }, [tutorialMode, goToPhase]);
 
-  // 좌상단 X. 쿠키를 쓰지 않으므로 다음 게임 시작 때 다시 뜬다.
-  // preloadStatus는 되돌리지 않으므로 이미 ready면 다시 시작할 때 곧바로 게임에 들어간다.
+  // 좌상단 X. 쿠키를 쓰지 않으므로 다음 게임 시작 때 튜토리얼이 다시 뜬다.
+  // preloadStatus는 여기서 건드리지 않는다 — 어차피 handleStart가 다시 startGame을
+  // 호출하면 runPreload 첫 문장이 무조건 "loading"으로 리셋하고 처음부터 재요청하므로
+  // (preloadAllStages에 캐시가 없다), 여기서 되돌릴 대상 자체가 없다.
   const exitTutorial = useCallback(() => {
     goToPhase("start");
   }, [goToPhase]);

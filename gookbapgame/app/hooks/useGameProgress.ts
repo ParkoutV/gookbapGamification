@@ -52,6 +52,14 @@ export function useGameProgress(trackId: string | null) {
   const [loadNonce, setLoadNonce] = useState(0);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
   const [preloadStatus, setPreloadStatus] = useState<PreloadStatus>("idle");
+  // runPreload의 세대 번호. X로 튜토리얼을 나갔다가 곧바로 다시 시작하면
+  // runPreload가 두 번 in-flight로 겹칠 수 있다(예전에는 재시도 버튼이 유일한
+  // 재진입 경로였고, 그 버튼은 첫 요청이 실패로 끝난 뒤에만 렌더되어 겹칠 일이
+  // 없었다). 늦게 끝난 쪽이 이미 playing 중인 sessions/loadNonce를 덮어쓰면
+  // 플레이 도중 그림이 갈리고 GameScreen이 리마운트된다. 각 호출이 진입 시
+  // 세대를 증가시켜 자기 세대를 기억해두고, await 이후 그 세대가 여전히
+  // 최신인 경우에만 setState한다 — 낡은 세대는 조용히 버린다.
+  const preloadGenerationRef = useRef(0);
 
   const [remainingTimeSec, setRemainingTimeSec] = useState(GLOBAL_TIME_LIMIT_SEC);
   const [levelResults, setLevelResults] = useState<LevelResult[]>([]);
@@ -161,9 +169,14 @@ export function useGameProgress(trackId: string | null) {
   // runPreload는 첫 await 이전에 이 setState를 실행한다. 같은 React 배치에 들어가므로
   // phase === "loading" && preloadStatus === "ready"인 중간 렌더가 존재하지 않는다.
   const runPreload = useCallback(async () => {
+    const generation = ++preloadGenerationRef.current;
     setLoadError(null);
     setPreloadStatus("loading");
     const result = await preloadAllStages(fetchGameData);
+    // 대기하는 동안 더 최신 runPreload가 시작됐다면 이 결과는 낡은 것이다.
+    // 최신 세대가 이미 자기 몫의 loading/sessions/preloadStatus를 세팅해뒀으므로
+    // 여기서는 아무것도 하지 않고 그냥 반환한다.
+    if (generation !== preloadGenerationRef.current) return;
     if (result.ok) {
       setSessions(result.sessions);
       totalAnswersRef.current = result.sessions.reduce((sum, s) => sum + countDifferences(s), 0);
