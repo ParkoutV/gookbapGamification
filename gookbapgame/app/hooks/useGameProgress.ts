@@ -18,6 +18,7 @@ import { ensureParticipant, reassignNickname as reassignNicknameAction, submitGa
 
 export type GamePhase =
   | "start"
+  | "tutorial"
   | "loading"
   | "playing"
   | "gameResult"
@@ -26,6 +27,16 @@ export type GamePhase =
   | "wheel"
   | "dailyResult"
   | "myCoupons";
+
+/**
+ * 프리로드의 진행 상태. "화면 전환"과 분리된 값이라는 점이 핵심이다.
+ *
+ * 예전에는 runPreload가 완료 시 곧바로 setPhase("playing")을 호출해서
+ * "프리로드 완료 = 게임 시작"이었다. 튜토리얼을 병렬로 띄우려면 이 둘이
+ * 분리되어야 한다 — 안 그러면 프리로드가 끝나는 순간 튜토리얼을 읽던
+ * 사용자가 게임으로 튕겨나간다.
+ */
+export type PreloadStatus = "idle" | "loading" | "ready" | "error";
 
 function countDifferences(session: GameSession): number {
   return session.slots.filter((s) => s.isDifference).length;
@@ -40,6 +51,7 @@ export function useGameProgress(trackId: string | null) {
   const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loadNonce, setLoadNonce] = useState(0);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
+  const [preloadStatus, setPreloadStatus] = useState<PreloadStatus>("idle");
 
   const [remainingTimeSec, setRemainingTimeSec] = useState(GLOBAL_TIME_LIMIT_SEC);
   const [levelResults, setLevelResults] = useState<LevelResult[]>([]);
@@ -137,44 +149,75 @@ export function useGameProgress(trackId: string | null) {
     return () => clearInterval(timer);
   }, [phase, remainingTimeSec, stageIndex, levelResults, buildLevelResult, finishGame]);
 
+  // 리셋(setPreloadStatus("loading"))을 startGame이 아니라 여기 첫 문장에 두는 이유:
+  // 호출자마다 리셋을 기억해야 하는 구조면 언젠가 빠진다. retryPreload를 포함한
+  // 모든 호출자가 자동으로 같은 보장을 받게 한다.
+  //
+  // 리셋이 왜 필요한가: startGame은 sessions를 비우지 않고, page.tsx의 leaveDrawFlow는
+  // sessions를 든 채로 start phase로 돌아올 수 있다. status가 "ready"로 남아 있으면
+  // 두 번째 판이 직전 판의 스테이지 데이터로 시작된다.
+  //
+  // 경합은 없다: startGame이 setPhase(...)를 호출한 직후 동기적으로 runPreload를 부르고,
+  // runPreload는 첫 await 이전에 이 setState를 실행한다. 같은 React 배치에 들어가므로
+  // phase === "loading" && preloadStatus === "ready"인 중간 렌더가 존재하지 않는다.
   const runPreload = useCallback(async () => {
     setLoadError(null);
+    setPreloadStatus("loading");
     const result = await preloadAllStages(fetchGameData);
     if (result.ok) {
       setSessions(result.sessions);
       totalAnswersRef.current = result.sessions.reduce((sum, s) => sum + countDifferences(s), 0);
       setLoadNonce((n) => n + 1);
-      setPhase("playing");
+      setPreloadStatus("ready");
     } else {
       setLoadError({ key: result.key, params: result.params });
+      setPreloadStatus("error");
     }
   }, []);
 
-  const startGame = useCallback(() => {
-    setPhase("loading");
-    setStageIndex(0);
-    setRemainingTimeSec(GLOBAL_TIME_LIMIT_SEC);
-    remainingTimeSecRef.current = GLOBAL_TIME_LIMIT_SEC;
-    setLevelResults([]);
-    setTotalWrongTouches(0);
-    totalWrongTouchesRef.current = 0;
-    setComboBankedScore(0);
-    comboBankedScoreRef.current = 0;
-    setComboCurrentStreak(0);
-    comboCurrentStreakRef.current = 0;
-    currentLevelFoundCountRef.current = 0;
-    setScoreBreakdown(null);
-    setGukbapTier(null);
-
-    if (!nicknameSyncedRef.current) {
-      void reassignNicknameAction().then((result) => {
-        setNickname(result.nickname);
-        nicknameSyncedRef.current = result.nicknameSynced;
-      });
+  // 게임 진입의 자동 경로는 여기 한 곳만 담당한다.
+  // phase가 "loading"일 때만 작동하므로, 튜토리얼(phase === "tutorial") 중에
+  // 프리로드가 끝나도 사용자를 끌어가지 않는다. 튜토리얼에서의 진입은
+  // 사용자가 "시작하기"를 누를 때 page.tsx가 goToPhase("playing")으로 처리한다.
+  useEffect(() => {
+    if (phase === "loading" && preloadStatus === "ready") {
+      setPhase("playing");
     }
+  }, [phase, preloadStatus]);
 
-    void runPreload();
-  }, [runPreload]);
+  // withTutorial이면 튜토리얼로 진입하고, 프리로드는 그 뒤에서 병렬로 돈다.
+  // 아니면 기존과 동일하게 로딩 화면으로 간다(재방문자 경로).
+  //
+  // 기본값을 false로 둔 이유는 호출부를 아직 안 고쳤을 때 기존 동작이 유지되게
+  // 하려는 것이다. 튜토리얼 배선은 page.tsx에서 별도로 한다.
+  const startGame = useCallback(
+    (withTutorial: boolean = false) => {
+      setPhase(withTutorial ? "tutorial" : "loading");
+      setStageIndex(0);
+      setRemainingTimeSec(GLOBAL_TIME_LIMIT_SEC);
+      remainingTimeSecRef.current = GLOBAL_TIME_LIMIT_SEC;
+      setLevelResults([]);
+      setTotalWrongTouches(0);
+      totalWrongTouchesRef.current = 0;
+      setComboBankedScore(0);
+      comboBankedScoreRef.current = 0;
+      setComboCurrentStreak(0);
+      comboCurrentStreakRef.current = 0;
+      currentLevelFoundCountRef.current = 0;
+      setScoreBreakdown(null);
+      setGukbapTier(null);
+
+      if (!nicknameSyncedRef.current) {
+        void reassignNicknameAction().then((result) => {
+          setNickname(result.nickname);
+          nicknameSyncedRef.current = result.nicknameSynced;
+        });
+      }
+
+      void runPreload();
+    },
+    [runPreload]
+  );
 
   const retryPreload = useCallback(() => {
     void runPreload();
@@ -271,6 +314,7 @@ export function useGameProgress(trackId: string | null) {
     remainingTimeSec,
     session,
     loadError,
+    preloadStatus,
     scoreBreakdown,
     gukbapTier,
     startGame,
