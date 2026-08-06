@@ -34,6 +34,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (data && !data.success) {
+       if (data.survey_required) {
+         return NextResponse.json({ error: data.error, survey_required: true }, { status: 403 });
+       }
        return NextResponse.json({ error: data.error }, { status: 400 });
     }
 

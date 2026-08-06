@@ -27,21 +27,70 @@ interface NicknameClientProps {
   initialLanguages: Language[]
   initialPresets: Preset[]
   initialExclusions: Exclusion[]
+  initialDigitLength: number
 }
 
 export default function NicknameClient({
   initialLanguages,
   initialPresets,
-  initialExclusions
+  initialExclusions,
+  initialDigitLength
 }: NicknameClientProps) {
   const supabase = createClient()
   const [presets, setPresets] = useState<Preset[]>(initialPresets)
   const [exclusions, setExclusions] = useState<Exclusion[]>(initialExclusions)
+  const [digitLength, setDigitLength] = useState<number>(initialDigitLength)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'first_word' | 'last_word'>('first_word')
 
+  // Modals state
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showErrorModal, setShowErrorModal] = useState(false)
+  const [pendingDigitLength, setPendingDigitLength] = useState<number | null>(null)
+  const [isCheckingCapacity, setIsCheckingCapacity] = useState(false)
+
   // Refs for arrow key navigation
   const inputRefs = useRef<{ [key: string]: HTMLElement | null }>({})
+
+  const handleDigitLengthChange = async (val: number) => {
+    if (val >= digitLength) {
+      setDigitLength(val)
+      return
+    }
+
+    // val < digitLength, need to check capacity
+    setIsCheckingCapacity(true)
+    try {
+      const activeFirst = presets.filter(p => p.type === 'first_word' && p.is_active).length
+      const activeLast = presets.filter(p => p.type === 'last_word' && p.is_active).length
+      const exclusionsCount = exclusions.length
+      
+      const capacity = (activeFirst * activeLast - exclusionsCount) * Math.pow(10, val)
+      
+      // Get current users count
+      const { count, error } = await supabase
+        .from('participants')
+        .select('*', { count: 'exact', head: true })
+        .not('nickname_first_id', 'is', null)
+        .not('nickname_last_id', 'is', null)
+        
+      if (error) throw error
+      
+      const currentUsers = count || 0
+      
+      if (capacity < currentUsers) {
+        setShowErrorModal(true)
+      } else {
+        setPendingDigitLength(val)
+        setShowConfirmModal(true)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('유저 수 확인 중 오류가 발생했습니다.')
+    } finally {
+      setIsCheckingCapacity(false)
+    }
+  }
 
   const handleAddRow = (type: 'first_word' | 'last_word') => {
     const newId = uuidv4()
@@ -163,6 +212,17 @@ export default function NicknameClient({
           first_word_id: e.first_word_id,
           last_word_id: e.last_word_id
         })))
+      }
+
+      // Update Digit Length
+      if (digitLength !== initialDigitLength) {
+        const { data, error: digitError } = await supabase.rpc('update_nickname_digit_length', { p_new_length: digitLength })
+        if (digitError) {
+          throw new Error('숫자 자릿수 업데이트 중 오류가 발생했습니다: ' + digitError.message)
+        }
+        if (!data.success) {
+          throw new Error('숫자 자릿수 변경 실패: ' + data.error)
+        }
       }
 
       // Finally, call RPC to reassign invalid nicknames
@@ -293,19 +353,45 @@ export default function NicknameClient({
   return (
     <div className="space-y-8">
       {/* 탭 버튼 */}
-      <div className="flex space-x-2 border-b border-gray-200 dark:border-zinc-800">
-        <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'first_word' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300'}`}
-          onClick={() => setActiveTab('first_word')}
-        >
-          앞글자 (First Word)
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'last_word' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300'}`}
-          onClick={() => setActiveTab('last_word')}
-        >
-          뒷글자 (Last Word)
-        </button>
+      <div className="flex justify-between items-center border-b border-gray-200 dark:border-zinc-800 pb-2">
+        <div className="flex space-x-2">
+          <button
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'first_word' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300'}`}
+            onClick={() => setActiveTab('first_word')}
+          >
+            앞글자 (First Word)
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'last_word' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-300'}`}
+            onClick={() => setActiveTab('last_word')}
+          >
+            뒷글자 (Last Word)
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 px-4 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-zinc-800">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            숫자 자릿수:
+          </label>
+          <input 
+            type="number" 
+            min={1} 
+            max={10} 
+            value={digitLength}
+            disabled={isCheckingCapacity}
+            onChange={(e) => {
+              const val = parseInt(e.target.value)
+              if (!isNaN(val) && val >= 1 && val <= 10) {
+                if (val < digitLength) {
+                  handleDigitLengthChange(val)
+                } else {
+                  setDigitLength(val)
+                }
+              }
+            }}
+            className="w-16 rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-2 py-1 dark:bg-zinc-950 dark:border-zinc-700 dark:text-white"
+          />
+        </div>
       </div>
 
       {/* 프리셋 테이블 영역 */}
@@ -377,6 +463,72 @@ export default function NicknameClient({
           {isSaving ? '저장 중...' : '전체 저장 반영'}
         </button>
       </div>
+
+      {/* Confirm Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-200 dark:border-zinc-800">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                자릿수 변경 경고
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                자릿수를 줄이면 기존 유저의 닉네임 번호가 전부 새로 랜덤하게 재배정됩니다.<br/><br/>
+                저장 후에는 되돌릴 수 없습니다. 정말로 변경하시겠습니까?
+              </p>
+            </div>
+            <div className="bg-gray-50 dark:bg-zinc-950 px-6 py-4 flex justify-end gap-3 border-t border-gray-200 dark:border-zinc-800">
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false)
+                  setPendingDigitLength(null)
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-zinc-900 dark:text-gray-300 dark:border-zinc-700 dark:hover:bg-zinc-800 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingDigitLength) setDigitLength(pendingDigitLength)
+                  setShowConfirmModal(false)
+                  setPendingDigitLength(null)
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-gray-200 dark:border-zinc-800">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-2 text-red-600 dark:text-red-500">
+                <X className="w-6 h-6" />
+                <h3 className="text-lg font-bold">
+                  변경 불가
+                </h3>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                현재 조합 수와 자릿수로는 기존에 닉네임을 발급받은 유저들을 모두 수용할 수 없어 자릿수를 줄일 수 없습니다.<br/><br/>
+                앞/뒷글자 프리셋을 더 추가하거나 제외 조합을 삭제한 뒤 다시 시도해주세요.
+              </p>
+            </div>
+            <div className="bg-gray-50 dark:bg-zinc-950 px-6 py-4 flex justify-end border-t border-gray-200 dark:border-zinc-800">
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

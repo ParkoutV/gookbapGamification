@@ -120,6 +120,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`created_at`** (`timestamp with time zone`): 최초 방문 일시.
 * **`nickname_first_id` / `nickname_last_id`** (`uuid`, Nullable): 닉네임 구성을 위해 할당받은 단어 ID입니다.
   * *제약조건:* 중복 방지 및 정규화를 위해 텍스트 자체가 아닌 `nickname_presets(id)` 외래키(`ON DELETE SET NULL`)로 구성됩니다.
+* **`nickname_number`** (`varchar`, Nullable): 닉네임 뒤에 붙는 무작위 숫자 (예: '0023').
+  * *제약조건:* `UNIQUE (nickname_first_id, nickname_last_id, nickname_number)` 제약으로 동일한 닉네임 단어 조합과 숫자를 가진 유저가 중복으로 존재하지 못하도록 강제합니다.
 
 ### 8. `nickname_presets` & `nickname_exclusions` (닉네임 관리) (Admin: ALL, Everyone: SELECT)
 **[`nickname_presets`]**
@@ -134,6 +136,10 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`id`** (`uuid`, Primary Key): 제외 규칙 식별자.
 * **`first_word_id` & `last_word_id`** (`uuid`): 서로 결합할 수 없는 앞/뒷 단어 쌍. (`nickname_presets` 외래키)
   * *제약조건:* `UNIQUE (first_word_id, last_word_id)`로 동일 규칙 중복 등록 방지.
+
+**[`nickname_settings` - 닉네임 설정] (Admin: ALL, Everyone: SELECT)**
+* **`id`** (`integer`, Primary Key): 설정 로우 식별자. (`CHECK (id = 1)`)
+* **`digit_length`** (`integer`): 닉네임에 부여될 숫자의 자릿수. (예: 4 -> '0023', 3 -> '015'). 해당 값이 변경(증가/감소)되면 `update_nickname_digit_length` RPC를 통해 기존 유저들의 숫자도 자동으로 재생성 및 패딩됩니다.
 
 ### 9. `game_score_logs` (게임 점수 기록) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*)
 * **`log_id`** (`uuid`, Primary Key): 점수 기록 식별자.
@@ -235,6 +241,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
          "created_at": "2026-08-05...",
          "nickname_first_id": "uuid...",
          "nickname_last_id": "uuid...",
+         "nickname_number": "0023",
          "nickname_first": { "ko": "든든한", "en": "Hearty" },
          "nickname_last": { "ko": "국밥", "en": "Gookbap" }
        }
@@ -298,7 +305,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 6. **전체 랭킹 조회 (`ranking_view`)**
    - 랭킹 데이터는 `participants` 테이블 직접 조회가 차단되어 있으므로, 반드시 전용 뷰(View)인 `ranking_view`를 통해 조회해야 합니다.
-   - `ranking_view`는 보안상 민감한 데이터를 제외하고 `participant_id`, 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `best_score`, `gookbap_score`, `joined_time`을 제공합니다. (사전 필터링 없이 1명의 유저가 낸 **모든 기록이 중복을 포함하여 반환**되므로 프론트엔드 구현단에서 주간/월간 랭킹 등 용도에 맞게 필터링해야 합니다.)
+   - `ranking_view`는 보안상 민감한 데이터를 제외하고 `participant_id`, 최고 점수 기록인 `nickname_first`, `nickname_last`(다국어 JSONB), `nickname_number`, `best_score`, `gookbap_score`, `joined_time`을 제공합니다. (사전 필터링 없이 1명의 유저가 낸 **모든 기록이 중복을 포함하여 반환**되므로 프론트엔드 구현단에서 주간/월간 랭킹 등 용도에 맞게 필터링해야 합니다.)
    - ✅ `supabase.from('ranking_view').select('*')`
    - **반환 예시:**
      ```json
@@ -307,6 +314,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
          "participant_id": "uuid...",
          "nickname_first": { "ko": "든든한", "en": "Hearty" },
          "nickname_last": { "ko": "국밥", "en": "Gookbap" },
+         "nickname_number": "0023",
          "best_score": 1953,
          "gookbap_score": 1953,
          "joined_time": "2026-08-05..."
@@ -383,7 +391,10 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   ```json
   {
     "success": true,
-    "nickname": "든든한 국밥"
+    "nickname": "든든한 국밥 #0023",
+    "first_id": "uuid-first",
+    "last_id": "uuid-last",
+    "number": "0023"
   }
   ```
 - **Response (Error - 400/500)**:
@@ -438,6 +449,9 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 웹게임 클라이언트에서 유저에게 100% 확정 웹 쿠폰을 발급할 때 사용하는 API입니다.
 내부적으로 `assign_web_coupon` RPC(SECURITY DEFINER)를 호출하므로, 익명 유저가 안전하게 미배정 쿠폰을 가져갈 수 있습니다.
 
+- **설문 검증**: API 호출 시 유저가 `survey_phase = 1`인 설문(주요 설문)에 답변했는지(`survey_responses`) 검증하며, 답변 이력이 없을 경우 발급이 거부됩니다 (`survey_required: true`).
+- **동시성 제어**: `FOR UPDATE SKIP LOCKED` 쿼리를 사용하여 트래픽이 몰리더라도 단 하나의 쿠폰도 중복 발급되지 않고 완벽하게 원자적(Atomic)으로 배정됩니다.
+
 - **Endpoint**: `POST /api/web-coupons/assign`
 - **Headers**: `Content-Type: application/json`
 - **Request Body (JSON)**:
@@ -467,6 +481,14 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
       "code": "A1B2C3D4",
       "already_assigned": true
     }
+  }
+  ```
+- **Response (Survey Required - 403 Forbidden)**:
+  (설문을 진행하지 않은 유저가 발급을 요청할 경우 403 상태 코드와 함께 오류 반환)
+  ```json
+  {
+    "error": "설문조사(Phase 1)를 완료해야 쿠폰을 발급받을 수 있습니다.",
+    "survey_required": true
   }
   ```
 

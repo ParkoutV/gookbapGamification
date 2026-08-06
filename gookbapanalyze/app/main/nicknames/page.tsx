@@ -41,6 +41,15 @@ export default async function NicknamesPage() {
     .select('*')
     .order('created_at', { ascending: true })
 
+  // 5. 닉네임 숫자 자릿수 설정 로드
+  const { data: settings } = await supabase
+    .from('nickname_settings')
+    .select('digit_length')
+    .eq('id', 1)
+    .single()
+
+  const digitLength = settings?.digit_length || 4
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold dark:text-white">닉네임 관리</h1>
@@ -59,6 +68,7 @@ export default async function NicknamesPage() {
         initialLanguages={languages || []}
         initialPresets={presets || []}
         initialExclusions={exclusions || []}
+        initialDigitLength={digitLength}
       />
     </div>
   )
