@@ -49,7 +49,7 @@ export default function StartScreen({
         {onGoToDraw && (
           <button
             onClick={onGoToDraw}
-            className="mt-3 text-sm text-muted underline underline-offset-4 bg-transparent border-0 p-0"
+            className="block w-fit mx-auto mb-4 text-sm text-muted underline underline-offset-4 bg-transparent border-0 p-0"
           >
             {t("start.goToDrawButton")}
           </button>
