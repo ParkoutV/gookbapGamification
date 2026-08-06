@@ -163,6 +163,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`probability`** (`jsonb`): 가챠 구간별 당첨 확률이 저장된 맵입니다. `{"case_id": 0.5}` 형태.
 * **`expire_days`** (`integer`, Nullable): 발급 후 만료 기한(일수).
   * *제약조건:* `CHECK (expire_days IS NULL OR (expire_days >= 0 AND expire_days <= 365))`
+* **`is_online_coupon`** (`boolean`): 웹 전용 쿠폰 여부. true일 경우 스캐너 조회/KPI 수집에서 제외되며 `web_coupons` 할당을 트리거합니다. (기본값: false)
 
 **[`issued_coupons` - 유저에게 발급된 쿠폰] (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)**
 * **`coupon_id`** (`uuid`, Primary Key): 발급 식별자.
@@ -176,7 +177,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 **[`web_coupons`] (*조회 및 할당은 익명 유저가 RPC 함수를 통해 수행*)**
 * **`id`** (`uuid`, Primary Key): 쿠폰 로우 식별자.
 * **`coupon_code`** (`text`, UNIQUE): 사전 생성된 웹 쿠폰 번호 문자열 (예: 'A1B2C3D4').
-* **`participant_id`** (`uuid`, UNIQUE, Nullable): 이 쿠폰 번호를 가져간 유저 ID. (Null일 경우 아직 배정되지 않은 잔여 쿠폰입니다.)
+* **`participant_id`** (`uuid`, Nullable): 이 쿠폰 번호를 가져간 유저 ID. (Null일 경우 아직 배정되지 않은 잔여 쿠폰입니다.) 가챠 시스템 특성상 중복 당첨이 가능하도록 UNIQUE 제약이 해제되었습니다.
 * **`assigned_at` / `created_at`** (`timestamp with time zone`): 배정/생성 일시.
 
 **[`web_coupon_settings`] (Everyone: SELECT)**

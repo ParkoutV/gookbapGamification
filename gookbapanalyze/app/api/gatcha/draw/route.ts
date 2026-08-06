@@ -134,31 +134,70 @@ export async function POST(req: NextRequest) {
 
     // 8. Insert into issued_coupons
     let expired_at = null
-    if (selectedCoupon.expire_days !== null && selectedCoupon.expire_days !== undefined) {
-      // Get current date in KST
-      const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
-      const kstDate = new Date(kstTimeStr)
-      
-      // Add days
-      kstDate.setDate(kstDate.getDate() + selectedCoupon.expire_days)
-      
-      // Set to 23:59:59.999
-      const year = kstDate.getFullYear()
-      const month = String(kstDate.getMonth() + 1).padStart(2, '0')
-      const day = String(kstDate.getDate()).padStart(2, '0')
-      
-      // Timestamptz will correctly parse the +09:00 timezone
-      expired_at = `${year}-${month}-${day}T23:59:59.999+09:00`
+    let is_used = false
+    let web_coupon_code: string | undefined = undefined
+
+    // Web Coupon Logic
+    if (selectedCoupon.is_online_coupon) {
+      const { data: webCoupon, error: webError } = await supabase
+        .from('web_coupons')
+        .select('id, coupon_code')
+        .is('participant_id', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (webError || !webCoupon) {
+        return NextResponse.json({ error: '잔여 웹 쿠폰이 부족합니다. 관리자에게 문의하세요.' }, { status: 500 })
+      }
+
+      const { error: updateError } = await supabase
+        .from('web_coupons')
+        .update({
+          participant_id: participant_id,
+          assigned_at: new Date().toISOString()
+        })
+        .eq('id', webCoupon.id)
+
+      if (updateError) {
+        return NextResponse.json({ error: '웹 쿠폰 배정에 실패했습니다.' }, { status: 500 })
+      }
+
+      is_used = true
+      web_coupon_code = webCoupon.coupon_code
+    } else {
+      if (selectedCoupon.expire_days !== null && selectedCoupon.expire_days !== undefined) {
+        // Get current date in KST
+        const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+        const kstDate = new Date(kstTimeStr)
+        
+        // Add days
+        kstDate.setDate(kstDate.getDate() + selectedCoupon.expire_days)
+        
+        // Set to 23:59:59.999
+        const year = kstDate.getFullYear()
+        const month = String(kstDate.getMonth() + 1).padStart(2, '0')
+        const day = String(kstDate.getDate()).padStart(2, '0')
+        
+        // Timestamptz will correctly parse the +09:00 timezone
+        expired_at = `${year}-${month}-${day}T23:59:59.999+09:00`
+      }
+    }
+
+    const insertPayload: any = {
+      participant_id: participant_id,
+      coupon_effect_id: selectedCoupon.coupon_effect_id,
+      is_used: is_used,
+      expired_at: expired_at
+    }
+
+    if (is_used) {
+      insertPayload.used_at = new Date().toISOString()
     }
 
     const { data: insertedCoupon, error: insertError } = await supabase
       .from('issued_coupons')
-      .insert([{
-        participant_id: participant_id,
-        coupon_effect_id: selectedCoupon.coupon_effect_id,
-        is_used: false,
-        expired_at: expired_at
-      }])
+      .insert([insertPayload])
       .select('coupon_id')
       .single()
 
@@ -173,7 +212,8 @@ export async function POST(req: NextRequest) {
       success: true,
       coupon_type: selectedCoupon.coupon_type,
       score_used: bestScore,
-      coupon_id: insertedCoupon.coupon_id
+      coupon_id: insertedCoupon.coupon_id,
+      web_coupon_code: web_coupon_code
     })
 
   } catch (err: any) {

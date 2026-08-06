@@ -26,6 +26,7 @@ interface CouponEffect {
   description: string // JSON string
   probability: any // JSON object { [case_id]: number }
   expire_days?: number | null
+  is_online_coupon?: boolean
 }
 
 const SplitInput = ({ 
@@ -72,6 +73,7 @@ export default function CouponsPage() {
   const [settings, setSettings] = useState<GatchaSetting | null>(null)
   const [gatchaCases, setGatchaCases] = useState<GatchaCase[]>([])
   const [coupons, setCoupons] = useState<CouponEffect[]>([])
+  const [webCouponSettings, setWebCouponSettings] = useState<any>(null)
   const [activeLanguages, setActiveLanguages] = useState<SupportedLanguage[]>([])
   
   // Modal State for Multilingual text
@@ -98,7 +100,18 @@ export default function CouponsPage() {
 
     // Fetch Coupons
     const { data: coups } = await supabase.from('coupon_effects').select('*').order('created_at', { ascending: true })
-    if (coups) setCoupons(coups)
+    if (coups) {
+      coups.sort((a, b) => {
+        if (a.is_online_coupon && !b.is_online_coupon) return -1;
+        if (!a.is_online_coupon && b.is_online_coupon) return 1;
+        return 0;
+      })
+      setCoupons(coups)
+    }
+
+    // Fetch Web Coupon Settings
+    const { data: webCouponSettings } = await supabase.from('web_coupon_settings').select('*').eq('id', 1).single()
+    if (webCouponSettings) setWebCouponSettings(webCouponSettings)
 
     // Fetch Languages
     const { data: langs } = await supabase.from('supported_languages').select('*').eq('is_active', true).order('order_index')
@@ -584,36 +597,62 @@ export default function CouponsPage() {
               </tr>
             </thead>
             <tbody>
-              {coupons.map((coupon, rowIdx) => (
-                <tr key={coupon.coupon_effect_id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
-                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0">
-                    <button onClick={() => confirmRemoveCoupon(rowIdx)} className="w-full h-12 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+              {coupons.map((coupon, rowIdx) => {
+                const isOnline = coupon.is_online_coupon;
+                const displayText = isOnline && webCouponSettings
+                  ? getKoText(JSON.stringify(webCouponSettings.title))
+                  : getKoText(coupon.coupon_type);
+
+                return (
+                <tr key={coupon.coupon_effect_id} className={`transition-colors ${isOnline ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/50'}`}>
+                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative">
+                    {!isOnline && (
+                      <button onClick={() => confirmRemoveCoupon(rowIdx)} className="w-full h-12 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {isOnline && (
+                      <div className="w-full h-12 flex items-center justify-center text-blue-500" title="웹 쿠폰 (수정/삭제 불가)">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                    )}
                   </td>
                   <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative group">
                     <input
                       id={`cell-${rowIdx}-0`}
                       type="text"
                       readOnly
-                      value={getKoText(coupon.coupon_type)}
-                      onKeyDown={(e) => handleKeyDown(e, rowIdx, 0)}
-                      onClick={() => openModal(rowIdx)}
-                      className="w-full h-12 px-3 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-medium dark:text-white cursor-pointer"
-                      placeholder="Enter로 다국어 편집..."
+                      value={displayText}
+                      onKeyDown={(e) => {
+                        if (!isOnline) handleKeyDown(e, rowIdx, 0)
+                      }}
+                      onClick={() => {
+                        if (!isOnline) openModal(rowIdx)
+                      }}
+                      className={`w-full h-12 px-3 outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 bg-transparent text-sm font-medium ${isOnline ? 'text-blue-700 dark:text-blue-300 cursor-not-allowed font-bold' : 'text-gray-900 dark:text-white cursor-pointer'}`}
                     />
+                    {!isOnline && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <span className="text-[10px] bg-gray-800 text-white px-2 py-1 rounded">다국어 편집</span>
+                      </div>
+                    )}
                   </td>
-                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative bg-white dark:bg-zinc-950">
+                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0">
                     <input
                       id={`cell-${rowIdx}-1`}
                       type="number"
                       min="0"
                       max="365"
+                      readOnly={isOnline}
                       value={coupon.expire_days === null || coupon.expire_days === undefined ? '' : coupon.expire_days}
-                      onChange={(e) => handleExpireDaysChange(rowIdx, e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(e, rowIdx, 1)}
+                      onChange={(e) => {
+                        if (!isOnline) handleExpireDaysChange(rowIdx, e.target.value)
+                      }}
+                      onKeyDown={(e) => {
+                        if (!isOnline) handleKeyDown(e, rowIdx, 1)
+                      }}
                       placeholder="무제한"
-                      className="w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold dark:text-white"
+                      className={`w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white'}`}
                     />
                   </td>
                   {gatchaCases.map((c, idx) => (
@@ -633,7 +672,8 @@ export default function CouponsPage() {
                     </td>
                   ))}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
             <tfoot>
               <tr>
