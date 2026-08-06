@@ -13,6 +13,17 @@ export const en: Partial<Dictionary> = {
   "start.myResult": "My Results",
   "start.ranking": "Ranking",
 
+  "term.title": "Privacy Notice",
+  "term.body":
+    "This game collects the following information to run the game and issue coupons.\n\n" +
+    "· An anonymous identification cookie (no name, contact details, or other personally identifying information is collected)\n" +
+    "· Game scores and play records\n" +
+    "· Your survey answers\n" +
+    "· Coupon issuance and redemption history\n\n" +
+    "This information is used only to operate the game and issue coupons, and is discarded after the event ends.",
+  "term.agreeNotice": "Tapping Confirm means you agree to the above.",
+  "term.confirmButton": "Confirm",
+
   "preload.preparing": "Preparing gukbap...",
   "preload.sessionError": "Failed to load game data. Please check your network connection.",
   "preload.levelSessionError": "Failed to load game data for stage {level}.",

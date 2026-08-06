@@ -13,6 +13,17 @@ export const ko: Dictionary = {
   "start.myResult": "내 결과",
   "start.ranking": "랭킹",
 
+  "term.title": "개인정보 처리 안내",
+  "term.body":
+    "이 게임은 원활한 참여와 쿠폰 발급을 위해 아래 정보를 수집합니다.\n\n" +
+    "· 익명 식별용 쿠키 (이름·연락처 등 개인을 특정하는 정보는 수집하지 않습니다)\n" +
+    "· 게임 점수 및 진행 기록\n" +
+    "· 설문에 응답한 내용\n" +
+    "· 쿠폰 발급 및 사용 내역\n\n" +
+    "수집된 정보는 게임 운영과 쿠폰 지급 목적으로만 사용되며, 행사 종료 후 파기됩니다.",
+  "term.agreeNotice": "확인을 누르면 위 내용에 동의한 것으로 간주합니다.",
+  "term.confirmButton": "확인",
+
   "preload.preparing": "국밥 준비 중...",
   "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
   "preload.levelSessionError": "{level}단계 게임 데이터를 불러오지 못했습니다.",

@@ -15,6 +15,17 @@ export const ja: Partial<Dictionary> = {
   "start.myResult": "自分の結果",
   "start.ranking": "ランキング",
 
+  "term.title": "個人情報の取り扱いについて",
+  "term.body":
+    "このゲームでは、ゲームの運営とクーポン発行のために以下の情報を収集します。\n\n" +
+    "· 匿名識別用のクッキー（氏名・連絡先など個人を特定する情報は収集しません）\n" +
+    "· ゲームのスコアおよびプレイ記録\n" +
+    "· アンケートの回答内容\n" +
+    "· クーポンの発行・利用履歴\n\n" +
+    "収集した情報はゲームの運営とクーポン発行の目的にのみ使用し、イベント終了後に破棄します。",
+  "term.agreeNotice": "「確認」を押すと、上記の内容に同意したものとみなします。",
+  "term.confirmButton": "確認",
+
   "preload.preparing": "クッパを準備中...",
   "preload.sessionError": "ゲームデータの読み込みに失敗しました。ネットワーク状況をご確認ください。",
   "preload.levelSessionError": "ステージ{level}のゲームデータを読み込めませんでした。",

@@ -11,12 +11,14 @@ import WheelScreen from "./components/WheelScreen";
 import MyCouponsScreen from "./components/MyCouponsScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
+import TermNotice from "./components/TermNotice";
 import { useGameProgress } from "./hooks/useGameProgress";
 import { useCouponFlow } from "./hooks/useCouponFlow";
 import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
+import { hasAcknowledgedTerm, markTermAcknowledged } from "./lib/firstRunFlags";
 
 type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -42,6 +44,19 @@ export default function Home({ searchParams }: PageProps) {
   useEffect(() => {
     setShowDrawEntry(hasPendingDraw());
   }, [game.phase]);
+
+  // 쿠키는 서버 렌더링 시점에 읽을 수 없다. showDrawEntry와 같은 이유로 마운트 후에
+  // 읽어야 하이드레이션이 어긋나지 않는다 — useState(() => hasAcknowledgedTerm())로
+  // 초기값을 계산하면 서버에서는 항상 false가 되어 마크업이 달라진다.
+  const [showTerm, setShowTerm] = useState(false);
+  useEffect(() => {
+    setShowTerm(!hasAcknowledgedTerm());
+  }, []);
+
+  const acknowledgeTerm = useCallback(() => {
+    markTermAcknowledged();
+    setShowTerm(false);
+  }, []);
 
   // 시작 화면에서 뽑기로 들어온 경우, 룰렛이 끝나도 오늘의 결과로 보내면 안 된다.
   // resetToStart가 scoreBreakdown/gukbapTier를 이미 비웠기 때문에 그 화면은
@@ -118,6 +133,7 @@ export default function Home({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-black">
+      {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
       <LanguageToggle />
       {game.phase === "start" && (
         <StartScreen
