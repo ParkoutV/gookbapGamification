@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import StartScreen from "./components/StartScreen";
+import TutorialScreen from "./components/TutorialScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
 import GameResultScreen from "./components/GameResultScreen";
@@ -11,12 +12,19 @@ import WheelScreen from "./components/WheelScreen";
 import MyCouponsScreen from "./components/MyCouponsScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
+import TermNotice from "./components/TermNotice";
 import { useGameProgress } from "./hooks/useGameProgress";
 import { useCouponFlow } from "./hooks/useCouponFlow";
 import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
+import {
+  hasAcknowledgedTerm,
+  markTermAcknowledged,
+  hasSeenTutorial,
+  markTutorialSeen,
+} from "./lib/firstRunFlags";
 
 type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -34,7 +42,7 @@ export default function Home({ searchParams }: PageProps) {
   // 두 훅 모두 매 렌더마다 새 객체를 반환하므로, 객체를 그대로 의존성에 넣으면
   // 아래 콜백들이 매 렌더 재생성된다. 개별 함수는 useCallback([])로 안정적이니
   // 구조 분해해서 그것만 의존성에 넣는다.
-  const { goToPhase, proceedToDailyResult, phase, scoreBreakdown } = game;
+  const { goToPhase, proceedToDailyResult, phase, scoreBreakdown, startGame } = game;
   const { loadQuestions, submitAnswers, spin, refreshCoupons, reset: resetCoupon } = coupon;
 
   // localStorage는 서버 렌더링 시점에 없다. 마운트 후에 읽어야 하이드레이션이 어긋나지 않는다.
@@ -42,6 +50,58 @@ export default function Home({ searchParams }: PageProps) {
   useEffect(() => {
     setShowDrawEntry(hasPendingDraw());
   }, [game.phase]);
+
+  // 쿠키는 서버 렌더링 시점에 읽을 수 없다. showDrawEntry와 같은 이유로 마운트 후에
+  // 읽어야 하이드레이션이 어긋나지 않는다 — useState(() => hasAcknowledgedTerm())로
+  // 초기값을 계산하면 서버에서는 항상 false가 되어 마크업이 달라진다.
+  const [showTerm, setShowTerm] = useState(false);
+  useEffect(() => {
+    setShowTerm(!hasAcknowledgedTerm());
+  }, []);
+
+  const acknowledgeTerm = useCallback(() => {
+    markTermAcknowledged();
+    setShowTerm(false);
+  }, []);
+
+  // 튜토리얼을 "다시 보기"로 열었는지 구분한다. onboarding이면 완주 시 게임으로,
+  // review면 시작 화면으로 돌아가야 하는데 phase만으로는 구분할 수 없다.
+  const [tutorialMode, setTutorialMode] = useState<"onboarding" | "review">("onboarding");
+
+  // 게임 시작. 튜토리얼을 아직 안 본 참여자만 튜토리얼을 거친다.
+  // 쿠키는 클릭 이벤트에서만 읽으므로 서버 렌더 중에는 호출되지 않는다
+  // (enterSurveyFlow의 hasSurveySubmitted와 같은 전제).
+  const handleStart = useCallback(() => {
+    const withTutorial = !hasSeenTutorial();
+    setTutorialMode("onboarding");
+    startGame(withTutorial);
+  }, [startGame]);
+
+  // 시작 화면의 상시 버튼. runPreload를 부르지 않는다 — 부르는 순간
+  // 프리로드가 끝나면서 사용자를 게임으로 끌고 갈 경로가 열린다.
+  const openTutorialReview = useCallback(() => {
+    setTutorialMode("review");
+    goToPhase("tutorial");
+  }, [goToPhase]);
+
+  // 튜토리얼 완주. onboarding일 때만 쿠키를 쓴다 — 게임에 실제로 진입한
+  // 경우에만 "봤다"로 친다.
+  const finishTutorial = useCallback(() => {
+    if (tutorialMode === "review") {
+      goToPhase("start");
+      return;
+    }
+    markTutorialSeen();
+    goToPhase("playing");
+  }, [tutorialMode, goToPhase]);
+
+  // 좌상단 X. 쿠키를 쓰지 않으므로 다음 게임 시작 때 튜토리얼이 다시 뜬다.
+  // preloadStatus는 여기서 건드리지 않는다 — 어차피 handleStart가 다시 startGame을
+  // 호출하면 runPreload 첫 문장이 무조건 "loading"으로 리셋하고 처음부터 재요청하므로
+  // (preloadAllStages에 캐시가 없다), 여기서 되돌릴 대상 자체가 없다.
+  const exitTutorial = useCallback(() => {
+    goToPhase("start");
+  }, [goToPhase]);
 
   // 시작 화면에서 뽑기로 들어온 경우, 룰렛이 끝나도 오늘의 결과로 보내면 안 된다.
   // resetToStart가 scoreBreakdown/gukbapTier를 이미 비웠기 때문에 그 화면은
@@ -118,14 +178,27 @@ export default function Home({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-black">
+      {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
       <LanguageToggle />
       {game.phase === "start" && (
         <StartScreen
           nickname={game.nickname}
           onRegenerateNickname={game.regenerateNickname}
           isRegeneratingNickname={game.isRegenerating}
-          onStart={game.startGame}
+          onStart={handleStart}
+          onOpenTutorial={openTutorialReview}
           onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
+        />
+      )}
+
+      {game.phase === "tutorial" && (
+        <TutorialScreen
+          mode={tutorialMode}
+          preloadStatus={game.preloadStatus}
+          loadError={game.loadError}
+          onRetryPreload={game.retryPreload}
+          onFinish={finishTutorial}
+          onExit={exitTutorial}
         />
       )}
 

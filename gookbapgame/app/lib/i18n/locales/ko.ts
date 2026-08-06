@@ -13,6 +13,43 @@ export const ko: Dictionary = {
   "start.myResult": "내 결과",
   "start.ranking": "랭킹",
 
+  "term.title": "개인정보 처리 안내",
+  "term.body":
+    "이 게임은 원활한 참여와 쿠폰 발급을 위해 아래 정보를 수집합니다.\n\n" +
+    "· 익명 식별용 쿠키 (이름·연락처 등 개인을 특정하는 정보는 수집하지 않습니다)\n" +
+    "· 게임 점수 및 진행 기록\n" +
+    "· 설문에 응답한 내용\n" +
+    "· 쿠폰 발급 및 사용 내역\n\n" +
+    "수집된 정보는 게임 운영과 쿠폰 지급 목적으로만 사용되며, 행사 종료 후 파기됩니다.",
+  "term.agreeNotice": "확인을 누르면 위 내용에 동의한 것으로 간주합니다.",
+  "term.confirmButton": "확인",
+
+  "tutorial.openButton": "게임 방법",
+  "tutorial.progress": "{current} / {total}",
+  "tutorial.prevButton": "이전",
+  "tutorial.nextButton": "다음",
+  "tutorial.startButton": "시작하기",
+  "tutorial.closeButton": "닫기",
+  "tutorial.exitAria": "튜토리얼 닫기",
+  "tutorial.waiting": "준비 중...",
+
+  "tutorial.what.title": "다른 곳을 찾아라",
+  "tutorial.what.body":
+    "좌우 두 그림에서 다른 곳을 찾아 터치하세요.\n" +
+    "총 7단계, 단계마다 5곳씩 숨어 있습니다. 마지막 7단계만 7곳입니다.",
+
+  "tutorial.limit.title": "시간과 기회",
+  "tutorial.limit.body":
+    "제한시간은 단계별이 아니라 전체 300초입니다.\n" +
+    "한 단계에서 3번 틀리면 그 단계는 거기서 끝나고 다음 단계로 넘어갑니다.\n" +
+    "틀릴 때마다 10점이 깎입니다.",
+
+  "tutorial.score.title": "점수 올리기",
+  "tutorial.score.body":
+    "빨리 끝낼수록 시간 보너스가 붙습니다.\n" +
+    "연속으로 맞히면 콤보 보너스가 쌓입니다.\n" +
+    "게임이 끝나면 국밥력 등급이 나오고, 쿠폰 뽑기로 이어집니다.",
+
   "preload.preparing": "국밥 준비 중...",
   "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
   "preload.levelSessionError": "{level}단계 게임 데이터를 불러오지 못했습니다.",
