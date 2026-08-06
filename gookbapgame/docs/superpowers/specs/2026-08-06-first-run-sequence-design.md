@@ -53,8 +53,14 @@ preloadStatus: "idle" | "loading" | "ready" | "error"
 phase로 돌아올 수 있다. 뽑기 흐름을 거쳐 두 번째 게임을 시작하는 사용자는 파생 플래그가
 즉시 `ready`가 되어 **직전 판의 스테이지 데이터로 게임이 시작된다.**
 
-→ `startGame()`이 명시적으로 `preloadStatus = "loading"`으로 되돌려야 한다. 이것이 이
-변경에서 가장 깨지기 쉬운 지점이며, 아래 테스트 항목에 포함한다.
+→ `preloadStatus`를 `"loading"`으로 되돌리는 책임은 **`runPreload()`의 첫 문장**이
+가진다. `startGame()`에 두지 않는 이유는 `retryPreload()`를 포함한 모든 호출자가 자동으로
+같은 보장을 받게 하기 위해서다 — 호출자마다 리셋을 기억해야 하는 구조면 언젠가 빠진다.
+
+이 배치는 경합도 만들지 않는다. `startGame()`은 `setPhase("loading")`을 호출한 뒤 곧바로
+`runPreload()`를 부르고, `runPreload()`는 첫 `await` 이전에 `setPreloadStatus("loading")`을
+실행한다. 두 setState가 같은 React 배치에 들어가므로 `phase === "loading" &&
+preloadStatus === "ready"`인 중간 렌더가 존재하지 않는다.
 
 ## 2. 화면 배치
 
@@ -104,6 +110,11 @@ httpOnly 아님 — 서버가 읽을 이유가 없다.
 | 쿠키 기록 | 완주 시 씀 | 쓰지 않음 |
 | 좌상단 X | 있음 → `start` 복귀, 쿠키 안 씀 | 있음 → `start` 복귀 |
 
+**불변 조건: `review` 모드는 절대로 `runPreload()`를 호출하지 않는다.** 자동 전환 효과가
+`phase === "loading"`을 조건으로 걸고 있어 `review`(phase는 `"tutorial"`) 중에는 무해하지만,
+누군가 "미리 받아두면 빠르겠지" 하고 `review`에서 프리로드를 붙이면 그 순간 게임 진입
+경로가 열린다. 선제적 프리로드를 추가하지 말 것.
+
 `onboarding`에도 X를 두는 이유는 프리로드가 계속 실패할 때 사용자가 갇히지 않게 하기
 위해서다. X로 나가도 `preloadStatus`는 되돌리지 않으므로, 이미 `ready`면 다시 시작할 때
 곧바로 게임에 들어간다.
@@ -129,7 +140,10 @@ httpOnly 아님 — 서버가 읽을 이유가 없다.
 | 2/3 제한 | 전체 제한시간 300초(단계별이 아닌 통짜). 한 단계에서 3번 틀리면 그 단계 종료 후 다음 단계로. 오답마다 -10점 | `GLOBAL_TIME_LIMIT_SEC`, `WRONG_TOUCH_LIMIT_PER_LEVEL`, `WRONG_TOUCH_PENALTY` |
 | 3/3 점수 | 빨리 끝낼수록 시간 보너스, 연속 정답 시 콤보 보너스. 종료 후 국밥 등급과 쿠폰 뽑기로 이어짐 | `calcTimeBonus`, `calcComboBonusForStreak` |
 
-ko / en / ja 세 로케일 모두에 추가한다(`app/lib/i18n/locales/`).
+ko / en / ja 세 로케일 모두에 **같은 커밋에서** 추가한다(`app/lib/i18n/locales/`).
+`Dictionary`는 `Record<string, string>`이고 키 정합성을 검사하는 테스트도 없다 —
+`translateWith`가 ja→en→ko로 폴백하므로 ko만 추가해도 `npm test`는 통과하지만 영어·일본어
+사용자에게 한국어 문구가 그대로 노출된다. 컴파일러도 테스트도 이걸 잡아주지 않는다.
 
 ## 6. 전제 (Assumption)
 
@@ -149,12 +163,25 @@ TERM을 동의 게이트가 아닌 의무 고지로 규정했고 민감정보를
   - 쿠키 읽기/쓰기 왕복
   - `document`가 없는 환경(SSR)에서 `false` 반환, 쓰기는 무시
   - 만료 속성이 붙은 쿠키 문자열 형식
-- `preloadStatus` 전이
-  - `runPreload` 성공 → `ready`, 실패 → `error`
-  - **`startGame()` 호출이 `preloadStatus`를 `loading`으로 되돌린다** (직전 판 데이터로
-    게임이 시작되는 버그의 회귀 테스트)
-  - `phase === "loading" && ready` → `playing` 자동 전환
 - 튜토리얼 컴포넌트 자체는 표시 로직뿐이므로 테스트하지 않는다(관례).
+
+`preloadStatus` 전이는 **자동 테스트하지 않는다.** 이 저장소에는 React 컴포넌트/훅을
+렌더할 테스트 인프라가 없고(러너는 `node --test`, testing-library 없음), 이 하나를 위해
+의존성을 들이는 것은 과하다. 대신 두 가지로 대체한다.
+
+1. **구조적 보장**: 리셋을 `runPreload()`의 첫 문장에 두어 호출자가 잊을 수 없게 한다(§1).
+2. **수동 검증**: 아래 경로를 실제로 밟아 두 번째 판이 직전 판의 스테이지가 아닌지 확인한다.
+   `docs/local-test-setup.md`대로 서버 두 개를 띄운 상태여야 한다.
+
+   ```
+   게임 1판 완주 → 게임 결과 → 설문 → 룰렛 → 오늘의 결과
+     → '처음으로' → '게임 시작'
+     → 2판의 스테이지가 1판과 다른 그림인지 확인
+   ```
+
+**테스트 파일을 추가할 때 주의**: `package.json`의 `test` 스크립트가 테스트 파일 경로를
+하나씩 나열하는 방식이다(글롭이 아니다). 목록에 추가하지 않으면 `npm test`가 그 파일을
+아예 실행하지 않고 조용히 통과한다.
 
 ## 8. 범위 밖
 
