@@ -168,6 +168,11 @@ export function useGameProgress(trackId: string | null) {
   // 경합은 없다: startGame이 setPhase(...)를 호출한 직후 동기적으로 runPreload를 부르고,
   // runPreload는 첫 await 이전에 이 setState를 실행한다. 같은 React 배치에 들어가므로
   // phase === "loading" && preloadStatus === "ready"인 중간 렌더가 존재하지 않는다.
+  // 불변식: preloadStatus === "error"와 loadError !== null은 항상 함께 성립해야 한다.
+  // 이 둘은 서로 다른 소비자가 같은 에러 UI를 켜는 근거다 —
+  // PreloadScreen은 loadError의 유무로, TutorialScreen은 preloadStatus === "error"로 판단한다.
+  // 한쪽만 세팅하는 수정이 들어오면(예: 재시도 로직 리팩터링) 한쪽 화면은 에러 문구 없이
+  // 재시도 버튼만 뜨거나, 문구는 뜨는데 재시도 버튼이 없는 상태로 조용히 깨진다.
   const runPreload = useCallback(async () => {
     const generation = ++preloadGenerationRef.current;
     setLoadError(null);
@@ -298,6 +303,14 @@ export function useGameProgress(trackId: string | null) {
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
   const goToPhase = useCallback((next: GamePhase) => setPhase(next), []);
 
+  // preloadStatus를 여기서 리셋하지 않는 것은 의도다. 그 전제는 "loading" phase
+  // 진입이 startGame을 통해서만 일어난다는 것 — startGame이 phase를 세팅한 직후
+  // 동기적으로 runPreload를 부르고, runPreload가 첫 await 이전에 preloadStatus를
+  // "loading"으로 리셋하므로 여기서 손댈 필요가 없다.
+  // goToPhase("loading")을 직접 호출하는 코드를 추가하지 말 것 — 그 경로는 이 전제를
+  // 깨서, preloadStatus가 직전 판의 "ready"로 남아 있는 채로 위 자동 전환 useEffect가
+  // 즉시 phase를 "playing"으로 보내고, 아직 비어 있지 않은 직전 판의 sessions로 게임이
+  // 시작된다.
   const resetToStart = useCallback(() => {
     setPhase("start");
     setStageIndex(0);

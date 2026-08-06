@@ -122,9 +122,16 @@ export default function TutorialScreen({
               type="button"
               onClick={onFinish}
               disabled={preloadStatus !== "ready"}
-              className="pixel-mask-btn-solid flex-1 py-3 px-4 bg-accent text-accent-ink font-bold active:scale-95 disabled:opacity-50"
+              className="pixel-mask-btn-solid flex-1 py-3 px-4 bg-accent text-accent-ink font-bold active:scale-95 disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
-              {preloadStatus === "ready" ? t("tutorial.startButton") : t("tutorial.waiting")}
+              {preloadStatus === "ready" ? (
+                t("tutorial.startButton")
+              ) : (
+                <>
+                  <span className="animate-spin">🍚</span>
+                  {t("tutorial.waiting")}
+                </>
+              )}
             </button>
           )}
         </div>
