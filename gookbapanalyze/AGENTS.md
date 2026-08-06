@@ -211,6 +211,14 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`created_at`** (`timestamp with time zone`): 제출 일시.
   * *제약조건:* `UNIQUE (question_id, participant_id)`를 통해 사용자가 동일한 설문에 두 번 답변하는 것을 원천 차단합니다.
 
+**[`optional_survey_records`] (Admin: ALL, Everyone: SELECT)**
+* **`participant_id`** (`uuid`, Primary Key): 응답자 식별자 (`participants` 외래키, `CASCADE`)
+* **`record`** (`jsonb`): 이미 노출된 선택 질문(`is_required = FALSE`)의 `question_id` 배열을 저장합니다. (기본값: '[]'::jsonb)
+
+**[`survey_settings`] (Admin: UPDATE, Everyone: SELECT)**
+* **`id`** (`integer`, Primary Key): 단일 Row 제한 (`CHECK (id = 1)`)
+* **`optional_survey_once`** (`boolean`): 선택 질문 1회 노출 기능의 전역 설정. `true`면 `optional_survey_records`를 참조하여 한 번 노출된 질문은 스킵하고, `false`면 선택 질문을 매번 노출합니다. (기본값: true)
+
 ### 14. `supported_languages` (다국어 설정)
 * **`lang_code`** (`varchar`, Primary Key): 'ko', 'en' 등의 언어 식별 코드.
 * **`lang_name`** (`varchar`, NOT NULL): '한국어', 'English' 등의 화면 표기 언어명.
@@ -265,7 +273,25 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
      ]
      ```
 
-3. **내 웹 쿠폰 목록 조회 (`web_coupons`)**
+3. **설문 잔여 항목 조회 (`survey_questions` 필터링)**
+   - 익명 유저가 답변해야 할 질문이 남았는지 확인합니다.
+   - ✅ `supabase.rpc('check_pending_survey', { p_survey_phase: phase, p_participant_id: id, p_track_id: track_id })`
+   - 입력 배열에 `p_servey_phase`에는 설문조사 페이즈를 입력해야 합니다. 이는 특정 페이즈에서 어느 설문을 보여줘야 하는지 직관적으로 알기 쉽도록 하기 위함입니다.
+   - 반환 배열에 `question_id` 목록이 돌아옵니다. (`survey_responses`에 이미 답변한 항목 및 `survey_settings.optional_survey_once = true`일 때 `optional_survey_records`에 기록된 선택 질문은 제외됩니다.)
+   - **반환 예시:**
+     ```json
+     [
+       { "question_id": "uuid-1..." },
+       { "question_id": "uuid-2..." }
+     ]
+     ```
+
+4. **선택 질문 노출 기록 처리 (`optional_survey_records`)**
+   - 클라이언트에서 선택 질문이 포함된 화면을 띄웠을 때, 해당 질문들이 이후 다시 나타나지 않도록 기록합니다.
+   - ✅ `supabase.rpc('record_optional_survey_shown', { p_participant_id: id, p_question_ids: ['uuid-1', 'uuid-2'] })`
+   - **반환 예시:** 반환값 없음 (void)
+
+5. **내 웹 쿠폰 목록 조회 (`web_coupons`)**
    - ❌ `supabase.from('web_coupons').select('*').eq('participant_id', id)`
    - ✅ `supabase.rpc('get_my_web_coupons', { p_id: id })`
    - **반환 예시:**

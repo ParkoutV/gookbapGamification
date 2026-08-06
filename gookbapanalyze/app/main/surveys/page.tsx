@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import SurveyManager from '@/components/SurveyManager'
+import SurveySettingsToggle from './SurveySettingsToggle'
 
 export default async function SurveysPage() {
   const supabase = await createClient()
@@ -43,6 +44,15 @@ export default async function SurveysPage() {
   const { data: branchesData } = await branchesQuery
   const branches = branchesData || []
 
+  // Fetch survey settings
+  const { data: settingsData } = await adminClient
+    .from('survey_settings')
+    .select('optional_survey_once')
+    .eq('id', 1)
+    .single()
+  
+  const optionalSurveyOnce = settingsData?.optional_survey_once ?? true
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -51,6 +61,10 @@ export default async function SurveysPage() {
           <p className="text-gray-500 dark:text-zinc-400 mt-1">게임 진행 과정에서 표시될 설문 문항을 관리합니다.</p>
         </div>
       </div>
+      
+      {permission === 0 && (
+        <SurveySettingsToggle initialValue={optionalSurveyOnce} />
+      )}
 
       <SurveyManager 
         permission={permission}
