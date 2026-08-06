@@ -19,6 +19,19 @@
 - **서버 통신 금지:** TERM 동의 이력이나 튜토리얼 시청 여부를 서버/DB에 기록하지 말 것. 의무 고지이며 로컬 상태로 충분하다.
 - **`review` 모드 튜토리얼은 절대 `runPreload()`를 호출하지 않는다.** 선제적 프리로드를 추가하지 말 것 (이유는 Task 4에 있다).
 - 커밋 메시지는 한국어로, 저장소의 기존 커밋 스타일을 따른다.
+- **`npm run lint`는 기준선부터 이미 실패한다.** 브랜치 시작 시점(`0ee3d65`) 기준
+  `24 problems (17 errors, 7 warnings)`. 판정 기준은 "전부 통과"가 아니라
+  **"기존에 없던 종류의 오류가 새로 생기지 않았는가"**다. 아래 두 규칙은 이 코드베이스가
+  이미 광범위하게 위반하고 있으므로 새 코드가 같은 방식으로 걸리는 것은 허용한다.
+  - `react-hooks/set-state-in-effect` — `app/page.tsx:43`(`setShowDrawEntry`),
+    `app/lib/i18n/LocaleContext.tsx:32`에 선례가 있다. 이 계획의 하이드레이션 패턴
+    (마운트 후 쿠키 읽기)과 자동 전환 효과가 필연적으로 여기 걸린다.
+  - `@typescript-eslint/no-explicit-any` — `app/lib/pendingDraw.test.ts`,
+    `surveySubmitted.test.ts`가 테스트 스텁을 심을 때 `(globalThis as any)`를 쓴다.
+    새 테스트도 같은 방식을 쓴다.
+  **기존 오류를 덤으로 고치지 말 것** — 이 작업의 범위가 아니고 diff만 커진다.
+- **node 실행 경로:** 이 환경의 node는 PATH에 없다. 명령 앞에
+  `export PATH="$HOME/.local/opt/node22/bin:$PATH"`를 붙여라 (node v22.20.0, npm 10.9.3).
 
 ---
 
@@ -150,7 +163,7 @@ test("document가 없으면(서버 렌더링) false를 반환하고 예외를 �
 
 - [ ] **Step 3: 테스트를 돌려 실패를 확인한다**
 
-Run: `npm test`
+Run: `export PATH="$HOME/.local/opt/node22/bin:$PATH" && npm test`
 Expected: FAIL — `Cannot find module './firstRunFlags.ts'`
 
 - [ ] **Step 4: 최소 구현을 작성한다**
@@ -210,7 +223,7 @@ export function markTutorialSeen(): void {
 
 - [ ] **Step 5: 테스트를 돌려 통과를 확인한다**
 
-Run: `npm test`
+Run: `export PATH="$HOME/.local/opt/node22/bin:$PATH" && npm test`
 Expected: PASS — 새 테스트 6개를 포함해 전부 통과
 
 - [ ] **Step 6: 커밋**
@@ -354,12 +367,13 @@ Step 3의 `runPreload` 바로 아래에 추가:
 - [ ] **Step 7: 타입 검사와 테스트를 돌린다**
 
 ```bash
+export PATH="$HOME/.local/opt/node22/bin:$PATH"
 npx tsc --noEmit
 npm test
 npm run lint
 ```
 
-Expected: 셋 다 통과. `startGame`에 기본값 `false`를 줬으므로 `page.tsx`의 기존 호출부(`onStart={game.startGame}`)는 수정 없이 컴파일된다.
+Expected: `tsc`와 `npm test`는 통과. `npm run lint`는 기준선(24 problems / 17 errors)에서 늘어나더라도, 늘어난 것이 `react-hooks/set-state-in-effect`와 `@typescript-eslint/no-explicit-any`뿐이면 정상이다(Global Constraints 참고). 그 외 종류의 오류가 새로 나오면 고쳐라. `startGame`에 기본값 `false`를 줬으므로 `page.tsx`의 기존 호출부(`onStart={game.startGame}`)는 수정 없이 컴파일된다.
 
 - [ ] **Step 8: 겉보기 동작이 그대로인지 수동 확인한다**
 
@@ -531,12 +545,13 @@ import { hasAcknowledgedTerm, markTermAcknowledged } from "./lib/firstRunFlags";
 - [ ] **Step 4: 검사를 돌린다**
 
 ```bash
+export PATH="$HOME/.local/opt/node22/bin:$PATH"
 npx tsc --noEmit
 npm run lint
 npm test
 ```
 
-Expected: 전부 통과
+Expected: `tsc`와 `npm test`는 통과. `npm run lint`는 기준선(24 problems / 17 errors) 대비 늘어난 것이 `react-hooks/set-state-in-effect`와 `@typescript-eslint/no-explicit-any`뿐이면 정상(Global Constraints 참고).
 
 - [ ] **Step 5: 수동 확인**
 
@@ -814,12 +829,13 @@ export default function TutorialScreen({
 - [ ] **Step 3: 검사를 돌린다**
 
 ```bash
+export PATH="$HOME/.local/opt/node22/bin:$PATH"
 npx tsc --noEmit
 npm run lint
 npm test
 ```
 
-Expected: 전부 통과. 이 시점에는 컴포넌트가 아직 어디서도 렌더되지 않으므로 화면에는 변화가 없다.
+Expected: `tsc`와 `npm test`는 통과. `npm run lint`는 기준선(24 problems / 17 errors) 대비 늘어난 것이 `react-hooks/set-state-in-effect`와 `@typescript-eslint/no-explicit-any`뿐이면 정상(Global Constraints 참고).. 이 시점에는 컴포넌트가 아직 어디서도 렌더되지 않으므로 화면에는 변화가 없다.
 
 - [ ] **Step 4: 커밋**
 
@@ -969,12 +985,13 @@ import {
 - [ ] **Step 4: 검사를 돌린다**
 
 ```bash
+export PATH="$HOME/.local/opt/node22/bin:$PATH"
 npx tsc --noEmit
 npm run lint
 npm test
 ```
 
-Expected: 전부 통과
+Expected: `tsc`와 `npm test`는 통과. `npm run lint`는 기준선(24 problems / 17 errors) 대비 늘어난 것이 `react-hooks/set-state-in-effect`와 `@typescript-eslint/no-explicit-any`뿐이면 정상(Global Constraints 참고).
 
 - [ ] **Step 5: 수동 확인 — 최초 실행 경로**
 
