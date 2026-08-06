@@ -15,7 +15,7 @@ interface GatchaSetting {
 
 interface GatchaCase {
   gatcha_case_id: string
-  gatcha_case_name: string
+  gatcha_case_name: any
   min_score: number
   max_score: number
 }
@@ -76,12 +76,20 @@ export default function CouponsPage() {
   const [webCouponSettings, setWebCouponSettings] = useState<any>(null)
   const [activeLanguages, setActiveLanguages] = useState<SupportedLanguage[]>([])
   
-  // Modal State for Multilingual text
+  // Modal State for Multilingual text (Coupons)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCouponIndex, setEditingCouponIndex] = useState<number | null>(null)
   const [modalNameData, setModalNameData] = useState<Record<string, string>>({})
   const [modalDescData, setModalDescData] = useState<Record<string, string>>({})
   
+  // Modal State for Gatcha Cases
+  const [isCaseModalOpen, setIsCaseModalOpen] = useState(false)
+  const [editingCaseIndex, setEditingCaseIndex] = useState<number | null>(null)
+  const [caseModalNameData, setCaseModalNameData] = useState<Record<string, string>>({})
+
+  // Ranking Data for Stats
+  const [rankingData, setRankingData] = useState<any[]>([])
+
   // Delete Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [couponToDelete, setCouponToDelete] = useState<number | null>(null)
@@ -117,12 +125,22 @@ export default function CouponsPage() {
     const { data: langs } = await supabase.from('supported_languages').select('*').eq('is_active', true).order('order_index')
     if (langs) setActiveLanguages(langs)
 
+    // Fetch Ranking View
+    const { data: rankData } = await supabase.from('ranking_view').select('gookbap_score')
+    if (rankData) setRankingData(rankData)
+
     setLoading(false)
   }
 
   useEffect(() => {
     fetchAll()
   }, [])
+
+  const getBracketStats = (min: number, max: number) => {
+    if (rankingData.length === 0) return { count: 0, percent: 0 }
+    const inBracket = rankingData.filter(r => r.gookbap_score >= min && r.gookbap_score <= max).length
+    return { count: inBracket, percent: (inBracket / rankingData.length) * 100 }
+  }
 
   // --- Settings Logic ---
   const handleSettingsChange = (field: keyof GatchaSetting, value: string) => {
@@ -149,23 +167,32 @@ export default function CouponsPage() {
   const handleAddCase = () => {
     if (gatchaCases.length === 0) return
     const newCases = [...gatchaCases]
-    const lastCase = newCases[newCases.length - 1]
+    const topCase = newCases[0]
     
-    if (lastCase.max_score - lastCase.min_score < 2) {
-      alert('더 이상 분할할 수 없습니다.')
-      return
+    if (topCase.max_score - topCase.min_score < 1) {
+      newCases.forEach(c => {
+        c.min_score += 1
+        c.max_score += 1
+      })
+      newCases.unshift({
+        gatcha_case_id: 'new-' + Date.now(),
+        gatcha_case_name: '{"ko": "새 구간", "en": "New"}',
+        min_score: 0,
+        max_score: 0
+      })
+    } else {
+      const mid = Math.floor((topCase.min_score + topCase.max_score) / 2)
+      const oldMax = topCase.max_score
+      topCase.max_score = mid
+      
+      newCases.splice(1, 0, {
+        gatcha_case_id: 'new-' + Date.now(),
+        gatcha_case_name: '{"ko": "새 구간", "en": "New"}',
+        min_score: mid + 1,
+        max_score: oldMax
+      })
     }
 
-    const mid = Math.floor((lastCase.min_score + lastCase.max_score) / 2)
-    const oldMax = lastCase.max_score
-    lastCase.max_score = mid
-
-    newCases.push({
-      gatcha_case_id: 'new-' + Date.now(), // Temp ID
-      gatcha_case_name: '새로운 구간',
-      min_score: mid + 1,
-      max_score: oldMax
-    })
     setGatchaCases(newCases)
   }
 
@@ -188,10 +215,36 @@ export default function CouponsPage() {
     setGatchaCases(newCases)
   }
 
-  const handleCaseNameChange = (index: number, val: string) => {
+  const handleFinalMaxScoreUpdate = (finalVal: number) => {
     const newCases = [...gatchaCases]
-    newCases[index].gatcha_case_name = val
+    newCases[newCases.length - 1].max_score = finalVal
     setGatchaCases(newCases)
+  }
+
+  const openCaseModal = (index: number) => {
+    let existingName = {}
+    if (typeof gatchaCases[index].gatcha_case_name === 'string') {
+      existingName = safeParseJSON(gatchaCases[index].gatcha_case_name as string)
+    } else {
+      existingName = { ...gatchaCases[index].gatcha_case_name }
+    }
+    const initName: Record<string, string> = { ...existingName }
+    
+    activeLanguages.forEach(lang => {
+      if (!initName[lang.lang_code]) initName[lang.lang_code] = ''
+    })
+    
+    setCaseModalNameData(initName)
+    setEditingCaseIndex(index)
+    setIsCaseModalOpen(true)
+  }
+
+  const saveCaseModal = () => {
+    if (editingCaseIndex === null) return
+    const newCases = [...gatchaCases]
+    newCases[editingCaseIndex].gatcha_case_name = JSON.stringify(caseModalNameData) as any
+    setGatchaCases(newCases)
+    setIsCaseModalOpen(false)
   }
 
 
@@ -505,14 +558,19 @@ export default function CouponsPage() {
             {gatchaCases.map((c, i) => (
               <div key={c.gatcha_case_id} className="flex flex-col items-center w-full space-y-4">
                 {/* Case Name Box */}
-                <div className="relative w-full max-w-xs group flex items-center justify-center">
-                  <input
-                    type="text"
-                    value={c.gatcha_case_name}
-                    onChange={e => handleCaseNameChange(i, e.target.value)}
-                    className="w-full text-center text-lg font-bold py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-200 dark:border-blue-800/50 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="구간명"
-                  />
+                <div className="relative w-full max-w-xs group flex flex-col items-center justify-center">
+                  <div
+                    onClick={() => openCaseModal(i)}
+                    className="w-full text-center py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-200 dark:border-blue-800/50 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/30 transition-all flex flex-col items-center justify-center gap-1"
+                  >
+                    <span className="text-lg font-bold">
+                      {getKoText(typeof c.gatcha_case_name === 'string' ? c.gatcha_case_name : JSON.stringify(c.gatcha_case_name))}
+                    </span>
+                    <span className="text-sm font-medium opacity-80 flex items-center gap-1">
+                      {getBracketStats(c.min_score, c.max_score).count}명 
+                      <span className="text-xs">({getBracketStats(c.min_score, c.max_score).percent.toFixed(1)}%)</span>
+                    </span>
+                  </div>
                   {i > 0 && (
                     <button
                       onClick={() => handleDeleteCase(i)}
@@ -590,7 +648,7 @@ export default function CouponsPage() {
                 </th>
                 {gatchaCases.map(c => (
                   <th key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 bg-purple-50 dark:bg-purple-900/20 px-4 py-3 text-sm font-bold text-purple-800 dark:text-purple-300 text-right w-40">
-                    {c.gatcha_case_name}<br/>
+                    {getKoText(typeof c.gatcha_case_name === 'string' ? c.gatcha_case_name : JSON.stringify(c.gatcha_case_name))}<br/>
                     <span className="text-[11px] font-normal opacity-75">({c.min_score} ~ {c.max_score})</span>
                   </th>
                 ))}
@@ -780,6 +838,56 @@ export default function CouponsPage() {
               </button>
               <button onClick={executeRemoveCoupon} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors shadow-sm">
                 강제 삭제하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Case Multilingual Modal */}
+      {isCaseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsCaseModalOpen(false)} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-lg ring-1 ring-gray-200 dark:ring-zinc-800 flex flex-col">
+            <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                <Globe className="w-5 h-5 mr-2 text-blue-500" />
+                구간명 다국어 편집
+              </h3>
+              <button onClick={() => setIsCaseModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto max-h-[60vh] space-y-4">
+              {activeLanguages.map(lang => (
+                <div key={lang.lang_code} className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-lg">
+                  <div className="mb-2">
+                    <span className="text-xs font-bold px-2 py-1 bg-gray-200 dark:bg-zinc-700 rounded text-gray-700 dark:text-zinc-300 uppercase">
+                      {lang.lang_code} - {lang.lang_name}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-zinc-400 mb-1">구간 이름</label>
+                      <input
+                        type="text"
+                        value={caseModalNameData[lang.lang_code] || ''}
+                        onChange={(e) => setCaseModalNameData({ ...caseModalNameData, [lang.lang_code]: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="p-5 border-t border-gray-100 dark:border-zinc-800 flex justify-end gap-3 shrink-0">
+              <button onClick={() => setIsCaseModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                취소
+              </button>
+              <button onClick={saveCaseModal} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                적용하기
               </button>
             </div>
           </div>

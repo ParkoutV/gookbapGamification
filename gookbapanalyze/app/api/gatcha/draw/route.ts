@@ -45,22 +45,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3.5 Check Survey Phase 1 Completion
-    const { data: p1Questions } = await supabase
+    // 3.5 Check Survey Phase 1 Completion (All required questions)
+    const { data: p1RequiredQuestions } = await supabase
       .from('survey_questions')
       .select('question_id')
       .eq('survey_phase', 1)
+      .eq('is_required', true)
+      .eq('is_active', true)
 
-    if (p1Questions && p1Questions.length > 0) {
-      const p1Ids = p1Questions.map(q => q.question_id)
+    if (p1RequiredQuestions && p1RequiredQuestions.length > 0) {
+      const p1RequiredIds = p1RequiredQuestions.map(q => q.question_id)
+      
       const { data: p1Responses, error: p1Error } = await supabase
         .from('survey_responses')
-        .select('response_id')
+        .select('question_id')
         .eq('participant_id', participant_id)
-        .in('question_id', p1Ids)
-        .limit(1)
+        .in('question_id', p1RequiredIds)
 
-      if (p1Error || !p1Responses || p1Responses.length === 0) {
+      if (p1Error || !p1Responses || p1Responses.length < p1RequiredIds.length) {
         return NextResponse.json({ error: '설문조사를 먼저 완료해주세요.', code: 'SURVEY_REQUIRED' }, { status: 403 })
       }
     }

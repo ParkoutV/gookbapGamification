@@ -151,7 +151,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 ### 10. `gatcha_cases` & `gatcha_settings` (가챠/룰렛 설정) (Admin: ALL, Everyone: SELECT)
 **[`gatcha_cases` - 가챠 점수 구간]**
 * **`gatcha_case_id`** (`uuid`, Primary Key): 점수 구간 식별자.
-* **`gatcha_case_name`** (`text`): "브론즈", "골드" 등 점수 구간의 이름.
+* **`gatcha_case_name`** (`jsonb`): "브론즈", "골드" 등 점수 구간의 다국어 이름 (JSON 파싱).
 * **`min_score` / `max_score`** (`integer`): 구간의 최소/최대 점수.
   * *제약조건:* `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 로 DB 레벨에서 구간 무결성이 강제됩니다. 1953점을 초과하는 구간 설정은 원천 차단됩니다.
 
@@ -518,7 +518,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   (설문을 진행하지 않은 유저가 발급을 요청할 경우 403 상태 코드와 함께 오류 반환)
   ```json
   {
-    "error": "설문조사(Phase 1)를 완료해야 쿠폰을 발급받을 수 있습니다.",
+    "error": "설문조사(Phase 1)의 필수 항목을 모두 완료해야 쿠폰을 발급받을 수 있습니다.",
     "survey_required": true
   }
   ```
