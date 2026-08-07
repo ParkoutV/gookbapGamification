@@ -10,6 +10,7 @@ import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
+import { toSurveyFetchResult, type SurveyFetchResult } from "./lib/surveyFetchResult";
 import {
   buildSurveyResponseRows,
   type SurveyAnswerMap,
@@ -383,42 +384,37 @@ export async function reassignNickname(): Promise<ParticipantResult> {
   }
 }
 
-type SurveyQuestionRow = {
-  question_id: number;
-  question_type: number;
-  question_text: LocalizedName;
-  options: LocalizedName[] | null;
-};
-
 /**
  * 쿠폰 받기 전 노출되는 Phase 1 설문 문항을 가져온다.
  * survey_questions는 Everyone SELECT가 허용되어 있어 직접 조회해도 된다
  * (gookbapanalyze/AGENTS.md).
+ *
+ * 반환값이 배열이 아니라 SurveyFetchResult인 이유: 조회 실패와 "문항 0건"을
+ * 호출부가 구분해야 하기 때문이다. 둘 다 []를 반환하던 이전 구현에서는
+ * DB 장애가 조용한 설문 스킵으로 위장돼 원인 파악이 불가능했다.
+ *
+ * 비활성 문항은 제외하되, 조건은 `is_active = true`가 아니라
+ * **`is_active`가 false가 아닌 것**이다. Postgres에서 `= true`는 NULL을 매칭하지
+ * 않으므로, `is_active`가 NULL인 기존 row(컬럼 추가 이전에 만들어진 문항 등)가
+ * 통째로 사라진다. 설문이 빈 목록으로 보이는 장애를 고치러 와서 오히려 영구적인
+ * 빈 목록을 만들 수 있어, 명시적으로 false인 것만 제외한다.
  */
-export async function fetchSurveyQuestions(): Promise<SurveyQuestion[]> {
+export async function fetchSurveyQuestions(): Promise<SurveyFetchResult> {
   try {
     const { data, error } = await supabase
       .from("survey_questions")
-      .select("question_id, question_type, question_text, options")
+      .select("question_id, question_type, question_text, options, is_required")
       .eq("survey_phase", 1)
+      .not("is_active", "is", false)
       .order("order_index", { ascending: true });
 
     if (error) {
       console.error("[fetchSurveyQuestions] 조회 실패:", error);
-      return [];
     }
-
-    return (data ?? []).map((row: SurveyQuestionRow) => ({
-      questionId: row.question_id,
-      questionType: (row.question_type === 1 || row.question_type === 2
-        ? row.question_type
-        : 0) as 0 | 1 | 2,
-      text: row.question_text,
-      options: row.options ?? [],
-    }));
+    return toSurveyFetchResult(data, error);
   } catch (error) {
     console.error("[fetchSurveyQuestions] 예기치 못한 예외:", error);
-    return [];
+    return { ok: false, questions: [] };
   }
 }
 

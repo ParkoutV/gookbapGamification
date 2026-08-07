@@ -87,7 +87,8 @@ export const ko: Dictionary = {
   "survey.submitButton": "제출하고 룰렛 돌리기",
   "survey.submitting": "제출 중...",
   "survey.submitError": "제출에 실패했어요. 다시 시도해주세요.",
-  "survey.requiredNotice": "모든 문항에 답해주세요.",
+  "survey.requiredNotice": "필수 문항에 답해주세요.",
+  "survey.optional": "(선택)",
 
   "wheel.title": "행운의 돌림판",
   "wheel.spinning": "쿠폰을 뽑는 중...",

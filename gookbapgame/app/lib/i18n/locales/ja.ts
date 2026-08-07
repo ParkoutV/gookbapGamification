@@ -89,7 +89,8 @@ export const ja: Partial<Dictionary> = {
   "survey.submitButton": "送信してルーレットを回す",
   "survey.submitting": "送信中...",
   "survey.submitError": "送信に失敗しました。もう一度お試しください。",
-  "survey.requiredNotice": "すべての質問にお答えください。",
+  "survey.requiredNotice": "必須の質問にお答えください。",
+  "survey.optional": "（任意）",
 
   "wheel.title": "幸運のルーレット",
   "wheel.spinning": "クーポンを抽選中...",

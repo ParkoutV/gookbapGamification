@@ -1,7 +1,8 @@
 import type { LocalizedName } from "./i18n/localizedName.ts";
 
 export type SurveyQuestion = {
-  questionId: number;
+  /** survey_questions.question_id는 uuid다(gookbapanalyze/AGENTS.md). 숫자가 아니다. */
+  questionId: string;
   /** 0: 단일 선택, 1: 다중 선택, 2: 주관식 단답형 */
   questionType: 0 | 1 | 2;
   text: LocalizedName;
@@ -11,10 +12,12 @@ export type SurveyQuestion = {
    * (gookbapanalyze/AGENTS.md).
    */
   options: LocalizedName[];
+  /** false면 선택 문항. 미응답이어도 제출할 수 있다. */
+  isRequired: boolean;
 };
 
-/** 키는 questionId. 선택형은 선택한 옵션 인덱스 배열, 주관식은 입력 문자열. */
-export type SurveyAnswerMap = Record<number, number[] | string>;
+/** 키는 questionId(uuid). 선택형은 선택한 옵션 인덱스 배열, 주관식은 입력 문자열. */
+export type SurveyAnswerMap = Record<string, number[] | string>;
 
 /**
  * 문항 하나당 행 하나. 답변은 answer_data(jsonb) 한 컬럼에 담는다.
@@ -22,7 +25,7 @@ export type SurveyAnswerMap = Record<number, number[] | string>;
  * type 0 → 인덱스 숫자, type 1 → 인덱스 배열, type 2 → 문자열.
  */
 export type SurveyResponseRow = {
-  question_id: number;
+  question_id: string;
   answer_data: number | number[] | string;
 };
 

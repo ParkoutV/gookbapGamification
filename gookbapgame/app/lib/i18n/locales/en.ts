@@ -87,7 +87,8 @@ export const en: Partial<Dictionary> = {
   "survey.submitButton": "Submit and spin",
   "survey.submitting": "Submitting...",
   "survey.submitError": "Submission failed. Please try again.",
-  "survey.requiredNotice": "Please answer every question.",
+  "survey.requiredNotice": "Please answer the required questions.",
+  "survey.optional": "(optional)",
 
   "wheel.title": "Wheel of Fortune",
   "wheel.spinning": "Drawing your coupon...",
