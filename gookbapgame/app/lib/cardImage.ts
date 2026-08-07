@@ -15,6 +15,25 @@ const CARD_H = 1371;
 /** 화면의 CARD_FACE_INK와 같은 값. 밝은 카드면 위의 글자색이다. */
 const INK = "#3A2E24";
 
+/**
+ * 이모지 폰트의 실제 family 이름. next/font가 이름을 해싱하므로 하드코딩할 수 없고,
+ * layout.tsx가 심어둔 CSS 변수(--font-emoji)에서 읽는다.
+ *
+ * 그 변수에는 폰트가 **두 개** 들어 있다(`"notoEmoji", "notoEmoji Fallback"`).
+ * 뒤엣것은 next/font가 레이아웃 시프트를 줄이려고 만든 로컬 메트릭 폰트라
+ * 네트워크에서 받을 수 없다 — 목록을 통째로 document.fonts.load()에 넘기면
+ * 그걸 받으려다 NetworkError가 난다. 그래서 첫 항목만 떼어 쓴다.
+ */
+function emojiFontFamily(): string {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-emoji")
+    .trim();
+  const first = value.split(",")[0]?.trim() ?? "";
+  // 변수를 못 찾으면 빈 문자열이 되는데, 그대로 font 문자열에 넣으면 파싱이 깨져
+  // 폰트 지정 전체가 무시된다. 그럴 바엔 sans-serif만 남기는 편이 안전하다.
+  return first || "sans-serif";
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -78,6 +97,16 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas 2d 컨텍스트를 만들 수 없습니다.");
 
+  // 폰트가 아직 안 받아졌으면 canvas는 조용히 폴백으로 그린다 — 저장본만 시스템
+  // 이모지가 되어 화면과 달라진다. 그리기 전에 로드를 확실히 해둔다.
+  const emojiFont = emojiFontFamily();
+  try {
+    await document.fonts.load(`64px ${emojiFont}`, input.emoji);
+  } catch (error) {
+    // 실패해도 그리기는 계속한다. 이모지 모양이 폴백이 될 뿐 카드는 나온다.
+    console.error("[renderCardImage] 이모지 폰트 로드 실패:", error);
+  }
+
   const background = await loadImage("/icons/card-front.webp");
   ctx.drawImage(background, 0, 0, CARD_W, CARD_H);
 
@@ -107,13 +136,11 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
 
   // 코너 마크는 파인 정사각의 중앙에 놓는다.
   //
-  // 이모지는 시스템 폰트를 그대로 쓴다 — 저장된 PNG의 이모지 모양이 기기마다
-  // 달라지지만(아이폰은 Apple, 안드로이드/리눅스는 Noto) 의도한 동작이다
-  // (2026-08-07 결정, 이란토). 통일하려면 컬러 이모지 웹폰트를 실어야 하는데
-  // Noto Color Emoji가 10MB 안팎이라 장식 하나 때문에 지불할 비용이 아니다.
-  // 상품을 알아보는 데는 지장이 없고, 사용자에겐 자기 기기의 이모지가 더 익숙하다.
+  // 화면과 같은 흑백 서브셋 폰트를 쓴다. sans-serif로 두면 시스템 이모지가 잡혀
+  // 저장본만 컬러가 되고 기기마다 모양도 달라진다. 폰트 이름은 next/font가
+  // 해싱하므로 CSS 변수에서 실제 이름을 읽어온다.
   ctx.fillStyle = INK;
-  ctx.font = "64px sans-serif";
+  ctx.font = `64px ${emojiFont}, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(input.emoji, left + notch / 2, top + notch / 2);

@@ -69,6 +69,18 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     DOM 캡처가 아니라 같은 구성을 canvas에 다시 그린 것이라, 두 곳이 같은 좌표(13%/11%
     inset, 노치 크기, 코너 마크 위치, QR 비율)를 각각 들고 있다. 한쪽만 고치면 화면과
     저장본이 조용히 달라진다(실제로 한 번 어긋났다 — 화면엔 노치, 저장본엔 민무늬 사각형).
+  - **이모지는 흑백 서브셋 폰트를 쓴다**(`public/fonts/NotoEmoji-subset.woff2`, 21KB).
+    시스템 이모지는 대부분 컬러라 픽셀 아트 + 어두운 우드톤 화면에서 튀고 기기마다
+    모양도 다르다. `globals.css`의 `font-family`에서 **본문 폰트보다 앞에** 둬야
+    이모지를 가로챈다(서브셋이라 한글·라틴은 자연히 다음 폰트로 넘어간다).
+    - **`couponEmoji.ts`에 이모지를 추가하면 폰트를 다시 만들어야 한다.** 서브셋에
+      없는 글자는 에러 없이 두부(􏿽)로 보인다 — `python3 docs/check-emoji-font.py`로
+      검사하고, `bash docs/build-emoji-font.sh`로 다시 만든다. 여유분을 넣어둬서
+      (63자 수록, 29자 사용) 웬만한 추가는 바로 된다.
+    - canvas(`cardImage.ts`)도 같은 폰트를 쓴다. `--font-emoji` 변수에는 폰트가 **두 개**
+      들어 있는데(`"notoEmoji", "notoEmoji Fallback"`), 뒤엣것은 next/font의 로컬 메트릭
+      폰트라 네트워크에서 받을 수 없다 — 목록째로 `document.fonts.load()`에 넘기면
+      NetworkError가 난다. 첫 항목만 떼어 쓸 것.
   - **저장 이미지는 카드가 뒤집힐 때 미리 굽는다.** 버튼을 누른 뒤에 굽기 시작하면 안 된다 —
     iOS Safari는 `navigator.share`를 사용자 제스처가 유효한 동안에만 허용하는데, 탭과
     호출 사이에 이미지 로드·직렬화가 끼면 `NotAllowedError`로 거부되고 공유 시트 대신

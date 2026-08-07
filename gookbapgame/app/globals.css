@@ -33,7 +33,11 @@
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-body), -apple-system, "Apple SD Gothic Neo", sans-serif;
+  /* 이모지 폰트를 맨 앞에 둔다. 뒤에 두면 시스템 컬러 이모지가 먼저 잡혀
+     화면 톤에서 튄다. 서브셋이라 이모지 말고는 글리프가 없어서, 한글·라틴은
+     자연히 다음 폰트로 넘어간다 — 본문 서체를 가리지 않는다. */
+  font-family: var(--font-emoji), var(--font-body), -apple-system, "Apple SD Gothic Neo",
+    sans-serif;
 }
 
 /* 픽셀 모서리 깎기 — clip-path 단일 경로.
