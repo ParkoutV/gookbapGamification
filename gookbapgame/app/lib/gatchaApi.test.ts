@@ -4,7 +4,7 @@ import { requestGatchaDraw } from "./gatchaApi.ts";
 
 const API_URL = "https://analyze.example.com/api/gatcha/draw";
 
-test("requestGatchaDraw: 당첨 응답이면 won:true와 couponType을 반환한다", async () => {
+test("requestGatchaDraw: 당첨 응답이면 won:true를 반환한다(상품명은 싣지 않는다)", async () => {
   const originalFetch = globalThis.fetch;
   let capturedInit: RequestInit | undefined;
   globalThis.fetch = (async (_url: string, init?: RequestInit) => {
@@ -17,7 +17,7 @@ test("requestGatchaDraw: 당첨 응답이면 won:true와 couponType을 반환한
 
   try {
     const result = await requestGatchaDraw(API_URL, "participant-1");
-    assert.deepEqual(result, { ok: true, won: true, couponType: { ko: "국밥 1그릇 무료", en: "Free Gookbap" } });
+    assert.deepEqual(result, { ok: true, won: true });
     assert.equal(capturedInit?.method, "POST");
     assert.deepEqual(JSON.parse(capturedInit?.body as string), { participant_id: "participant-1" });
   } finally {

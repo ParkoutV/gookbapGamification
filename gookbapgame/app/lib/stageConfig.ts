@@ -1,5 +1,12 @@
 export type StageDef = {
   level: number;
+  /**
+   * **폴백값이다.** 실제 출제 개수는 뽑힌 이미지의 `base_images.questions_count`가
+   * 정한다(대시보드에서 이미지마다 설정, 어느 레벨에 나올지도 이미지가 정한다).
+   * 이 값은 그 컬럼이 비었을 때만 쓰인다 — `fetchGameData` 참고.
+   *
+   * 2026-08-07 이전에는 이쪽이 유일한 기준이라 대시보드 설정이 무시됐다.
+   */
   diffCount: number;
   pointPool: number;
 };
@@ -53,6 +60,11 @@ export function calcTimeBonus(elapsedSec: number, accuracyPercent: number): numb
   return Math.max(0, tierPoints - TIME_BONUS_STEP_VALUE * steps);
 }
 
+// ponytail: 총 문항 수가 바뀌면 콤보 만점 도달 난이도가 달라진다(아래 식이
+// streakLength/totalAnswers의 제곱이라, 문항이 적을수록 한 문제의 비중이 커진다).
+// 2026-08-07에 출제 개수가 STAGE_CONFIG 고정에서 이미지별 questions_count로
+// 바뀌면서 총 문항이 유동적이 됐다 — 대시보드 값이 확정되면 밸런스 재검토 필요.
+// 지금 손대지 않는 이유는 조정 기준이 될 실제 설정값이 아직 없어서다.
 export const COMBO_BONUS_MAX = 553;
 
 export function calcComboBonusForStreak(streakLength: number, totalAnswers: number): number {

@@ -8,6 +8,7 @@ import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
 import HintClipboard from "./HintClipboard";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
+import { resolveHitTargetBox } from "../lib/hitTarget";
 
 interface GameScreenProps {
   session: GameSession;
@@ -145,27 +146,80 @@ export default function GameScreen({
   /**
    * 히트 영역. 파트 실루엣 모양대로 clip-path를 씌워 정확한 곳만 눌리게 한다.
    *
+   * 크기 보정은 두 단계다(2026-08-07, 이란토). 규칙은 `resolveHitTargetBox`에 있다.
+   * 1. **최소 56px 보장** — 어느 한 축이라도 미달이면(OR) 그 축만 늘린다. 실측상
+   *    3·4·6단계에 유효 면적이 9~15px뿐인 슬롯이 있었고, 맞게 눌러도 빗나갔다.
+   *    이 경우 clip-path는 포기한다 — 폴리곤이 %라 박스를 키우면 같은 비율로
+   *    커져서 유효 면적이 원래대로 작게 남기 때문이다.
+   * 2. **safe-zone 5px** — 크기가 충분한 슬롯도 테두리 바깥에 여유를 준다.
+   *    가장자리를 아슬하게 눌러도 정답이 된다.
+   * 3. **무판정 구역 5px** — 그 바깥 한 겹은 정답도 오답도 아니다. 아래
+   *    renderDeadZones가 그린다.
+   *
    * **정답 표시를 이 안에 넣지 말 것.** clip-path는 서브트리 전체에 적용되고
    * 자식이 취소할 수 없어서(`[clip-path:none]`도 소용없다), 실루엣 밖으로 나가는
    * 만큼 마커가 잘려 나가고 슬롯마다 크기도 달라 보인다. 마커는 아래
    * renderFoundMarks가 형제 레이어로 그린다 — renderWrongMarks와 같은 구조다.
    */
   const renderClickOverlays = (side: "left" | "right") =>
-    differenceSlots.map((slot) => (
-      <div
-        key={slot.slotId}
-        className="absolute cursor-pointer"
-        style={{
-          left: `${slot.x * scale}px`,
-          top: `${slot.y * scale}px`,
-          width: `${100 * slot.slotScale * scale}px`,
-          height: `${100 * slot.slotScale * scale}px`,
-          clipPath: buildClipPath(side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon),
-          zIndex: 1,
-        }}
-        onClick={handleSlotClick(slot.slotId)}
-      />
-    ));
+    differenceSlots.map((slot) => {
+      const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
+      const slotSizePx = 100 * slot.slotScale * scale;
+      const box = resolveHitTargetBox(slotSizePx, polygon);
+
+      return (
+        <div
+          key={slot.slotId}
+          className="absolute cursor-pointer"
+          style={{
+            left: `${slot.x * scale - box.offsetX}px`,
+            top: `${slot.y * scale - box.offsetY}px`,
+            width: `${box.width}px`,
+            height: `${box.height}px`,
+            clipPath: box.useClipPath ? buildClipPath(box.polygon) : undefined,
+            zIndex: 1,
+          }}
+          onClick={handleSlotClick(slot.slotId)}
+        />
+      );
+    });
+
+  /**
+   * 무판정 구역. 정답 영역 바깥 한 겹으로, 여기를 누르면 **아무 일도 일어나지
+   * 않는다**(2026-08-07, 이란토). 거의 맞힌 터치를 오답으로 세지 않기 위한
+   * 완충이다 — 오답은 3회 제한과 10점 감점이 걸려 있어 체감이 크다.
+   *
+   * 배경(오답 판정)보다 위, 정답 영역보다 아래에 깔린다. 하는 일은
+   * `stopPropagation`으로 클릭이 배경까지 내려가지 않게 막는 것뿐이다.
+   *
+   * **이미 찾은 슬롯은 제외한다.** 정답 영역은 `handleSlotClick`이 자체적으로
+   * 걸러내지만 여기까지 남겨두면, 다 맞힌 뒤 그 자리를 눌렀을 때 오답으로도
+   * 처리되지 않는 죽은 영역이 계속 남는다.
+   */
+  const renderDeadZones = (side: "left" | "right") =>
+    differenceSlots
+      .filter((slot) => !foundSlots.has(slot.slotId))
+      .map((slot) => {
+        const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
+        const slotSizePx = 100 * slot.slotScale * scale;
+        const { deadZone, useClipPath } = resolveHitTargetBox(slotSizePx, polygon);
+
+        return (
+          <div
+            key={`dead-${slot.slotId}`}
+            className="absolute"
+            style={{
+              left: `${slot.x * scale - deadZone.offsetX}px`,
+              top: `${slot.y * scale - deadZone.offsetY}px`,
+              width: `${deadZone.width}px`,
+              height: `${deadZone.height}px`,
+              clipPath: useClipPath ? buildClipPath(deadZone.polygon) : undefined,
+              zIndex: 0,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        );
+      });
 
   /**
    * 정답 표시. 슬롯 중심에 고정 크기로 놓는다 — 히트 영역의 clip-path 바깥이라
@@ -237,6 +291,7 @@ export default function GameScreen({
             className="w-full h-full object-contain select-none pointer-events-none"
             onLoad={handleImageLoad}
           />
+          {renderDeadZones("left")}
           {renderClickOverlays("left")}
           {renderFoundMarks()}
           {renderWrongMarks("left")}
@@ -252,6 +307,7 @@ export default function GameScreen({
             alt="Scene Right"
             className="w-full h-full object-contain select-none pointer-events-none"
           />
+          {renderDeadZones("right")}
           {renderClickOverlays("right")}
           {renderFoundMarks()}
           {renderWrongMarks("right")}

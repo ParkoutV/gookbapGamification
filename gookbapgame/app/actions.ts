@@ -2,7 +2,7 @@
 
 import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
-import { clampDifferenceCount } from "./lib/gameSelection";
+import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
@@ -11,6 +11,19 @@ import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
+import { sortByIssuedAt, toIssuedCoupon, type IssuedCouponRow } from "./lib/issuedCoupons";
+import type { IssuedCoupon } from "./lib/issuedCoupons";
+
+/**
+ * 화면들이 `actions`에서 가져다 쓰던 타입이라 여기서도 계속 내보낸다.
+ *
+ * **`export type { IssuedCoupon }`(중괄호만) 형태로 쓰지 말 것.** 그러면 번들에
+ * 값 참조가 남아 런타임에 `ReferenceError: IssuedCoupon is not defined`로 터진다 —
+ * `tsc --noEmit`도 `next build`도 잡지 못하고, 프로덕션에서 이 파일의 서버 액션이
+ * **전부** 500이 된다(2026-08-07에 실제로 그랬다. 시작 화면의 `ensureParticipant`가
+ * 죽어 닉네임이 빈 채로 떴다). `from`을 붙여 원본에서 직접 re-export해야 지워진다.
+ */
+export type { IssuedCoupon } from "./lib/issuedCoupons";
 import { toSurveyFetchResult, type SurveyFetchResult } from "./lib/surveyFetchResult";
 import {
   buildSurveyResponseRows,
@@ -161,13 +174,22 @@ export async function fetchGameData(
       (categoryRows ?? []).map((row) => [row.id as number, row.name as LocalizedName])
     );
 
-    // 3. Determine differences — GDD 7.2가 정한 스테이지별 고정 목표치를 우선하되,
-    // 콘텐츠(유효 슬롯)가 그보다 적으면 있는 만큼만 차이로 지정한다(조용히 스킵하지 않음).
+    // 3. Determine differences — **출제 개수는 이미지가 정한다.**
+    // `base_images.questions_count`가 대시보드에서 이미지마다 설정하는 값이고
+    // (기본값 3, DB 트리거가 image_slots 개수 이하임을 보장), 어느 레벨에 나올지도
+    // 이미지의 `level`이 정한다. 그래서 같은 레벨이라도 뽑힌 이미지에 따라 개수가
+    // 다를 수 있다 — 이것이 의도된 설계다(2026-08-07, 이란토).
+    //
+    // `targetDiffCount`(STAGE_CONFIG)는 그 값이 없을 때만 쓰는 폴백이다. 예전에는
+    // 이쪽이 유일한 기준이라 대시보드에서 3개로 설정해도 레벨 7이 항상 7문항으로
+    // 나왔다.
+    const desiredCount = resolveQuestionsCount(selectedBaseImage.questions_count, targetDiffCount);
+
     const N = validSlots.length;
-    const numDifferences = clampDifferenceCount(targetDiffCount, N);
-    if (numDifferences < targetDiffCount) {
+    const numDifferences = clampDifferenceCount(desiredCount, N);
+    if (numDifferences < desiredCount) {
       console.warn(
-        `[fetchGameData] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${targetDiffCount})보다 적어 ${numDifferences}개로 축소함`
+        `[fetchGameData] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${desiredCount})보다 적어 ${numDifferences}개로 축소함`
       );
     }
 
@@ -447,14 +469,6 @@ export async function submitSurveyResponses(
   }
 }
 
-export type IssuedCoupon = {
-  couponId: string;
-  couponType: LocalizedName;
-  isUsed: boolean;
-  /** ISO 문자열. null이면 만료 없음. */
-  expiredAt: string | null;
-};
-
 export type DrawCouponResult =
   | { status: "won"; coupon: IssuedCoupon }
   /** 발급은 됐는데 get_my_coupons로 읽지 못한 상태. 설계 문서 미해결 항목 1번. */
@@ -465,25 +479,42 @@ export type DrawCouponResult =
   /** 네트워크·설정 오류. 재시도 버튼을 보여줄 상황. */
   | { status: "error"; message: string };
 
-type IssuedCouponRow = {
-  coupon_id: string;
-  /**
-   * `coupon_effects.coupon_type`은 jsonb가 아니라 **text**다 — 다국어 이름 맵이
-   * JSON **문자열**로 들어 있다(gookbapanalyze/AGENTS.md의 테이블 정의).
-   * 그래서 Supabase가 파싱해주지 않고 문자열 그대로 온다.
-   */
-  coupon_type: string | LocalizedName;
-  is_used: boolean;
-  expired_at: string | null;
-};
+/**
+ * `coupon_effect_id` → 다국어 상품명. `coupon_effects`는 RLS가 Everyone: SELECT라
+ * anon도 직접 읽을 수 있다(RPC 불필요).
+ *
+ * `coupon_type` 컬럼은 jsonb가 아니라 **text**라 다국어 맵이 JSON **문자열**로
+ * 들어 있다 — Supabase가 파싱해주지 않으므로 `parseCouponType`으로 편다.
+ *
+ * 조회에 실패해도 던지지 않는다. 이름이 없으면 "—"로 보일 뿐이지만, 여기서 던지면
+ * QR까지 사라져 쿠폰을 매장에서 쓸 수 없게 된다 — 이름보다 QR이 중요하다.
+ */
+async function fetchCouponNames(effectIds: string[]): Promise<Map<string, LocalizedName>> {
+  const names = new Map<string, LocalizedName>();
+  if (effectIds.length === 0) return names;
 
-function toIssuedCoupon(row: IssuedCouponRow): IssuedCoupon {
-  return {
-    couponId: row.coupon_id,
-    couponType: parseCouponType(row.coupon_type),
-    isUsed: row.is_used,
-    expiredAt: row.expired_at,
-  };
+  const { data, error } = await supabase
+    .from("coupon_effects")
+    .select("coupon_effect_id, coupon_type")
+    .in("coupon_effect_id", effectIds);
+
+  if (error) {
+    console.error("[fetchCouponNames] coupon_effects 조회 실패:", error);
+    return names;
+  }
+
+  for (const row of (data ?? []) as { coupon_effect_id: string; coupon_type: string }[]) {
+    names.set(row.coupon_effect_id, parseCouponType(row.coupon_type));
+  }
+
+  // Supabase의 SELECT RLS는 에러를 내지 않고 **행을 걸러낸다**(error: null, data: []).
+  // 그래서 위의 error 분기로는 권한 문제를 잡을 수 없고, 화면 증상은 이 수정 이전과
+  // 완전히 똑같아진다(이름 "—", 이모지 기본값). 이 로그가 없으면 배포 후에도
+  // 어느 층에서 끊겼는지 구분할 수 없다.
+  if (names.size < effectIds.length) {
+    console.error(`[fetchCouponNames] 이름 누락 ${names.size}/${effectIds.length}`, effectIds);
+  }
+  return names;
 }
 
 /**
@@ -499,17 +530,11 @@ export async function fetchMyCoupons(): Promise<IssuedCoupon[]> {
       return [];
     }
 
-    // RPC의 정렬 순서는 코드로 확인할 수 없다(마이그레이션 파일이 없는 프로덕션 전용 함수).
-    // drawCoupon()이 [0]을 "방금 발급된 쿠폰"으로 쓰기 때문에 순서가 뒤집히면
-    // 오래된 쿠폰의 QR을 새 당첨 상품으로 내보이게 된다 — 에러 없이 조용히 틀린다.
-    // 발급 시각 컬럼이 있으면 여기서 최신순으로 강제한다. Step 4에서 실제 반환 컬럼을
-    // 확인한 뒤 아래 컬럼명을 맞출 것.
-    const rows = (data ?? []) as (IssuedCouponRow & { created_at?: string })[];
-    const sorted = rows.every((r) => typeof r.created_at === "string")
-      ? [...rows].sort((a, b) => (a.created_at! < b.created_at! ? 1 : -1))
-      : rows;
+    const sorted = sortByIssuedAt((data ?? []) as IssuedCouponRow[]);
 
-    return sorted.map(toIssuedCoupon);
+    // 상품명은 별도 조회다 — RPC 응답에 없다(issuedCoupons.ts의 IssuedCouponRow 주석).
+    const names = await fetchCouponNames([...new Set(sorted.map((r) => r.coupon_effect_id))]);
+    return sorted.map((row) => toIssuedCoupon(row, names));
   } catch (error) {
     console.error("[fetchMyCoupons] 예기치 못한 예외:", error);
     return [];
