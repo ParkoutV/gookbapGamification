@@ -1,7 +1,12 @@
-import type { LocalizedName } from "./i18n/localizedName.ts";
-
 export type GatchaDrawResult =
-  | { ok: true; won: true; couponType: LocalizedName }
+  /**
+   * 당첨 여부만 알린다. **상품명은 여기서 가져가지 않는다** — draw 응답에는
+   * `coupon_id`가 없어서 `drawCoupon()`이 어차피 `get_my_coupons`로 쿠폰을 다시
+   * 읽고, 화면에 뜨는 것은 그쪽 결과다. 여기에 이름을 실어두면 아무도 쓰지 않는
+   * 두 번째 진실이 생긴다 — 실제로 그랬고, 소비처가 없다 보니 파싱이 빠진 것도
+   * 오래 눈에 띄지 않았다.
+   */
+  | { ok: true; won: true }
   | { ok: true; won: false }
   /** 서버가 의도적으로 거절(4xx) — 쿨타임/설문 미완료. 재시도해도 소용없다. */
   | { ok: false; rejected: true; error: string }
@@ -49,5 +54,5 @@ export async function requestGatchaDraw(
     return { ok: true, won: false };
   }
 
-  return { ok: true, won: true, couponType: body.coupon_type };
+  return { ok: true, won: true };
 }
