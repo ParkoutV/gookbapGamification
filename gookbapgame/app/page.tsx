@@ -12,6 +12,7 @@ import WheelScreen from "./components/WheelScreen";
 import MyCouponsScreen from "./components/MyCouponsScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
+import SoundToggle from "./components/SoundToggle";
 import TermNotice from "./components/TermNotice";
 import { useGameProgress } from "./hooks/useGameProgress";
 import { useCouponFlow } from "./hooks/useCouponFlow";
@@ -19,6 +20,7 @@ import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
+import { playSfx, unlockSfx, SFX } from "./lib/sfx";
 import {
   hasAcknowledgedTerm,
   markTermAcknowledged,
@@ -72,6 +74,12 @@ export default function Home({ searchParams }: PageProps) {
   // 쿠키는 클릭 이벤트에서만 읽으므로 서버 렌더 중에는 호출되지 않는다
   // (enterSurveyFlow의 hasSurveySubmitted와 같은 전제).
   const handleStart = useCallback(() => {
+    // 여기서 오디오 잠금을 푼다. iOS·Android는 사용자 제스처 없이 재생을 막으므로,
+    // 게임 안에서 정답 소리가 처음 나는 순간에는 이미 풀려 있어야 한다.
+    // 시작 버튼은 반드시 거치는 확실한 제스처 지점이다.
+    unlockSfx();
+    playSfx(SFX.touch);
+
     const withTutorial = !hasSeenTutorial();
     setTutorialMode("onboarding");
     startGame(withTutorial);
@@ -190,7 +198,12 @@ export default function Home({ searchParams }: PageProps) {
   return (
     <div className="min-h-screen bg-black">
       {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
-      <LanguageToggle />
+      {/* 화면 위에 늘 떠 있는 도구 모음. 각 버튼이 스스로 fixed를 갖지 않고
+          여기서 위치를 정한다 — 따로 두면 서로 겹친다. */}
+      <div className="fixed top-2 left-2 z-[60] flex items-start gap-2">
+        <LanguageToggle />
+        <SoundToggle />
+      </div>
       {game.phase === "start" && (
         <StartScreen
           nickname={game.nickname}

@@ -55,3 +55,52 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   최고 점수가 0이 되어 모든 플레이어가 최저 gatcha_cases 구간으로 뽑힌다.
 - **`issued_coupons` 직접 SELECT 금지** — RLS로 막혀 있다. `get_my_coupons` RPC 필수
   (`gookbapanalyze/AGENTS.md`).
+- **`wheel` 단계의 연출은 룰렛이 아니라 카드 뒤집기다**(2026-08-07). 키 이름과 단계
+  이름만 `wheel`로 남아 있다 — 이름만 보고 룰렛으로 되돌리지 말 것.
+  - draw는 `WheelScreen` 마운트 시 1회. **탭은 API를 부르지 않는다.** 이미 받아둔
+    결과를 보여줄 뿐이다. 탭으로 옮기면 `drawStartedRef`가 막아주던 중복 호출이 되살아난다.
+  - 카드를 쓰는 결과는 `won`/`miss` 둘뿐. `wonButHidden`은 앞면에 올릴 payload가 없고
+    (`{ status: "wonButHidden" }`이 전부), `rejected`/`error`는 뽑기가 소진되지 않은
+    상태라 뒤집으면 소비한 것처럼 보인다.
+  - 앞면(`card-front.webp`)은 **밝은** 애셋이다. 테마의 `--ink`/`text-muted`는 어두운
+    배경용이라 그대로 쓰면 글자가 보이지 않는다 — `GatchaCard`의 `CARD_FACE_INK`를 쓴다.
+    `CouponQR`의 `onLightFace`가 이 "밝은 면 위" 상황을 가리키는 플래그다.
+  - **앞면 레이아웃을 바꾸면 `app/lib/cardImage.ts`도 같이 고쳐야 한다.** 저장 이미지는
+    DOM 캡처가 아니라 같은 구성을 canvas에 다시 그린 것이라, 두 곳이 같은 좌표(13%/11%
+    inset, 노치 크기, 코너 마크 위치, QR 비율)를 각각 들고 있다. 한쪽만 고치면 화면과
+    저장본이 조용히 달라진다(실제로 한 번 어긋났다 — 화면엔 노치, 저장본엔 민무늬 사각형).
+  - **이모지는 흑백 서브셋 폰트를 쓴다**(`public/fonts/NotoEmoji-subset.woff2`, 21KB).
+    시스템 이모지는 대부분 컬러라 픽셀 아트 + 어두운 우드톤 화면에서 튀고 기기마다
+    모양도 다르다. `globals.css`의 `font-family`에서 **본문 폰트보다 앞에** 둬야
+    이모지를 가로챈다(서브셋이라 한글·라틴은 자연히 다음 폰트로 넘어간다).
+    - **`couponEmoji.ts`에 이모지를 추가하면 폰트를 다시 만들어야 한다.** 서브셋에
+      없는 글자는 에러 없이 두부(􏿽)로 보인다 — `python3 docs/check-emoji-font.py`로
+      검사하고, `bash docs/build-emoji-font.sh`로 다시 만든다. 여유분을 넣어둬서
+      (63자 수록, 29자 사용) 웬만한 추가는 바로 된다.
+    - canvas(`cardImage.ts`)도 같은 폰트를 쓴다. `--font-emoji` 변수에는 폰트가 **두 개**
+      들어 있는데(`"notoEmoji", "notoEmoji Fallback"`), 뒤엣것은 next/font의 로컬 메트릭
+      폰트라 네트워크에서 받을 수 없다 — 목록째로 `document.fonts.load()`에 넘기면
+      NetworkError가 난다. 첫 항목만 떼어 쓸 것.
+  - **저장 이미지는 카드가 뒤집힐 때 미리 굽는다.** 버튼을 누른 뒤에 굽기 시작하면 안 된다 —
+    iOS Safari는 `navigator.share`를 사용자 제스처가 유효한 동안에만 허용하는데, 탭과
+    호출 사이에 이미지 로드·직렬화가 끼면 `NotAllowedError`로 거부되고 공유 시트 대신
+    조용히 파일 다운로드로 떨어진다.
+
+# 효과음 (`app/lib/sfx.ts`)
+
+- **포맷은 m4a(AAC) 하나로 통일한다.** 원본은 opus인데 **iOS Safari가 .ogg 컨테이너를
+  재생하지 못한다** — 모바일 웹 게임이라 그쪽에서 안 들리면 의미가 없다.
+  원본은 기획 폴더에 있고 리포에는 변환본만 둔다(`bash docs/build-sfx.sh`).
+- **첫 재생은 사용자 제스처 안에서 일어나야 한다.** iOS·Android는 제스처 없는 재생을
+  막는다. 시작 버튼(`page.tsx`의 `handleStart`)에서 `unlockSfx()`로 무음 재생을 한 번
+  돌려 잠금을 풀어둔다 — 이걸 빼면 게임 안에서 정답 소리가 첫 번째만 안 난다.
+- **재생 실패는 절대 던지지 않는다.** 소리는 게임 진행에 필수가 아니고, 제스처 전
+  자동재생 차단(NotAllowedError)은 정상 동작이다. `playSfx`는 모든 실패를 삼킨다.
+- 같은 소리를 연달아 내야 하므로(정답 연속) 재생 중이면 `currentTime = 0`으로 되감는다.
+  엘리먼트는 이름당 하나만 만들어 캐시한다.
+- 결과 소리(당첨/꽝)는 **카드가 돌아간 뒤에** 낸다(`GatchaCard`의 450ms 지연).
+  탭하자마자 내면 앞면이 보이기도 전에 결과가 소리로 새어나간다.
+- 결과표의 `coindrop`은 **점수와 무관하게 항상 난다.** 만점자 전용 연출이 아니라
+  "결과가 나왔다"는 신호다(2026-08-07, 이란토). 만점자 이펙트를 붙일 때 이걸
+  조건부로 바꾸지 말 것 — 만점자 소리는 별도로 얹는다.
+- 음소거 상태는 `localStorage`에 남긴다. 매장·공공장소에서 소리를 못 켜는 상황이 흔하다.

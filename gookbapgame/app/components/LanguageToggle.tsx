@@ -15,7 +15,8 @@ export default function LanguageToggle() {
   };
 
   return (
-    <div className="fixed top-2 left-2 z-[60]">
+    /* 위치는 부모(page.tsx의 고정 툴바)가 정한다. 드롭다운 기준점으로 relative만 유지. */
+    <div className="relative">
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
@@ -24,8 +25,9 @@ export default function LanguageToggle() {
       >
         🌐
       </button>
+      {/* 드롭다운은 absolute로 띄운다 — 흐름에 두면 옆에 놓인 음소거 버튼을 밀어낸다. */}
       {isOpen && (
-        <ul className="mt-1 min-w-[8rem] rounded-lg border border-wood bg-surface/95 shadow-lg overflow-hidden">
+        <ul className="absolute left-0 top-full mt-1 min-w-[8rem] rounded-lg border border-wood bg-surface/95 shadow-lg overflow-hidden">
           {SUPPORTED_LOCALES.map((code) => (
             <li key={code}>
               <button

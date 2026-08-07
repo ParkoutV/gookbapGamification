@@ -7,8 +7,7 @@ import PixelPanel from "./PixelPanel";
 import CouponQR from "./CouponQR";
 import type { IssuedCoupon } from "../actions";
 import { isCouponExpired } from "../lib/couponUsability";
-
-const DATE_LOCALES: Record<string, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP" };
+import { DATE_LOCALES } from "../lib/i18n/dateLocales";
 
 export default function MyCouponsScreen({
   coupons,

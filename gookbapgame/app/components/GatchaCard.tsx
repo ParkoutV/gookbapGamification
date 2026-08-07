@@ -1,0 +1,233 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useLocale } from "../lib/i18n/LocaleContext";
+import { resolveLocalizedName } from "../lib/i18n/localizedName";
+import CouponQR from "./CouponQR";
+import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
+import { DATE_LOCALES } from "../lib/i18n/dateLocales";
+import { renderCardImage } from "../lib/cardImage";
+import { saveOrShareImage } from "../lib/shareCard";
+import { playSfx, SFX } from "../lib/sfx";
+import type { IssuedCoupon } from "../actions";
+
+/** 밝은 카드면 위의 글자색. 테마의 --ink는 어두운 배경용 밝은 색이라 여기서는 안 보인다. */
+const CARD_FACE_INK = "#3A2E24";
+
+interface GatchaCardProps {
+  /** null이면 꽝 앞면. 뒷면만 보이는 동안에도 null일 수 있다. */
+  coupon: IssuedCoupon | null;
+  flipped: boolean;
+  /** 아직 뒤집을 수 없는 상태(draw 응답 대기)면 false. */
+  canFlip: boolean;
+  onFlip: () => void;
+}
+
+export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaCardProps) {
+  const { t, locale } = useLocale();
+
+  const faceRef = useRef<HTMLDivElement>(null);
+  /** 뒤집힐 때 미리 구워두는 카드 이미지. 저장 버튼이 await 없이 공유할 수 있게 한다. */
+  const imageBlobRef = useRef<Blob | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  // 코너 마크. 상품명 앞에도 같은 이모지를 붙이면 한 화면에 셋이 되어 산만해지므로
+  // 이모지는 코너에만 두고 상품명은 텍스트만 남긴다(CouponQR의 onLightFace).
+  const faceEmoji = coupon ? resolveCouponEmoji(coupon.couponType) : MISS_EMOJI;
+
+  const expiryText =
+    coupon?.expiredAt != null
+      ? t("coupon.expiresAt", {
+          date: new Date(coupon.expiredAt).toLocaleDateString(DATE_LOCALES[locale] ?? "en-US"),
+        })
+      : null;
+
+  /**
+   * 카드가 뒤집히는 순간 이미지를 미리 굽는다. 저장 버튼을 눌렀을 때 굽기
+   * 시작하면 안 된다 — iOS Safari는 navigator.share를 "사용자 제스처가 아직
+   * 유효한 동안"에만 허용하는데, 탭과 share 호출 사이에 이미지 로드·직렬화가
+   * 끼면 그 유효 시간이 소모되어 NotAllowedError로 거부된다.
+   * 미리 구워두면 클릭 핸들러가 곧바로 share를 부를 수 있다.
+   */
+  // 뒤집는 동작 자체의 소리. 결과 소리는 아래 effect가 한 박자 늦게 낸다.
+  const handleFlip = () => {
+    playSfx(SFX.touch);
+    onFlip();
+  };
+
+  /**
+   * 결과 소리는 카드가 실제로 돌아간 뒤에 낸다. 탭하자마자 내면 앞면이 보이기도
+   * 전에 당첨/꽝이 소리로 새어나간다. 지연은 뒤집기 트랜지션(700ms)의 후반부다.
+   */
+  useEffect(() => {
+    if (!flipped) return;
+    const timer = setTimeout(() => {
+      playSfx(coupon ? SFX.coupon : SFX.couponLose);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [flipped, coupon]);
+
+  useEffect(() => {
+    if (!flipped || !coupon) return;
+    let cancelled = false;
+
+    renderCardImage({
+      qrSvg: faceRef.current?.querySelector("svg") ?? null,
+      couponName: resolveLocalizedName(coupon.couponType, locale),
+      expiryText,
+      emoji: faceEmoji,
+    })
+      .then((blob) => {
+        if (!cancelled) imageBlobRef.current = blob;
+      })
+      .catch((error) => {
+        // 실패해도 버튼은 남긴다. 누르면 그때 한 번 더 시도한다.
+        console.error("[GatchaCard] 카드 이미지 준비 실패:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [flipped, coupon, locale, expiryText, faceEmoji]);
+
+  const handleSave = async () => {
+    if (!coupon || saving) return;
+    setSaveError(false);
+
+    const filename = `coupon-${coupon.couponId}.png`;
+    const ready = imageBlobRef.current;
+
+    // 준비된 이미지가 있으면 await 없이 곧장 공유한다(위 useEffect 주석 참고).
+    if (ready) {
+      const result = await saveOrShareImage(ready, filename);
+      if (result === "failed") setSaveError(true);
+      return;
+    }
+
+    // 프리렌더가 실패했거나 아직 안 끝난 경우의 폴백. 이 경로에서는 공유 시트가
+    // 뜨지 않고 다운로드로 떨어질 수 있다 — 아무것도 안 되는 것보다는 낫다.
+    setSaving(true);
+    try {
+      const blob = await renderCardImage({
+        qrSvg: faceRef.current?.querySelector("svg") ?? null,
+        couponName: resolveLocalizedName(coupon.couponType, locale),
+        expiryText,
+        emoji: faceEmoji,
+      });
+      imageBlobRef.current = blob;
+      const result = await saveOrShareImage(blob, filename);
+      if (result === "failed") setSaveError(true);
+    } catch (error) {
+      console.error("[GatchaCard] 카드 이미지 저장 실패:", error);
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* 원본 애셋 비율 1000x1350. aspect-ratio로 고정해야 뒷면 픽셀이 찌그러지지 않는다. */}
+      {/* 뒤집은 뒤에는 role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면
+          스크린리더가 정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
+      <div
+        className={`gatcha-card${canFlip && !flipped ? " gatcha-card--interactive" : ""}`}
+        {...(canFlip && !flipped
+          ? {
+              role: "button" as const,
+              tabIndex: 0,
+              "aria-label": t("wheel.flipHint"),
+              onClick: handleFlip,
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleFlip();
+                }
+              },
+            }
+          : {})}
+      >
+        <div className={`gatcha-card__inner${flipped ? " gatcha-card__inner--flipped" : ""}`}>
+          {/* 뒷면 */}
+          <div className="gatcha-card__face">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static local pixel-art asset,
+                next/image would resample it and defeat image-rendering: pixelated */}
+            <img
+              src="/icons/card-back.webp"
+              alt=""
+              className="w-full h-full object-contain select-none pointer-events-none"
+              style={{ imageRendering: "pixelated" }}
+            />
+          </div>
+
+          {/* 앞면도 뒷면과 같은 1000x1371 픽셀 애셋을 깐다. 밝은 카드면이라
+              테마의 --ink(어두운 배경용 밝은 색)를 그대로 쓰면 글자가 보이지 않는다.
+              HintClipboard가 같은 이유로 PAPER_INK를 따로 둔 것과 같은 상황이다. */}
+          <div className="gatcha-card__face gatcha-card__face--front">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static local pixel-art asset,
+                next/image would resample it and defeat image-rendering: pixelated */}
+            <img
+              src="/icons/card-front.webp"
+              alt=""
+              className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+              style={{ imageRendering: "pixelated" }}
+            />
+            <div className="absolute inset-0" ref={faceRef} style={{ color: CARD_FACE_INK }}>
+              {/* 트럼프 카드처럼 안쪽 테두리를 하나 두고 내용을 그 안에 담는다.
+                  좌상/우하 모서리는 정사각으로 파여 있고, 그 자리에 코너 마크가 앉는다. */}
+              <div className="card-inner-frame absolute inset-x-[13%] inset-y-[11%]">
+                <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-3 overflow-hidden">
+                  {coupon ? (
+                    <>
+                      <CouponQR coupon={coupon} onLightFace />
+                      {expiryText && <p className="text-sm opacity-70">{expiryText}</p>}
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-extrabold text-lg">{t("wheel.missTitle")}</p>
+                      <p className="text-sm text-center opacity-70">{t("wheel.missDescription")}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 코너 마크는 테두리의 clip-path 바깥(파인 자리)에 앉아야 하므로
+                  card-inner-frame의 자식이 아니라 형제 레이어로 둔다 — 안에 넣으면
+                  같은 clip에 잘려 사라진다. inset은 테두리와 같은 값이어야 위치가 맞는다.
+                  실제 트럼프 카드는 우하단을 180° 돌리지만, 이모지를 뒤집으면
+                  거꾸로 선 그림이 될 뿐이라 회전은 하지 않는다. */}
+              <div className="absolute inset-x-[13%] inset-y-[11%] pointer-events-none card-corner-layer">
+                <span aria-hidden="true" className="card-corner-mark card-corner-mark--tl text-2xl">
+                  {faceEmoji}
+                </span>
+                <span aria-hidden="true" className="card-corner-mark card-corner-mark--br text-2xl">
+                  {faceEmoji}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 뒤집기 전에만 안내. 뒤집은 뒤에도 남아 있으면 또 누르라는 뜻으로 읽힌다. */}
+      {!flipped && (
+        <p className="text-muted text-sm">{canFlip ? t("wheel.flipHint") : t("wheel.spinning")}</p>
+      )}
+
+      {/* 저장은 당첨 카드에만 있다 — 꽝은 남길 것이 없다. */}
+      {flipped && coupon && (
+        <div className="flex flex-col items-center gap-1">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="pixel-mask-btn-solid py-2 px-5 bg-surface text-ink font-bold text-sm transition-opacity active:scale-95 disabled:opacity-50"
+          >
+            {saving ? t("card.saving") : t("card.saveButton")}
+          </button>
+          {saveError && <p className="text-error text-xs">{t("card.saveError")}</p>}
+        </div>
+      )}
+    </div>
+  );
+}

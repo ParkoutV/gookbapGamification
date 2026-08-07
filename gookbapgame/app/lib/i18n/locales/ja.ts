@@ -82,22 +82,30 @@ export const ja: Partial<Dictionary> = {
 
 
   "surveyIntro.title": "アンケートにご協力いただけますか？",
-  "surveyIntro.description": "アンケートに答えるとクーポンルーレットを回せます。",
+  "surveyIntro.description": "アンケートに答えるとクーポンカードを引けます。",
   "surveyIntro.participateButton": "参加する",
   "surveyIntro.declineLink": "また今度にします",
 
-  "survey.submitButton": "送信してルーレットを回す",
+  "survey.submitButton": "送信してカードを引く",
   "survey.submitting": "送信中...",
   "survey.submitError": "送信に失敗しました。もう一度お試しください。",
   "survey.requiredNotice": "必須の質問にお答えください。",
   "survey.optional": "（任意）",
 
-  "wheel.title": "幸運のルーレット",
-  "wheel.spinning": "クーポンを抽選中...",
+  "wheel.title": "幸運のカード",
+  "wheel.spinning": "カードを抽選中...",
+  "wheel.flipHint": "カードをタップしてめくってください",
+  "card.saveButton": "画像として保存",
+  "card.saving": "保存中...",
+  "card.saveError": "保存に失敗しました。しばらくしてからお試しください。",
+
+  "sound.muteAria": "音を消す",
+  "sound.unmuteAria": "音を出す",
+
   "wheel.wonTitle": "クーポンが当たりました！",
   "wheel.missTitle": "残念、はずれです",
   "wheel.missDescription": "またの機会にご挑戦ください。",
-  "wheel.rejected": "現在ルーレットを回せません。しばらくしてからお試しください。",
+  "wheel.rejected": "現在カードを引けません。しばらくしてからお試しください。",
   "wheel.error": "現在サーバーに接続できません。しばらくしてからお試しください。",
   "start.goToDrawButton": "クーポンを引きに行く",
   "wheel.nextButton": "次へ",
