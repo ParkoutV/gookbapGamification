@@ -358,6 +358,9 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     if (info.nickname_first && info.nickname_last) {
       nickname = (info.nickname_first[targetLang] || info.nickname_first['ko'] || '') + '\u00A0' +
                  (info.nickname_last[targetLang] || info.nickname_last['ko'] || '')
+      if (info.nickname_number) {
+        nickname += `\u00A0#${info.nickname_number}`
+      }
     }
     
     // 쿠폰 이름 다국어 파싱 + 원문 괄호(ko 아닌 경우)
@@ -390,6 +393,9 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       let nickname = ''
       if (couponInfo.nickname_first && couponInfo.nickname_last) {
         nickname = (couponInfo.nickname_first['ko'] || '') + ' ' + (couponInfo.nickname_last['ko'] || '')
+        if (couponInfo.nickname_number) {
+          nickname += ` #${couponInfo.nickname_number}`
+        }
       }
       
       let couponNameKo = ''
