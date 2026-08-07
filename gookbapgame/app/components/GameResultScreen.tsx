@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { ScoreBreakdown, GukbapTier, DISPLAY_MAX_SCORE } from "../lib/stageConfig";
 import { gukbapTierKey } from "../lib/i18n/gukbapTierKey";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import PixelPanel from "./PixelPanel";
+import { playSfx, SFX } from "../lib/sfx";
 
 interface GameResultScreenProps {
   scoreBreakdown: ScoreBreakdown;
@@ -18,6 +19,12 @@ export default function GameResultScreen({
   onNext,
 }: GameResultScreenProps) {
   const { t } = useLocale();
+
+  // 결과표가 뜨는 순간 한 번. 점수와 상관없이 항상 재생한다 —
+  // 만점자 전용 연출이 아니라 "결과가 나왔다"는 신호다.
+  useEffect(() => {
+    playSfx(SFX.coindrop);
+  }, []);
 
   const rows: { label: string; value: number; isPenalty: boolean }[] = [
     { label: t("gameResult.stageScore"), value: scoreBreakdown.stageScore, isPenalty: false },

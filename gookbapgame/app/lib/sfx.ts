@@ -18,7 +18,7 @@ export const SFX = {
   pencilFailed: "pencil_failed",
   /** 일반 버튼 */
   touch: "touch",
-  /** 동전 떨어지는 소리. 아직 붙일 자리를 정하지 않았다. */
+  /** 게임이 끝나고 결과표가 뜰 때. 점수와 무관하게 항상 재생한다. */
   coindrop: "coindrop",
 } as const;
 
