@@ -7,8 +7,9 @@ import { SupportedLanguage } from '../tracks/actions'
 
 interface GatchaSetting {
   id: number
-  cooldown_hours: number
-  cooldown_minutes: number
+  limit_type: string
+  limit_n: number
+  limit_m: number
   aggregation_hours: number
   aggregation_minutes: number
 }
@@ -66,6 +67,70 @@ const SplitInput = ({
   )
 }
 
+const GridInput = ({
+  id,
+  initialValue,
+  isFloat = false,
+  minAllowed = 0,
+  maxAllowed = 100,
+  readOnly = false,
+  placeholder = "",
+  className = "",
+  onUpdate,
+  onKeyDown
+}: {
+  id: string,
+  initialValue: string,
+  isFloat?: boolean,
+  minAllowed?: number,
+  maxAllowed?: number,
+  readOnly?: boolean,
+  placeholder?: string,
+  className?: string,
+  onUpdate: (val: string) => void,
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+}) => {
+  const [localVal, setLocalVal] = useState(initialValue)
+  
+  useEffect(() => {
+    setLocalVal(initialValue)
+  }, [initialValue])
+
+  const handleBlur = () => {
+    if (localVal === '') {
+      onUpdate('')
+      return
+    }
+    let num = isFloat ? parseFloat(localVal) : parseInt(localVal, 10)
+    if (isNaN(num)) {
+      onUpdate('')
+      setLocalVal('')
+      return
+    }
+    if (num < minAllowed) num = minAllowed
+    if (num > maxAllowed) num = maxAllowed
+    
+    const finalVal = isFloat ? num.toString() : num.toString()
+    setLocalVal(finalVal)
+    onUpdate(finalVal)
+  }
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      readOnly={readOnly}
+      placeholder={placeholder}
+      value={localVal}
+      onChange={e => setLocalVal(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={onKeyDown}
+      className={className}
+    />
+  )
+}
+
 export default function CouponsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -94,13 +159,21 @@ export default function CouponsPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [couponToDelete, setCouponToDelete] = useState<number | null>(null)
 
+  // Local state for Gatcha Limit settings
+  const [localLimitN, setLocalLimitN] = useState("")
+  const [localLimitM, setLocalLimitM] = useState("")
+
   const fetchAll = async () => {
     setLoading(true)
     const supabase = createClient()
     
     // Fetch Settings
     const { data: setts } = await supabase.from('gatcha_settings').select('*').eq('id', 1).single()
-    if (setts) setSettings(setts)
+    if (setts) {
+      setSettings(setts)
+      setLocalLimitN(setts.limit_n.toString())
+      setLocalLimitM(setts.limit_m.toString())
+    }
 
     // Fetch Cases
     const { data: cases } = await supabase.from('gatcha_cases').select('*').order('min_score', { ascending: true })
@@ -143,15 +216,23 @@ export default function CouponsPage() {
   }
 
   // --- Settings Logic ---
-  const handleSettingsChange = (field: keyof GatchaSetting, value: string) => {
+  const handleSettingsChange = (field: keyof GatchaSetting, value: string | number) => {
     if (!settings) return
-    let num = parseInt(value, 10)
+    if (field === 'limit_type') {
+      setSettings({ ...settings, [field]: value as string })
+      return
+    }
+    
+    let num = typeof value === 'string' ? parseInt(value, 10) : value
     if (isNaN(num)) num = 0
-    if (field.includes('hours') && num > 99) num = 99
-    if (field.includes('minutes') && num > 59) num = 59
     if (num < 0) num = 0
     
+    if (field.includes('hours') && num > 99) num = 99
+    if (field.includes('minutes') && num > 59) num = 59
+    
     setSettings({ ...settings, [field]: num })
+    if (field === 'limit_n') setLocalLimitN(num.toString())
+    if (field === 'limit_m') setLocalLimitM(num.toString())
   }
 
   const saveSettings = async () => {
@@ -263,11 +344,18 @@ export default function CouponsPage() {
   // Handle Probability Change
   const handleProbChange = (couponIndex: number, caseId: string, val: string) => {
     const newCoupons = [...coupons]
+    if (!newCoupons[couponIndex].probability) newCoupons[couponIndex].probability = {}
+    
+    if (val === '') {
+      newCoupons[couponIndex].probability[caseId] = 0
+      setCoupons(newCoupons)
+      return
+    }
+
     let num = parseFloat(val)
     if (isNaN(num) || num < 0) num = 0
     if (num > 100) num = 100
     
-    if (!newCoupons[couponIndex].probability) newCoupons[couponIndex].probability = {}
     newCoupons[couponIndex].probability[caseId] = num / 100
     setCoupons(newCoupons)
   }
@@ -509,14 +597,47 @@ export default function CouponsPage() {
 
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
-                룰렛 쿨타임 (재참여 대기 시간)
+              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2 flex items-center">
+                가챠 횟수 조건
+                <div className="relative group ml-1">
+                  <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-72 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-lg z-50 pointer-events-none">
+                    <p className="font-bold mb-1">[ 조건 상세 안내 ]</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li><strong>N일 기준:</strong> 당일을 포함해 N일 전 0시부터 오늘 23시 59분까지 계산합니다. (예: 1일이면 오늘 0시부터, 2일이면 어제 0시부터)</li>
+                      <li><strong>N시간 기준:</strong> 현재 시각으로부터 정확히 N시간 전부터 현재까지 계산합니다.</li>
+                    </ul>
+                  </div>
+                </div>
               </label>
               <div className="flex items-center gap-2">
-                <input type="number" min="0" max="99" value={settings?.cooldown_hours || 0} onChange={e => handleSettingsChange('cooldown_hours', e.target.value)} className="w-20 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">시간</span>
-                <input type="number" min="0" max="59" value={settings?.cooldown_minutes || 0} onChange={e => handleSettingsChange('cooldown_minutes', e.target.value)} className="w-20 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">분</span>
+                <select 
+                  value={settings?.limit_type || 'days'} 
+                  onChange={e => handleSettingsChange('limit_type', e.target.value)} 
+                  className="px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="days">일 (Days)</option>
+                  <option value="hours">시간 (Hours)</option>
+                </select>
+                <span className="text-sm text-gray-600 dark:text-gray-400">기준으로</span>
+                <input 
+                  type="number" 
+                  min="0" 
+                  value={localLimitN} 
+                  onChange={e => setLocalLimitN(e.target.value)} 
+                  onBlur={() => handleSettingsChange('limit_n', localLimitN)} 
+                  className="w-16 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-400">{settings?.limit_type === 'hours' ? '시간 동안 최대' : '일 동안 최대'}</span>
+                <input 
+                  type="number" 
+                  min="0" 
+                  value={localLimitM} 
+                  onChange={e => setLocalLimitM(e.target.value)} 
+                  onBlur={() => handleSettingsChange('limit_m', localLimitM)} 
+                  className="w-16 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center outline-none focus:ring-2 focus:ring-blue-500" 
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-400">번 참여 가능</span>
               </div>
             </div>
             
@@ -696,35 +817,33 @@ export default function CouponsPage() {
                     )}
                   </td>
                   <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0">
-                    <input
+                    <GridInput
                       id={`cell-${rowIdx}-1`}
-                      type="number"
-                      min="0"
-                      max="365"
+                      initialValue={coupon.expire_days === null || coupon.expire_days === undefined ? '' : coupon.expire_days.toString()}
+                      minAllowed={0}
+                      maxAllowed={365}
                       readOnly={isOnline}
-                      value={coupon.expire_days === null || coupon.expire_days === undefined ? '' : coupon.expire_days}
-                      onChange={(e) => {
-                        if (!isOnline) handleExpireDaysChange(rowIdx, e.target.value)
+                      placeholder="무제한"
+                      className={`w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white'}`}
+                      onUpdate={(val) => {
+                        if (!isOnline) handleExpireDaysChange(rowIdx, val)
                       }}
                       onKeyDown={(e) => {
                         if (!isOnline) handleKeyDown(e, rowIdx, 1)
                       }}
-                      placeholder="무제한"
-                      className={`w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white'}`}
                     />
                   </td>
                   {gatchaCases.map((c, idx) => (
                     <td key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 p-0 relative bg-white dark:bg-zinc-950">
-                      <input
+                      <GridInput
                         id={`cell-${rowIdx}-${idx + 2}`}
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={((coupon.probability?.[c.gatcha_case_id] || 0) * 100).toFixed(2).replace(/\.00$/, '')}
-                        onChange={(e) => handleProbChange(rowIdx, c.gatcha_case_id, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 2)}
+                        isFloat={true}
+                        minAllowed={0}
+                        maxAllowed={100}
+                        initialValue={((coupon.probability?.[c.gatcha_case_id] || 0) * 100).toFixed(2).replace(/\.00$/, '')}
                         className="w-full h-12 px-8 text-right outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 bg-transparent text-base font-bold dark:text-white font-mono"
+                        onUpdate={(val) => handleProbChange(rowIdx, c.gatcha_case_id, val)}
+                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 2)}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400 pointer-events-none opacity-50">%</span>
                     </td>

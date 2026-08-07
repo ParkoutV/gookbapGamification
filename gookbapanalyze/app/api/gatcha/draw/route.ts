@@ -33,16 +33,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
     }
 
-    // 3. Check Cooldown
-    if (participant.roulette_joined) {
-      const lastJoined = new Date(participant.roulette_joined).getTime()
-      const now = new Date().getTime()
+    // 3. Check Gatcha Limit (N days / N hours)
+    let limitStartTime = new Date()
+    if (settings.limit_type === 'days') {
+      // KST 00:00:00 계산
+      const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+      const kstDate = new Date(kstTimeStr)
+      kstDate.setDate(kstDate.getDate() - (settings.limit_n - 1))
       
-      const cooldownMs = (settings.cooldown_hours * 60 * 60 * 1000) + (settings.cooldown_minutes * 60 * 1000)
-      
-      if (now - lastJoined < cooldownMs) {
-        return NextResponse.json({ error: '쿨타임이 아직 지나지 않았습니다.', code: 'COOLDOWN' }, { status: 403 })
-      }
+      const year = kstDate.getFullYear()
+      const month = String(kstDate.getMonth() + 1).padStart(2, '0')
+      const day = String(kstDate.getDate()).padStart(2, '0')
+      limitStartTime = new Date(`${year}-${month}-${day}T00:00:00.000+09:00`)
+    } else {
+      limitStartTime = new Date(Date.now() - (settings.limit_n * 60 * 60 * 1000))
+    }
+
+    const { count: logCount, error: logError } = await supabase
+      .from('gatcha_logs')
+      .select('log_id', { count: 'exact', head: true })
+      .eq('participant_id', participant_id)
+      .gte('joined_at', limitStartTime.toISOString())
+
+    if (logError) {
+      return NextResponse.json({ error: 'Failed to check gatcha limits' }, { status: 500 })
+    }
+
+    if (logCount !== null && logCount >= settings.limit_m) {
+      return NextResponse.json({ 
+        error: `제한 횟수 초과 (${settings.limit_type === 'days' ? `${settings.limit_n}일` : `${settings.limit_n}시간`} 이내 최대 ${settings.limit_m}번 참여 가능)`, 
+        code: 'LIMIT_EXCEEDED' 
+      }, { status: 400 })
     }
 
     // 3.5 Check Survey Phase 1 Completion (All required questions)
@@ -123,11 +144,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8. Update participant roulette_joined (꽝이어도 쿨타임이 돌게끔 먼저 처리)
+    // 8. Update participant roulette_joined & insert gatcha_log (꽝이어도 카운트 차감)
     await supabase
       .from('participants')
       .update({ roulette_joined: new Date().toISOString() })
       .eq('participant_id', participant_id)
+      
+    await supabase
+      .from('gatcha_logs')
+      .insert([{ participant_id: participant_id }])
 
     // If total probabilities < 1, there's a chance no coupon is selected (꽝)
     if (!selectedCoupon) {

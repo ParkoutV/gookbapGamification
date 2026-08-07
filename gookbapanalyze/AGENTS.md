@@ -148,18 +148,24 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`gookbap_score`** (`integer`): 획득한 국밥(재화) 점수.
 * **`joined_time`** (`timestamp with time zone`): 게임 플레이 일시. (이 시간이 랭킹 계산 시 동점자 우위(먼저 플레이한 순) 정렬의 기준이 됩니다.)
 
-### 10. `gatcha_cases` & `gatcha_settings` (가챠/룰렛 설정) (Admin: ALL, Everyone: SELECT)
+### 10. `gatcha_cases`, `gatcha_settings`, `gatcha_logs` (가챠/룰렛 설정 및 이력) (Admin: ALL, Everyone: SELECT)
 **[`gatcha_cases` - 가챠 점수 구간]**
 * **`gatcha_case_id`** (`uuid`, Primary Key): 점수 구간 식별자.
 * **`gatcha_case_name`** (`jsonb`): "브론즈", "골드" 등 점수 구간의 다국어 이름 (JSON 파싱).
 * **`min_score` / `max_score`** (`integer`): 구간의 최소/최대 점수.
   * *제약조건:* `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 로 DB 레벨에서 구간 무결성이 강제됩니다. 1953점을 초과하는 구간 설정은 원천 차단됩니다.
 
-**[`gatcha_settings` - 가챠 글로벌 쿨타임]**
+**[`gatcha_settings` - 가챠 글로벌 횟수 제한 설정]**
 * **`id`** (`integer`, Primary Key): 글로벌 세팅.
   * *제약조건:* `CHECK (id = 1)`로 단 한 줄의 Row만 유지하도록 강제됩니다.
-* **`cooldown_hours` / `cooldown_minutes`** (`integer`): 룰렛을 다시 돌리기 위한 쿨타임. (`CHECK (0~99 및 0~59)` 제한)
+* **`limit_type`** (`varchar`): 횟수 제한 기준 ('days' 또는 'hours').
+* **`limit_n` / `limit_m`** (`integer`): N일(또는 N시간) 이내에 최대 M회 참여 가능.
 * **`aggregation_hours` / `aggregation_minutes`** (`integer`): 이 시간 이내의 플레이 기록(`game_score_logs`)만을 집계하여 최고 점수를 기반으로 가챠 구간에 배치합니다.
+
+**[`gatcha_logs` - 가챠 참여 이력] (Admin: ALL, Anon: INSERT)**
+* **`log_id`** (`uuid`, Primary Key): 로그 식별자.
+* **`participant_id`** (`uuid`): 참가자. (`participants` 외래키, `CASCADE`)
+* **`joined_at`** (`timestamp with time zone`): 가챠 시도 일시.
 
 ### 11. `coupon_effects` & `issued_coupons` (쿠폰 마스터 및 발급 정보)
 **[`coupon_effects` - 혜택 정의] (Admin: ALL, Everyone: SELECT)**
