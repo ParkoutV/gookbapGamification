@@ -59,6 +59,33 @@ test("폴리곤이 없으면 슬롯의 절반을 유효 크기로 보고 판정�
   assert.equal(box.useClipPath, false);
 });
 
+// 2026-08-07 배포 사고: 큰 슬롯 + 폴리곤 없음 조합에서
+// `Cannot read properties of null (reading 'map')`으로 3단계 진입 시 화면이 죽었다.
+// 폴리곤이 없으면 effectiveW/H가 슬롯의 절반이 되는데, 슬롯이 112px 이상이면
+// 그 절반도 56px을 넘어 "충분함" 판정을 받고 clip 경로로 내려가 폴리곤을 map했다.
+// 기존 테스트는 작은 슬롯(29px)만 null로 검사해서 이 조합이 비어 있었다.
+test("폴리곤이 없으면 슬롯이 커도 사각형으로 처리한다(터지지 않는다)", () => {
+  for (const slot of [112, 200, 400]) {
+    const box = resolveHitTargetBox(slot, null);
+    assert.equal(box.useClipPath, false, `${slot}px: clip을 쓰면 안 된다`);
+    assert.equal(box.polygon, null);
+    assert.equal(box.deadZone.polygon, null);
+    assert.ok(Number.isFinite(box.width) && box.width > 0);
+  }
+});
+
+test("폴리곤이 망가져 있어도(NaN/길이 부족) 터지지 않는다", () => {
+  const broken: Point[][] = [
+    [{ x: NaN, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+  ];
+  for (const poly of broken) {
+    const box = resolveHitTargetBox(200, poly);
+    assert.equal(box.useClipPath, false);
+    assert.ok(Number.isFinite(box.width));
+  }
+});
+
 test("보정된 박스는 중심을 유지한다", () => {
   const slot = 33;
   const box = resolveHitTargetBox(slot, boxPolygon(1.0, 12 / 33));
