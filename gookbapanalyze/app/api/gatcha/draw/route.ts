@@ -128,17 +128,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '등록된 쿠폰이 없습니다.' }, { status: 500 })
     }
 
+    // 6.5 Fetch issued counts for offline coupons
+    const offlineCoupons = coupons.filter(c => !c.is_online_coupon)
+    const offlineCouponIds = offlineCoupons.map(c => c.coupon_effect_id)
+    
+    const { data: issuedCountsData } = await supabase
+      .from('issued_coupons')
+      .select('coupon_effect_id')
+      .in('coupon_effect_id', offlineCouponIds)
+      
+    const issuedCounts: Record<string, number> = {}
+    if (issuedCountsData) {
+      issuedCountsData.forEach(item => {
+        issuedCounts[item.coupon_effect_id] = (issuedCounts[item.coupon_effect_id] || 0) + 1
+      })
+    }
+
+    // Determine which coupons are valid (not exhausted)
+    let remainingSum = 0
+    let originalSum = 0
+    
+    const couponCandidates = coupons.map(coupon => {
+      const originalProb = coupon.probability?.[gatchaCaseId] || 0
+      originalSum += Number(originalProb)
+      
+      let isExhausted = false
+      if (!coupon.is_online_coupon && coupon.max_issuance !== null && coupon.max_issuance !== undefined) {
+        const count = issuedCounts[coupon.coupon_effect_id] || 0
+        if (count >= coupon.max_issuance) {
+          isExhausted = true
+        }
+      }
+      
+      const effectiveProb = isExhausted ? 0 : Number(originalProb)
+      remainingSum += effectiveProb
+      
+      return { ...coupon, _effectiveProb: effectiveProb }
+    })
+
     // 7. Weighted Random Draw
-    let randomVal = Math.random()
+    let drawMax = 1.0
+    if (settings.exhaustion_behavior === 'normalize_probability') {
+      // The new ceiling is the sum of remaining probabilities + the original blank probability.
+      // S_remaining = remainingSum + (1.0 - originalSum)
+      const originalBlankProb = Math.max(0, 1.0 - originalSum)
+      drawMax = remainingSum + originalBlankProb
+    }
+    
+    let randomVal = Math.random() * drawMax
     let cumulative = 0
     let selectedCoupon = null
 
-    for (const coupon of coupons) {
-      // Probability is stored as JSON: { "case_id": 0.15 }
-      const prob = coupon.probability?.[gatchaCaseId] || 0
-      cumulative += Number(prob)
-      
-      if (randomVal <= cumulative) {
+    for (const coupon of couponCandidates) {
+      cumulative += coupon._effectiveProb
+      if (coupon._effectiveProb > 0 && randomVal <= cumulative) {
         selectedCoupon = coupon
         break
       }

@@ -12,6 +12,7 @@ interface GatchaSetting {
   limit_m: number
   aggregation_hours: number
   aggregation_minutes: number
+  exhaustion_behavior: 'turn_to_blank' | 'normalize_probability'
 }
 
 interface GatchaCase {
@@ -28,6 +29,7 @@ interface CouponEffect {
   probability: any // JSON object { [case_id]: number }
   expire_days?: number | null
   is_online_coupon?: boolean
+  max_issuance?: number | null
 }
 
 const SplitInput = ({ 
@@ -140,6 +142,7 @@ export default function CouponsPage() {
   const [coupons, setCoupons] = useState<CouponEffect[]>([])
   const [webCouponSettings, setWebCouponSettings] = useState<any>(null)
   const [activeLanguages, setActiveLanguages] = useState<SupportedLanguage[]>([])
+  const [issuedCounts, setIssuedCounts] = useState<Record<string, number>>({})
   
   // Modal State for Multilingual text (Coupons)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -202,6 +205,16 @@ export default function CouponsPage() {
     const { data: rankData } = await supabase.from('ranking_view').select('gookbap_score')
     if (rankData) setRankingData(rankData)
 
+    // Fetch Issued Counts
+    const { data: issuedCouponsData } = await supabase.from('issued_coupons').select('coupon_effect_id')
+    if (issuedCouponsData) {
+      const counts: Record<string, number> = {}
+      issuedCouponsData.forEach(item => {
+        counts[item.coupon_effect_id] = (counts[item.coupon_effect_id] || 0) + 1
+      })
+      setIssuedCounts(counts)
+    }
+
     setLoading(false)
   }
 
@@ -218,8 +231,8 @@ export default function CouponsPage() {
   // --- Settings Logic ---
   const handleSettingsChange = (field: keyof GatchaSetting, value: string | number) => {
     if (!settings) return
-    if (field === 'limit_type') {
-      setSettings({ ...settings, [field]: value as string })
+    if (field === 'limit_type' || field === 'exhaustion_behavior') {
+      setSettings({ ...settings, [field]: value as any })
       return
     }
     
@@ -375,9 +388,24 @@ export default function CouponsPage() {
     setCoupons(newCoupons)
   }
 
+  // Handle Max Issuance Change
+  const handleMaxIssuanceChange = (couponIndex: number, val: string) => {
+    const newCoupons = [...coupons]
+    if (val === '') {
+      newCoupons[couponIndex].max_issuance = null
+    } else {
+      let num = parseInt(val, 10)
+      if (isNaN(num)) num = 0
+      const currentIssued = issuedCounts[newCoupons[couponIndex].coupon_effect_id] || 0
+      if (num < currentIssued) num = currentIssued
+      newCoupons[couponIndex].max_issuance = num
+    }
+    setCoupons(newCoupons)
+  }
+
   // Excel Navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number) => {
-    const numCols = 2 + gatchaCases.length
+    const numCols = 3 + gatchaCases.length
     const numRows = coupons.length
 
     if (e.key === 'ArrowUp' && rowIdx > 0) {
@@ -418,7 +446,8 @@ export default function CouponsPage() {
       coupon_type: '{}',
       description: '{}',
       probability: {},
-      expire_days: null
+      expire_days: null,
+      max_issuance: null
     }])
   }
 
@@ -518,7 +547,8 @@ export default function CouponsPage() {
         coupon_type: coup.coupon_type,
         description: coup.description,
         probability: newProbability,
-        expire_days: coup.expire_days || null
+        expire_days: coup.expire_days || null,
+        max_issuance: coup.max_issuance || null
       }
       
       if (coup.coupon_effect_id.startsWith('new-')) {
@@ -638,6 +668,36 @@ export default function CouponsPage() {
                   className="w-16 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center outline-none focus:ring-2 focus:ring-blue-500" 
                 />
                 <span className="text-sm text-gray-600 dark:text-gray-400">번 참여 가능</span>
+              </div>
+            </div>
+            
+            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-zinc-800">
+              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-3 flex items-center">
+                최대 발급 갯수 도달(소진) 시 확률 분배 옵션
+              </label>
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-300 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="exhaustion_behavior"
+                    value="turn_to_blank"
+                    checked={settings?.exhaustion_behavior === 'turn_to_blank' || !settings?.exhaustion_behavior}
+                    onChange={(e) => handleSettingsChange('exhaustion_behavior', e.target.value)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span>소진된 품목은 '꽝'으로 전환</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-300 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="exhaustion_behavior"
+                    value="normalize_probability"
+                    checked={settings?.exhaustion_behavior === 'normalize_probability'}
+                    onChange={(e) => handleSettingsChange('exhaustion_behavior', e.target.value)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span>남은 품목과 꽝에 확률 동등 분배 (정규화)</span>
+                </label>
               </div>
             </div>
             
@@ -767,6 +827,9 @@ export default function CouponsPage() {
                     </div>
                   </div>
                 </th>
+                <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-24 text-center align-middle">
+                  최대 갯수
+                </th>
                 {gatchaCases.map(c => (
                   <th key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 bg-purple-50 dark:bg-purple-900/20 px-4 py-3 text-sm font-bold text-purple-800 dark:text-purple-300 text-right w-40">
                     {getKoText(typeof c.gatcha_case_name === 'string' ? c.gatcha_case_name : JSON.stringify(c.gatcha_case_name))}<br/>
@@ -833,17 +896,37 @@ export default function CouponsPage() {
                       }}
                     />
                   </td>
+                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative">
+                    <GridInput
+                      id={`cell-${rowIdx}-2`}
+                      initialValue={coupon.max_issuance === null || coupon.max_issuance === undefined ? '' : coupon.max_issuance.toString()}
+                      minAllowed={isOnline ? 0 : (issuedCounts[coupon.coupon_effect_id] || 0)}
+                      maxAllowed={9999999}
+                      readOnly={isOnline}
+                      placeholder="무제한"
+                      className={`w-full h-12 px-2 pb-4 pt-1 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white'}`}
+                      onUpdate={(val) => {
+                        if (!isOnline) handleMaxIssuanceChange(rowIdx, val)
+                      }}
+                      onKeyDown={(e) => {
+                        if (!isOnline) handleKeyDown(e, rowIdx, 2)
+                      }}
+                    />
+                    <div className="absolute bottom-1 left-0 right-0 text-[10px] font-bold text-gray-500 text-center pointer-events-none">
+                      발급: {isOnline ? 'N/A' : (issuedCounts[coupon.coupon_effect_id] || 0)}
+                    </div>
+                  </td>
                   {gatchaCases.map((c, idx) => (
                     <td key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 p-0 relative bg-white dark:bg-zinc-950">
                       <GridInput
-                        id={`cell-${rowIdx}-${idx + 2}`}
+                        id={`cell-${rowIdx}-${idx + 3}`}
                         isFloat={true}
                         minAllowed={0}
                         maxAllowed={100}
                         initialValue={((coupon.probability?.[c.gatcha_case_id] || 0) * 100).toFixed(2).replace(/\.00$/, '')}
                         className="w-full h-12 px-8 text-right outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 bg-transparent text-base font-bold dark:text-white font-mono"
                         onUpdate={(val) => handleProbChange(rowIdx, c.gatcha_case_id, val)}
-                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 2)}
+                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 3)}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400 pointer-events-none opacity-50">%</span>
                     </td>
@@ -854,7 +937,7 @@ export default function CouponsPage() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3} className="border-r border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 px-4 py-3 text-sm font-bold text-gray-700 dark:text-zinc-300 text-right">
+                <td colSpan={4} className="border-r border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 px-4 py-3 text-sm font-bold text-gray-700 dark:text-zinc-300 text-right">
                   확률 총합 검증 (100% 이하여야 함)
                 </td>
                 {gatchaCases.map(c => {

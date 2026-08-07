@@ -160,6 +160,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   * *제약조건:* `CHECK (id = 1)`로 단 한 줄의 Row만 유지하도록 강제됩니다.
 * **`limit_type`** (`varchar`): 횟수 제한 기준 ('days' 또는 'hours').
 * **`limit_n` / `limit_m`** (`integer`): N일(또는 N시간) 이내에 최대 M회 참여 가능.
+* **`exhaustion_behavior`** (`varchar`): 최대 발급 갯수에 도달한 소진 품목의 확률 처리 방식입니다. ('turn_to_blank' 또는 'normalize_probability')
 * **`aggregation_hours` / `aggregation_minutes`** (`integer`): 이 시간 이내의 플레이 기록(`game_score_logs`)만을 집계하여 최고 점수를 기반으로 가챠 구간에 배치합니다.
 
 **[`gatcha_logs` - 가챠 참여 이력] (Admin: ALL, Anon: INSERT)**
@@ -175,6 +176,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`probability`** (`jsonb`): 가챠 구간별 당첨 확률이 저장된 맵입니다. `{"case_id": 0.5}` 형태.
 * **`expire_days`** (`integer`, Nullable): 발급 후 만료 기한(일수).
   * *제약조건:* `CHECK (expire_days IS NULL OR (expire_days >= 0 AND expire_days <= 365))`
+* **`max_issuance`** (`integer`, Nullable): 이 쿠폰의 최대 발급 가능 갯수입니다. 누적 발급 갯수가 이 수치에 도달하면 소진 처리됩니다. Null일 경우 무제한입니다.
 * **`is_online_coupon`** (`boolean`): 웹 전용 쿠폰 여부. true일 경우 스캐너 조회/KPI 수집에서 제외되며 `web_coupons` 할당을 트리거합니다. (기본값: false)
 
 **[`issued_coupons` - 유저에게 발급된 쿠폰] (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)**
