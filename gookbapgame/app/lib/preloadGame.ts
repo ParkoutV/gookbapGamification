@@ -2,6 +2,11 @@ import { STAGE_CONFIG } from "./stageConfig.ts";
 import { runWithConcurrencyLimit } from "./concurrencyLimit.ts";
 import type { GameSession } from "../actions.ts";
 
+/**
+ * `targetDiffCount`는 **폴백일 뿐이다.** 실제 출제 개수는 뽑힌 이미지의
+ * `base_images.questions_count`가 정한다(대시보드에서 이미지마다 설정).
+ * 그 값이 없거나 0 이하일 때만 이 인자가 쓰인다 — `fetchGameData` 참고.
+ */
 export type FetchSessionFn = (
   level: number,
   targetDiffCount: number

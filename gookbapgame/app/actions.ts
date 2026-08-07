@@ -2,7 +2,7 @@
 
 import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
-import { clampDifferenceCount } from "./lib/gameSelection";
+import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
@@ -174,13 +174,22 @@ export async function fetchGameData(
       (categoryRows ?? []).map((row) => [row.id as number, row.name as LocalizedName])
     );
 
-    // 3. Determine differences — GDD 7.2가 정한 스테이지별 고정 목표치를 우선하되,
-    // 콘텐츠(유효 슬롯)가 그보다 적으면 있는 만큼만 차이로 지정한다(조용히 스킵하지 않음).
+    // 3. Determine differences — **출제 개수는 이미지가 정한다.**
+    // `base_images.questions_count`가 대시보드에서 이미지마다 설정하는 값이고
+    // (기본값 3, DB 트리거가 image_slots 개수 이하임을 보장), 어느 레벨에 나올지도
+    // 이미지의 `level`이 정한다. 그래서 같은 레벨이라도 뽑힌 이미지에 따라 개수가
+    // 다를 수 있다 — 이것이 의도된 설계다(2026-08-07, 이란토).
+    //
+    // `targetDiffCount`(STAGE_CONFIG)는 그 값이 없을 때만 쓰는 폴백이다. 예전에는
+    // 이쪽이 유일한 기준이라 대시보드에서 3개로 설정해도 레벨 7이 항상 7문항으로
+    // 나왔다.
+    const desiredCount = resolveQuestionsCount(selectedBaseImage.questions_count, targetDiffCount);
+
     const N = validSlots.length;
-    const numDifferences = clampDifferenceCount(targetDiffCount, N);
-    if (numDifferences < targetDiffCount) {
+    const numDifferences = clampDifferenceCount(desiredCount, N);
+    if (numDifferences < desiredCount) {
       console.warn(
-        `[fetchGameData] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${targetDiffCount})보다 적어 ${numDifferences}개로 축소함`
+        `[fetchGameData] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${desiredCount})보다 적어 ${numDifferences}개로 축소함`
       );
     }
 
