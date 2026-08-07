@@ -106,6 +106,12 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   ctx.stroke();
 
   // 코너 마크는 파인 정사각의 중앙에 놓는다.
+  //
+  // 이모지는 시스템 폰트를 그대로 쓴다 — 저장된 PNG의 이모지 모양이 기기마다
+  // 달라지지만(아이폰은 Apple, 안드로이드/리눅스는 Noto) 의도한 동작이다
+  // (2026-08-07 결정, 이란토). 통일하려면 컬러 이모지 웹폰트를 실어야 하는데
+  // Noto Color Emoji가 10MB 안팎이라 장식 하나 때문에 지불할 비용이 아니다.
+  // 상품을 알아보는 데는 지장이 없고, 사용자에겐 자기 기기의 이모지가 더 익숙하다.
   ctx.fillStyle = INK;
   ctx.font = "64px sans-serif";
   ctx.textAlign = "center";
