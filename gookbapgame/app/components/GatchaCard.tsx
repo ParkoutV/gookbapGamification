@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import CouponQR from "./CouponQR";
 import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
-import { DATE_LOCALES } from "../lib/i18n/dateLocales";
-import { renderCardImage } from "../lib/cardImage";
-import { saveOrShareImage } from "../lib/shareCard";
 import { playSfx, SFX } from "../lib/sfx";
 import type { IssuedCoupon } from "../actions";
 
@@ -21,35 +17,29 @@ interface GatchaCardProps {
   /** 아직 뒤집을 수 없는 상태(draw 응답 대기)면 false. */
   canFlip: boolean;
   onFlip: () => void;
+  /**
+   * 앞면을 감싸는 레이어에 꽂힌다. 저장 이미지를 굽는 쪽(`useCardImageSave`)이
+   * 여기서 QR `<svg>`를 찾아간다 — 버튼은 부모에 있고 소재는 여기 있어서 필요하다.
+   */
+  faceRef?: React.Ref<HTMLDivElement>;
+  /** 이미 지역화된 만료 안내 문구. 저장 이미지와 같은 값을 써야 화면과 저장본이 맞는다. */
+  expiryText: string | null;
 }
 
-export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaCardProps) {
-  const { t, locale } = useLocale();
-
-  const faceRef = useRef<HTMLDivElement>(null);
-  /** 뒤집힐 때 미리 구워두는 카드 이미지. 저장 버튼이 await 없이 공유할 수 있게 한다. */
-  const imageBlobRef = useRef<Blob | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(false);
+export default function GatchaCard({
+  coupon,
+  flipped,
+  canFlip,
+  onFlip,
+  faceRef,
+  expiryText,
+}: GatchaCardProps) {
+  const { t } = useLocale();
 
   // 코너 마크. 상품명 앞에도 같은 이모지를 붙이면 한 화면에 셋이 되어 산만해지므로
   // 이모지는 코너에만 두고 상품명은 텍스트만 남긴다(CouponQR의 onLightFace).
   const faceEmoji = coupon ? resolveCouponEmoji(coupon.couponType) : MISS_EMOJI;
 
-  const expiryText =
-    coupon?.expiredAt != null
-      ? t("coupon.expiresAt", {
-          date: new Date(coupon.expiredAt).toLocaleDateString(DATE_LOCALES[locale] ?? "en-US"),
-        })
-      : null;
-
-  /**
-   * 카드가 뒤집히는 순간 이미지를 미리 굽는다. 저장 버튼을 눌렀을 때 굽기
-   * 시작하면 안 된다 — iOS Safari는 navigator.share를 "사용자 제스처가 아직
-   * 유효한 동안"에만 허용하는데, 탭과 share 호출 사이에 이미지 로드·직렬화가
-   * 끼면 그 유효 시간이 소모되어 NotAllowedError로 거부된다.
-   * 미리 구워두면 클릭 핸들러가 곧바로 share를 부를 수 있다.
-   */
   // 뒤집는 동작 자체의 소리. 결과 소리는 아래 effect가 한 박자 늦게 낸다.
   const handleFlip = () => {
     playSfx(SFX.touch);
@@ -68,66 +58,11 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
     return () => clearTimeout(timer);
   }, [flipped, coupon]);
 
-  useEffect(() => {
-    if (!flipped || !coupon) return;
-    let cancelled = false;
-
-    renderCardImage({
-      qrSvg: faceRef.current?.querySelector("svg") ?? null,
-      couponName: resolveLocalizedName(coupon.couponType, locale),
-      expiryText,
-      emoji: faceEmoji,
-    })
-      .then((blob) => {
-        if (!cancelled) imageBlobRef.current = blob;
-      })
-      .catch((error) => {
-        // 실패해도 버튼은 남긴다. 누르면 그때 한 번 더 시도한다.
-        console.error("[GatchaCard] 카드 이미지 준비 실패:", error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [flipped, coupon, locale, expiryText, faceEmoji]);
-
-  const handleSave = async () => {
-    if (!coupon || saving) return;
-    setSaveError(false);
-
-    const filename = `coupon-${coupon.couponId}.png`;
-    const ready = imageBlobRef.current;
-
-    // 준비된 이미지가 있으면 await 없이 곧장 공유한다(위 useEffect 주석 참고).
-    if (ready) {
-      const result = await saveOrShareImage(ready, filename);
-      if (result === "failed") setSaveError(true);
-      return;
-    }
-
-    // 프리렌더가 실패했거나 아직 안 끝난 경우의 폴백. 이 경로에서는 공유 시트가
-    // 뜨지 않고 다운로드로 떨어질 수 있다 — 아무것도 안 되는 것보다는 낫다.
-    setSaving(true);
-    try {
-      const blob = await renderCardImage({
-        qrSvg: faceRef.current?.querySelector("svg") ?? null,
-        couponName: resolveLocalizedName(coupon.couponType, locale),
-        expiryText,
-        emoji: faceEmoji,
-      });
-      imageBlobRef.current = blob;
-      const result = await saveOrShareImage(blob, filename);
-      if (result === "failed") setSaveError(true);
-    } catch (error) {
-      console.error("[GatchaCard] 카드 이미지 저장 실패:", error);
-      setSaveError(true);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <div className="flex flex-col items-center gap-4">
+    /* w-full이 필요하다. items-center 아래에서는 이 래퍼가 shrink-to-fit이 되어
+       폭이 내용물에 맞춰지는데, 그러면 .gatcha-card의 width: min(100%, ...)에서
+       100%가 기준을 잃고 카드가 패널 밖으로 넘친다. */
+    <div className="flex flex-col items-center gap-4 w-full">
       {/* 원본 애셋 비율 1000x1350. aspect-ratio로 고정해야 뒷면 픽셀이 찌그러지지 않는다. */}
       {/* 뒤집은 뒤에는 role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면
           스크린리더가 정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
@@ -173,7 +108,15 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
               className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
               style={{ imageRendering: "pixelated" }}
             />
-            <div className="absolute inset-0" ref={faceRef} style={{ color: CARD_FACE_INK }}>
+            {/* 강제 다크모드 방어는 여기가 아니라 layout.tsx의 <meta name="darkreader-lock">에
+                있다. Darkreader에는 서브트리만 제외하는 수단이 없어서(실측: 존재한다고 알려진
+                data-darkreader-ignore 속성은 실제 코드에 없고, color-scheme도 무시된다)
+                페이지 전체를 잠그는 쪽이 유일하게 동작한다. */}
+            <div
+              className="absolute inset-0 card-face-fixed-colors"
+              ref={faceRef}
+              style={{ color: CARD_FACE_INK }}
+            >
               {/* 트럼프 카드처럼 안쪽 테두리를 하나 두고 내용을 그 안에 담는다.
                   좌상/우하 모서리는 정사각으로 파여 있고, 그 자리에 코너 마크가 앉는다. */}
               <div className="card-inner-frame absolute inset-x-[13%] inset-y-[11%]">
@@ -215,19 +158,9 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
         <p className="text-muted text-sm">{canFlip ? t("wheel.flipHint") : t("wheel.spinning")}</p>
       )}
 
-      {/* 저장은 당첨 카드에만 있다 — 꽝은 남길 것이 없다. */}
-      {flipped && coupon && (
-        <div className="flex flex-col items-center gap-1">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="pixel-mask-btn-solid py-2 px-5 bg-surface text-ink font-bold text-sm transition-opacity active:scale-95 disabled:opacity-50"
-          >
-            {saving ? t("card.saving") : t("card.saveButton")}
-          </button>
-          {saveError && <p className="text-error text-xs">{t("card.saveError")}</p>}
-        </div>
-      )}
+      {/* 저장 버튼은 여기 없다 — WheelScreen 하단에서 '다음'과 한 줄을 나눠 쓴다.
+          카드 바로 밑에 두면 '다음'과 멀리 떨어져 둘의 관계가 드러나지 않고,
+          같은 행에서 폭을 나누는 연출도 불가능하다. */}
     </div>
   );
 }

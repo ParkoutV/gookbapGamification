@@ -149,20 +149,20 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const centerX = CARD_W / 2;
   ctx.textAlign = "center";
 
-  // QR. 흰 여백(quiet zone)을 함께 깔아야 스캔이 안정적이다.
+  // QR. 흰 배경과 quiet zone은 **SVG가 자체적으로 들고 있다**(CouponQR의 marginSize) —
+  // 여기서 흰 사각형을 따로 깔지 않는다. 예전에는 canvas가 깔았는데, 그러면 화면과
+  // 저장본이 여백을 서로 다른 방식으로 만들게 되어 크기가 조용히 어긋난다.
+  // 테두리만 화면(border border-black/25)과 같은 색으로 두른다.
   let cursorY = CARD_H * 0.3;
   if (input.qrSvg) {
     const qrImage = await svgToImage(input.qrSvg);
     const qrSize = CARD_W * 0.44;
-    const pad = qrSize * 0.08;
     const qrX = centerX - qrSize / 2;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(qrX - pad, cursorY - pad, qrSize + pad * 2, qrSize + pad * 2);
+    ctx.drawImage(qrImage, qrX, cursorY, qrSize, qrSize);
     ctx.strokeStyle = "rgba(0,0,0,0.25)";
     ctx.lineWidth = 2;
-    ctx.strokeRect(qrX - pad, cursorY - pad, qrSize + pad * 2, qrSize + pad * 2);
-    ctx.drawImage(qrImage, qrX, cursorY, qrSize, qrSize);
-    cursorY += qrSize + pad * 2 + CARD_H * 0.04;
+    ctx.strokeRect(qrX, cursorY, qrSize, qrSize);
+    cursorY += qrSize + CARD_H * 0.04;
   }
 
   ctx.fillStyle = INK;

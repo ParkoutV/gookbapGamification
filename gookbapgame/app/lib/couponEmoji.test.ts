@@ -24,3 +24,20 @@ test("resolveCouponEmoji: 한국어 이름이 없으면 기본 이모지", () =>
   assert.equal(resolveCouponEmoji(null), DEFAULT_COUPON_EMOJI);
   assert.equal(resolveCouponEmoji(undefined), DEFAULT_COUPON_EMOJI);
 });
+
+/**
+ * VS16(U+FE0F)이 붙은 이모지는 서브셋 폰트가 그리지 못하고 시스템 컬러 이모지로
+ * 떨어진다 — GSUB을 비운 서브셋이라 클러스터가 합쳐지지 않기 때문이다(couponEmoji.ts 주석).
+ * `docs/check-emoji-font.py`는 코드포인트를 낱개로 보므로 이걸 잡지 못한다.
+ *
+ * 매핑 표가 export되지 않아 소스를 직접 읽는다 — 표에 이모지를 새로 추가해도
+ * 자동으로 검사 대상이 된다.
+ */
+test("couponEmoji.ts의 이모지에는 VS16(U+FE0F)이 없다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("./couponEmoji.ts", import.meta.url), "utf-8");
+  // 주석에서 VS16을 설명하는 줄은 제외하고, 실제 코드의 문자열 리터럴만 본다.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const offenders = [...code.matchAll(/"([^"]*️[^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(offenders, [], `VS16이 붙은 이모지: ${JSON.stringify(offenders)}`);
+});
