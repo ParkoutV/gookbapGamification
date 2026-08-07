@@ -36,17 +36,15 @@ function svgToImage(svg: SVGElement): Promise<HTMLImageElement> {
 }
 
 /**
- * 텍스트를 maxWidth 안에서 줄바꿈해 그린다. 반환값은 그린 줄 수.
- * 한국어는 어절 단위로 끊는다(화면의 break-keep과 같은 규칙).
+ * 텍스트를 maxWidth 안에서 줄로 나눈다. 한국어는 어절 단위로 끊는다
+ * (화면의 break-keep과 같은 규칙). 현재 ctx.font 기준으로 측정하므로
+ * 호출 전에 폰트를 정해둬야 한다.
  */
-function drawWrappedText(
+function wrapText(
   ctx: CanvasRenderingContext2D,
   text: string,
-  centerX: number,
-  startY: number,
-  maxWidth: number,
-  lineHeight: number
-): number {
+  maxWidth: number
+): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
   let line = "";
@@ -61,9 +59,7 @@ function drawWrappedText(
     }
   }
   if (line) lines.push(line);
-
-  lines.forEach((l, i) => ctx.fillText(l, centerX, startY + i * lineHeight));
-  return lines.length;
+  return lines;
 }
 
 export type CardImageInput = {
@@ -138,16 +134,30 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
 
   ctx.fillStyle = INK;
   ctx.textBaseline = "top";
-  ctx.font = "bold 52px sans-serif";
-  const lineCount = drawWrappedText(
-    ctx,
-    input.couponName,
-    centerX,
-    cursorY,
-    right - left - 60,
-    64
-  );
-  cursorY += lineCount * 64 + 24;
+
+  // 상품명은 대시보드 자유 입력이라 길이가 정해져 있지 않다. 화면에서는
+  // overflow-hidden이 잘라주지만 캔버스에는 그런 게 없어서, 긴 이름이 들어오면
+  // 만료 문구가 테두리 밖으로 밀려난다. 프레임 안에 들어갈 때까지 글자를 줄인다.
+  const textMaxWidth = right - left - 60;
+  const expiryHeight = input.expiryText ? 38 + 24 : 0;
+  const availableHeight = bottom - cursorY - expiryHeight - 24;
+
+  let nameFontSize = 52;
+  let nameLines = [] as string[];
+  while (true) {
+    ctx.font = `bold ${nameFontSize}px sans-serif`;
+    nameLines = wrapText(ctx, input.couponName, textMaxWidth);
+    // 30px 아래로는 더 줄여도 읽기만 나빠진다. 그 지점에서 멈추고 넘치는 줄은 자른다.
+    if (nameLines.length * (nameFontSize * 1.23) <= availableHeight || nameFontSize <= 30) break;
+    nameFontSize -= 4;
+  }
+
+  const nameLineHeight = nameFontSize * 1.23;
+  const maxLines = Math.max(1, Math.floor(availableHeight / nameLineHeight));
+  nameLines.slice(0, maxLines).forEach((line, i) => {
+    ctx.fillText(line, centerX, cursorY + i * nameLineHeight);
+  });
+  cursorY += Math.min(nameLines.length, maxLines) * nameLineHeight + 24;
 
   if (input.expiryText) {
     ctx.font = "38px sans-serif";

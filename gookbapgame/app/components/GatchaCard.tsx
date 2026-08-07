@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import CouponQR from "./CouponQR";
@@ -26,6 +26,8 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
   const { t, locale } = useLocale();
 
   const faceRef = useRef<HTMLDivElement>(null);
+  /** 뒤집힐 때 미리 구워두는 카드 이미지. 저장 버튼이 await 없이 공유할 수 있게 한다. */
+  const imageBlobRef = useRef<Blob | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -40,11 +42,53 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
         })
       : null;
 
-  // navigator.share는 사용자 제스처 안에서 불러야 해서 클릭 핸들러가 끝까지 await 한다.
+  /**
+   * 카드가 뒤집히는 순간 이미지를 미리 굽는다. 저장 버튼을 눌렀을 때 굽기
+   * 시작하면 안 된다 — iOS Safari는 navigator.share를 "사용자 제스처가 아직
+   * 유효한 동안"에만 허용하는데, 탭과 share 호출 사이에 이미지 로드·직렬화가
+   * 끼면 그 유효 시간이 소모되어 NotAllowedError로 거부된다.
+   * 미리 구워두면 클릭 핸들러가 곧바로 share를 부를 수 있다.
+   */
+  useEffect(() => {
+    if (!flipped || !coupon) return;
+    let cancelled = false;
+
+    renderCardImage({
+      qrSvg: faceRef.current?.querySelector("svg") ?? null,
+      couponName: resolveLocalizedName(coupon.couponType, locale),
+      expiryText,
+      emoji: faceEmoji,
+    })
+      .then((blob) => {
+        if (!cancelled) imageBlobRef.current = blob;
+      })
+      .catch((error) => {
+        // 실패해도 버튼은 남긴다. 누르면 그때 한 번 더 시도한다.
+        console.error("[GatchaCard] 카드 이미지 준비 실패:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [flipped, coupon, locale, expiryText, faceEmoji]);
+
   const handleSave = async () => {
     if (!coupon || saving) return;
-    setSaving(true);
     setSaveError(false);
+
+    const filename = `coupon-${coupon.couponId}.png`;
+    const ready = imageBlobRef.current;
+
+    // 준비된 이미지가 있으면 await 없이 곧장 공유한다(위 useEffect 주석 참고).
+    if (ready) {
+      const result = await saveOrShareImage(ready, filename);
+      if (result === "failed") setSaveError(true);
+      return;
+    }
+
+    // 프리렌더가 실패했거나 아직 안 끝난 경우의 폴백. 이 경로에서는 공유 시트가
+    // 뜨지 않고 다운로드로 떨어질 수 있다 — 아무것도 안 되는 것보다는 낫다.
+    setSaving(true);
     try {
       const blob = await renderCardImage({
         qrSvg: faceRef.current?.querySelector("svg") ?? null,
@@ -52,7 +96,8 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
         expiryText,
         emoji: faceEmoji,
       });
-      const result = await saveOrShareImage(blob, `coupon-${coupon.couponId}.png`);
+      imageBlobRef.current = blob;
+      const result = await saveOrShareImage(blob, filename);
       if (result === "failed") setSaveError(true);
     } catch (error) {
       console.error("[GatchaCard] 카드 이미지 저장 실패:", error);
@@ -65,18 +110,24 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
   return (
     <div className="flex flex-col items-center gap-4">
       {/* 원본 애셋 비율 1000x1350. aspect-ratio로 고정해야 뒷면 픽셀이 찌그러지지 않는다. */}
+      {/* 뒤집은 뒤에는 role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면
+          스크린리더가 정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
       <div
         className={`gatcha-card${canFlip && !flipped ? " gatcha-card--interactive" : ""}`}
-        onClick={() => canFlip && !flipped && onFlip()}
-        role="button"
-        tabIndex={flipped ? -1 : 0}
-        aria-label={flipped ? undefined : t("wheel.flipHint")}
-        onKeyDown={(e) => {
-          if ((e.key === "Enter" || e.key === " ") && canFlip && !flipped) {
-            e.preventDefault();
-            onFlip();
-          }
-        }}
+        {...(canFlip && !flipped
+          ? {
+              role: "button" as const,
+              tabIndex: 0,
+              "aria-label": t("wheel.flipHint"),
+              onClick: onFlip,
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onFlip();
+                }
+              },
+            }
+          : {})}
       >
         <div className={`gatcha-card__inner${flipped ? " gatcha-card__inner--flipped" : ""}`}>
           {/* 뒷면 */}

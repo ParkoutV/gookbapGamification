@@ -64,4 +64,12 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     상태라 뒤집으면 소비한 것처럼 보인다.
   - 앞면(`card-front.webp`)은 **밝은** 애셋이다. 테마의 `--ink`/`text-muted`는 어두운
     배경용이라 그대로 쓰면 글자가 보이지 않는다 — `GatchaCard`의 `CARD_FACE_INK`를 쓴다.
-    `CouponQR`의 `showEmoji`가 이 "밝은 면 위" 상황을 가리키는 플래그를 겸한다.
+    `CouponQR`의 `onLightFace`가 이 "밝은 면 위" 상황을 가리키는 플래그다.
+  - **앞면 레이아웃을 바꾸면 `app/lib/cardImage.ts`도 같이 고쳐야 한다.** 저장 이미지는
+    DOM 캡처가 아니라 같은 구성을 canvas에 다시 그린 것이라, 두 곳이 같은 좌표(13%/11%
+    inset, 노치 크기, 코너 마크 위치, QR 비율)를 각각 들고 있다. 한쪽만 고치면 화면과
+    저장본이 조용히 달라진다(실제로 한 번 어긋났다 — 화면엔 노치, 저장본엔 민무늬 사각형).
+  - **저장 이미지는 카드가 뒤집힐 때 미리 굽는다.** 버튼을 누른 뒤에 굽기 시작하면 안 된다 —
+    iOS Safari는 `navigator.share`를 사용자 제스처가 유효한 동안에만 허용하는데, 탭과
+    호출 사이에 이미지 로드·직렬화가 끼면 `NotAllowedError`로 거부되고 공유 시트 대신
+    조용히 파일 다운로드로 떨어진다.

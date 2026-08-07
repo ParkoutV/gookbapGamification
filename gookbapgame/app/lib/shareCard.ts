@@ -22,7 +22,17 @@ export async function saveOrShareImage(blob: Blob, filename: string): Promise<Sh
       // 사용자가 시트를 닫은 것뿐이면 실패가 아니다. 다운로드로 되받아치면
       // 취소했는데 파일이 받아지는 이상한 동작이 된다.
       if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-      console.error("[saveOrShareImage] 공유 실패, 다운로드로 대체:", error);
+      // NotAllowedError는 "사용자 제스처가 이미 소모됐다"는 뜻이다(iOS Safari).
+      // 호출부가 이미지를 미리 구워 두면 나지 않아야 하는 오류이므로, 다운로드로
+      // 떨어지되 원인을 남긴다 — 조용히 폴백하면 공유 시트가 왜 안 뜨는지 알 수 없다.
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        console.error(
+          "[saveOrShareImage] 공유가 사용자 제스처와 분리되어 거부됨. 이미지를 미리 준비했는지 확인할 것:",
+          error
+        );
+      } else {
+        console.error("[saveOrShareImage] 공유 실패, 다운로드로 대체:", error);
+      }
     }
   }
 
