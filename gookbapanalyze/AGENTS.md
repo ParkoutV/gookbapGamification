@@ -29,6 +29,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ### 1. `accounts` (사용자 계정 및 권한)
 Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 권한 관리 테이블입니다.
+
+**[RLS Policies]**
+- `SELECT` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin can view all accounts)*
+- `SELECT` (공개): `본인 계정만 허용` *(Policy: Users can view their own account)*
 * **`user_id`** (`uuid`, Primary Key): 사용자 고유 식별자입니다. 시스템 전반의 연계 키(Central Key)로 사용됩니다.
   * *제약조건:* `auth.users(id)`와 외래키 관계로 연결되어 있으며, 유저 삭제 시 연쇄 삭제(`ON DELETE CASCADE`)됩니다.
 * **`account_id`** (`text`): 관리자가 로그인할 때 사용하는 아이디(문자열)입니다.
@@ -42,6 +46,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 2. `base_images` (기본 게임 이미지)
 게임(다른그림찾기)의 배경이 되는 원본 이미지를 정의합니다.
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on base_images)*
+- `SELECT` (공개): `모두 허용` *(Policy: Enable read access for all users)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT base_images)*
 * **`id`** (`bigint`, Primary Key): 이미지 고유 번호.
 * **`title`** (`jsonb`): 이미지의 다국어 제목. (예: `{"ko": "기본", "en": "Base"}`)
 * **`image_url`** (`text`): 원본 이미지의 스토리지 저장 경로(URL).
@@ -53,6 +62,10 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 3. `image_slots` (이미지 파츠 조합 슬롯)
 `base_images` 위에 파츠(다른 그림 요소)가 올라갈 좌표 위치를 정의합니다.
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on image_slots)*
+- `SELECT` (공개): `모두 허용` *(Policy: Enable read access for all users)*
 * **`id`** (`bigint`, Primary Key): 슬롯 고유 번호.
 * **`base_image_id`** (`bigint`): 어느 기본 이미지에 종속된 슬롯인지 식별합니다. (`base_images(id)` 외래키, `CASCADE`)
 * **`category_id`** (`bigint`): 이 위치에 들어갈 수 있는 파츠의 카테고리입니다. (`part_categories(id)` 외래키, `CASCADE`)
@@ -63,6 +76,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 4. `unified_images` (통합 렌더링 이미지 캐시)
 기본 이미지 위에 여러 파츠를 합성한 완성본 렌더링 결과(JIT 렌더링 캐시)를 저장합니다.
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on unified_images)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT on unified_images)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT unified_images)*
 * **`id`** (`uuid`, Primary Key): 캐시 고유 번호 (기본값: `gen_random_uuid()`).
 * **`base_image_id`** (`bigint`): 사용된 기본 이미지. (`base_images(id)` 외래키, `CASCADE`)
 * **`image_slots`** (`jsonb`): 어떠한 파츠들의 조합으로 만들어졌는지 저장합니다. (예: `{"카테고리ID": "파츠ID"}`)
@@ -73,10 +91,18 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 5. `part_categories` & `parts` (이미지 파츠 정의)
 **[`part_categories`]**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on part_categories)*
+- `SELECT` (공개): `모두 허용` *(Policy: Enable read access for all users)*
 * **`id`** (`bigint`, Primary Key): 카테고리 고유 번호.
 * **`name`** (`jsonb`): 카테고리 다국어 이름.
 
 **[`parts`]**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on parts)*
+- `SELECT` (공개): `모두 허용` *(Policy: Enable read access for all users)*
 * **`id`** (`bigint`, Primary Key): 파츠 고유 번호.
 * **`category_id`** (`bigint`): 소속 카테고리. (`part_categories(id)` 외래키, `CASCADE`)
 * **`name`** (`jsonb`): 파츠의 다국어 이름.
@@ -84,20 +110,33 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`offset_x` / `offset_y`** (`integer`): 슬롯 기준 세부 오프셋. (기본값: 0)
 * **`scale`** (`real`): 파츠 자체의 크기 배율. (기본값: 1.0)
 
-### 6. `branches` & `tracks` & `track_logs` (지점, 링크, 접속 통계)
+### 6. `branches` & `tracks` & `track_logs` (지점, 링크, 접속 통계) [RPC: `get_track_kpi_dashboard`, `update_track_log_action`]
 **[`branches` - 지점 마스터] (Admin: ALL, Everyone: SELECT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL branches)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT branches)*
 * **`branch_id`** (`uuid`, Primary Key): 지점 식별자.
 * **`branch_name`** (`text`): 지점의 다국어 이름 (문자열 직렬화(JSON.stringify)로 저장).
   * *제약조건:* 유일해야 합니다. (`UNIQUE`)
 * **`created_at`** (`timestamp with time zone`): 생성 일시.
 
 **[`tracks` - 접속 링크(트랙) 마스터] (Admin: ALL, Everyone: SELECT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL tracks)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT tracks)*
 * **`track_id`** (`varchar`, Primary Key): 링크 URL에 삽입될 트랙 고유 문자열.
 * **`is_shared`** (`boolean`): 다른 유저가 공유하기를 통해 배포한 링크인지 여부. (공유 유입 KPI 계산용)
 * **`created_at`** (`timestamp with time zone`): 생성 일시.
 * **`branch_id`** (`uuid`): 해당 트랙이 소속된 지점. (`branches(branch_id)` 외래키, `CASCADE`)
 
 **[`track_logs` - KPI 측정을 위한 유저 행동 로그] (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)**
+
+**[RLS Policies]**
+- `SELECT` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin SELECT track_logs)*
+- `INSERT` (익명): (조건 없음) *(Policy: Anon INSERT track_logs)*
+- `SELECT` (공개): `해당 지점 관리자 전용` *(Policy: User SELECT track_logs)*
 * **`log_id`** (`uuid`, Primary Key): 로그 식별자.
 * **`participant_id`** (`uuid`): 방문 유저 식별자. (`participants` 외래키, `CASCADE`)
 * **`track_id`** (`varchar`, Nullable): 접속한 트랙 문자열.
@@ -113,7 +152,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   * `end_date` (TIMESTAMPTZ, 선택): 조회 종료 일시. 생략 시 `infinity`
 * **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 일반 가맹점 관리자(User)는 본인 지점 트랙만 자동 조회됩니다.
 
-### 7. `participants` (유저 및 익명 정보) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*)
+### 7. `participants` (유저 및 익명 정보) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*) [RPC: `get_participant`, `assign_random_nickname`, `reassign_invalid_nicknames`]
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on participants)*
+- `INSERT` (익명): (조건 없음) *(Policy: Anon INSERT participants)*
 * **`participant_id`** (`uuid`, Primary Key): 게임에 참가한 익명 유저의 기기(LocalStorage) 식별자입니다.
 * **`roulette_joined`** (`timestamp with time zone`, Nullable): 가장 마지막에 가챠(룰렛)를 돌린 시간입니다. (룰렛 쿨타임 제한 검증용)
 * **`last_participated_at`** (`timestamp with time zone`): 마지막 방문 일시.
@@ -125,6 +168,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 8. `nickname_presets` & `nickname_exclusions` (닉네임 관리) (Admin: ALL, Everyone: SELECT)
 **[`nickname_presets`]**
+
+**[RLS Policies]**
+- `ALL` (관리자 로그인): `최고 관리자(Admin) 전용` *(Policy: Admins can do everything on nickname_presets)*
+- `SELECT` (공개): `모두 허용` *(Policy: Anyone can select nickname_presets)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT nickname_presets)*
 * **`id`** (`uuid`, Primary Key): 단어 프리셋 식별자.
 * **`type`** (`varchar`): 'first_word'(앞글자) 또는 'last_word'(뒷글자) 인지를 구분합니다.
   * *제약조건:* `CHECK (type IN ('first_word', 'last_word'))`
@@ -133,6 +181,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`created_at`** (`timestamp with time zone`): 생성 일시.
 
 **[`nickname_exclusions`]**
+
+**[RLS Policies]**
+- `ALL` (관리자 로그인): `최고 관리자(Admin) 전용` *(Policy: Admins can do everything on nickname_exclusions)*
+- `SELECT` (공개): `모두 허용` *(Policy: Anyone can select nickname_exclusions)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT nickname_exclusions)*
 * **`id`** (`uuid`, Primary Key): 제외 규칙 식별자.
 * **`first_word_id` & `last_word_id`** (`uuid`): 서로 결합할 수 없는 앞/뒷 단어 쌍. (`nickname_presets` 외래키)
   * *제약조건:* `UNIQUE (first_word_id, last_word_id)`로 동일 규칙 중복 등록 방지.
@@ -141,7 +194,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`id`** (`integer`, Primary Key): 설정 로우 식별자. (`CHECK (id = 1)`)
 * **`digit_length`** (`integer`): 닉네임에 부여될 숫자의 자릿수. (예: 4 -> '0023', 3 -> '015'). 해당 값이 변경(증가/감소)되면 `update_nickname_digit_length` RPC를 통해 기존 유저들의 숫자도 자동으로 재생성 및 패딩됩니다.
 
-### 9. `game_score_logs` (게임 점수 기록) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*)
+### 9. `game_score_logs` (게임 점수 기록) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*) [RPC: `get_my_score_logs`]
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on game_score_logs)*
+- `INSERT` (익명): (조건 없음) *(Policy: Anon INSERT game_score_logs)*
 * **`log_id`** (`uuid`, Primary Key): 점수 기록 식별자.
 * **`participant_id`** (`uuid`): 플레이한 참가자. (`participants` 외래키, `CASCADE`)
 * **`best_score`** (`integer`): 해당 게임에서 획득한 최고 점수.
@@ -150,12 +207,22 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 10. `gatcha_cases`, `gatcha_settings`, `gatcha_logs` (가챠/룰렛 설정 및 이력) (Admin: ALL, Everyone: SELECT)
 **[`gatcha_cases` - 가챠 점수 구간]**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL gatcha_cases)*
+- `SELECT` (공개): `모두 허용` *(Policy: Enable read access for all users)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT gatcha_cases)*
 * **`gatcha_case_id`** (`uuid`, Primary Key): 점수 구간 식별자.
 * **`gatcha_case_name`** (`jsonb`): "브론즈", "골드" 등 점수 구간의 다국어 이름 (JSON 파싱).
 * **`min_score` / `max_score`** (`integer`): 구간의 최소/최대 점수.
   * *제약조건:* `CHECK (min_score >= 0)`, `CHECK (max_score <= 1953)`, `CHECK (min_score <= max_score)` 로 DB 레벨에서 구간 무결성이 강제됩니다. 1953점을 초과하는 구간 설정은 원천 차단됩니다.
 
 **[`gatcha_settings` - 가챠 글로벌 횟수 제한 설정]**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL gatcha_settings)*
+- `SELECT` (공개): `모두 허용` *(Policy: Enable read access for all users)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT gatcha_settings)*
 * **`id`** (`integer`, Primary Key): 글로벌 세팅.
   * *제약조건:* `CHECK (id = 1)`로 단 한 줄의 Row만 유지하도록 강제됩니다.
 * **`limit_type`** (`varchar`): 횟수 제한 기준 ('days' 또는 'hours').
@@ -164,12 +231,20 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`aggregation_hours` / `aggregation_minutes`** (`integer`): 이 시간 이내의 플레이 기록(`game_score_logs`)만을 집계하여 최고 점수를 기반으로 가챠 구간에 배치합니다.
 
 **[`gatcha_logs` - 가챠 참여 이력] (Admin: ALL, Anon: INSERT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL gatcha_logs)*
+- `INSERT` (공개): (조건 없음) *(Policy: Anon INSERT gatcha_logs)*
 * **`log_id`** (`uuid`, Primary Key): 로그 식별자.
 * **`participant_id`** (`uuid`): 참가자. (`participants` 외래키, `CASCADE`)
 * **`joined_at`** (`timestamp with time zone`): 가챠 시도 일시. (이 이력을 바탕으로 `gatcha_settings`의 글로벌 횟수 제한 초과 여부를 검증합니다.)
 
-### 11. `coupon_effects` & `issued_coupons` (쿠폰 마스터 및 발급 정보)
+### 11. `coupon_effects` & `issued_coupons` (쿠폰 마스터 및 발급 정보) [RPC: `get_my_coupons`, `get_coupon_info_for_scan`, `undo_coupon`, `use_coupon`]
 **[`coupon_effects` - 혜택 정의] (Admin: ALL, Everyone: SELECT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL coupon_effects)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT coupon_effects)*
 * **`coupon_effect_id`** (`uuid`, Primary Key): 쿠폰 식별자.
 * **`coupon_type`** (`text`): 다국어 혜택명 (JSON 파싱).
 * **`description`** (`text`): 부가 설명.
@@ -180,6 +255,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`is_online_coupon`** (`boolean`): 웹 전용 쿠폰 여부. true일 경우 스캐너 조회/KPI 수집에서 제외되며 `web_coupons` 할당을 트리거합니다. (기본값: false)
 
 **[`issued_coupons` - 유저에게 발급된 쿠폰] (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL issued_coupons)*
+- `SELECT` (공개): `지점 관리자(User) 전용` *(Policy: User SELECT issued_coupons)*
+- `UPDATE` (공개): `지점 관리자(User) 전용` *(Policy: User UPDATE issued_coupons)*
 * **`coupon_id`** (`uuid`, Primary Key): 발급 식별자.
 * **`participant_id`** (`uuid`): 소유자. (`participants` 외래키, `CASCADE`)
 * **`coupon_effect_id`** (`uuid`): 혜택 원본. (`coupon_effects` 외래키)
@@ -188,19 +268,32 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   * *참고 1:* 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다.
   * *참고 2:* 발급된 쿠폰이 웹 전용 쿠폰(`is_online_coupon`)일 경우, `expired_at`은 연산되지 않고 영구적으로 null 값을 가집니다.
 
-### 12. `web_coupons` & `web_coupon_settings` (웹 전용 이벤트 쿠폰) (Admin: ALL)
+### 12. `web_coupons` & `web_coupon_settings` (웹 전용 이벤트 쿠폰) (Admin: ALL) [RPC: `get_my_web_coupons`, `assign_web_coupon`]
 **[`web_coupons`] (*조회 및 할당은 익명 유저가 RPC 함수를 통해 수행*)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL web_coupons)*
 * **`id`** (`uuid`, Primary Key): 쿠폰 로우 식별자.
 * **`coupon_code`** (`text`, UNIQUE): 사전 생성된 웹 쿠폰 번호 문자열 (예: 'A1B2C3D4').
 * **`participant_id`** (`uuid`, Nullable): 이 쿠폰 번호를 가져간 유저 ID. (Null일 경우 아직 배정되지 않은 잔여 쿠폰입니다.) 가챠 시스템 특성상 중복 당첨이 가능하도록 UNIQUE 제약이 해제되었습니다.
 * **`assigned_at` / `created_at`** (`timestamp with time zone`): 배정/생성 일시.
 
 **[`web_coupon_settings`] (Everyone: SELECT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL web_coupon_settings)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT web_coupon_settings)*
 * **`id`** (`integer`, Primary Key): 단일 Row를 식별합니다.
 * **`title` / `description`** (`jsonb`): 게임 클라이언트에서 웹 쿠폰을 보여줄 때 사용할 다국어 팝업 제목 및 설명 템플릿입니다.
 
-### 13. `survey_questions` & `survey_responses` (설문조사 기능)
+### 13. `survey_questions` & `survey_responses` (설문조사 기능) [RPC: `check_pending_survey`, `record_optional_survey_shown`]
 **[`survey_questions`] (Admin: ALL, User: 본인 지점 ALL, Everyone: SELECT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admins have full access to survey_questions)*
+- `ALL` (공개): `해당 지점 관리자 전용` *(Policy: Branch users have full access to their branch's survey_question)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT survey_questions)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone can read survey questions)*
 * **`question_id`** (`uuid`, Primary Key): 문항 식별자.
 * **`survey_phase`** (`integer`): 0(힌트), 1(주요 질문), 2(지점 특화 질문) 등 설문 시점을 나타냅니다. 
 * **`question_text`** (`text`): 다국어 질문 내용 (문자열 직렬화).
@@ -213,6 +306,11 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`branch_id`** (`uuid`, Nullable): `survey_phase=2`일 경우 특정 지점에만 표시하기 위한 지점 지정용 아이디입니다. (`branches` 외래키, `CASCADE`)
 
 **[`survey_responses`] (Admin: ALL, User: 본인 지점 ALL, Everyone: INSERT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admins have full access to survey_responses)*
+- `ALL` (공개): `해당 지점 관리자 전용` *(Policy: Branch users have full access to their branch's survey_response)*
+- `INSERT` (공개): (조건 없음) *(Policy: Everyone can insert survey responses)*
 * **`response_id`** (`uuid`, Primary Key): 응답 식별자.
 * **`question_id`** (`uuid`): 문항. (`survey_questions` 외래키, `CASCADE`)
 * **`participant_id`** (`uuid`): 답변자. (`participants` 외래키, `CASCADE`)
@@ -221,14 +319,29 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   * *제약조건:* `UNIQUE (question_id, participant_id)`를 통해 사용자가 동일한 설문에 두 번 답변하는 것을 원천 차단합니다.
 
 **[`optional_survey_records`] (Admin: ALL, Everyone: SELECT)**
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: optional_survey_records_admin_all)*
+- `SELECT` (공개): `모두 허용` *(Policy: optional_survey_records_select_everyone)*
 * **`participant_id`** (`uuid`, Primary Key): 응답자 식별자 (`participants` 외래키, `CASCADE`)
 * **`record`** (`jsonb`): 이미 노출된 선택 질문(`is_required = FALSE`)의 `question_id` 배열을 저장합니다. (기본값: '[]'::jsonb)
 
 **[`survey_settings`] (Admin: UPDATE, Everyone: SELECT)**
+
+**[RLS Policies]**
+- `UPDATE` (공개): `최고 관리자(Admin) 전용` *(Policy: survey_settings_admin_update)*
+- `SELECT` (공개): `모두 허용` *(Policy: survey_settings_select_everyone)*
 * **`id`** (`integer`, Primary Key): 단일 Row 제한 (`CHECK (id = 1)`)
-* **`optional_survey_once`** (`boolean`): 선택 질문 1회 노출 기능의 전역 설정. `true`면 `optional_survey_records`를 참조하여 한 번 노출된 질문은 스킵하고, `false`면 선택 질문을 매번 노출합니다. (기본값: true)
+* **`optional_survey_once`** (`boolean`): 선택 질문 1회 노출 기능의 전역 설정. `모두 허용`면 `optional_survey_records`를 참조하여 한 번 노출된 질문은 스킵하고, `false`면 선택 질문을 매번 노출합니다. (기본값: true)
 
 ### 14. `supported_languages` (다국어 설정)
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin can manage languages)*
+- `ALL` (관리자 로그인): `최고 관리자(Admin) 전용` *(Policy: Admins can do everything on supported_languages)*
+- `SELECT` (공개): `모두 허용` *(Policy: Anyone can read languages)*
+- `SELECT` (공개): `모두 허용` *(Policy: Anyone can select supported_languages)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT supported_languages)*
 * **`lang_code`** (`varchar`, Primary Key): 'ko', 'en' 등의 언어 식별 코드.
 * **`lang_name`** (`varchar`, NOT NULL): '한국어', 'English' 등의 화면 표기 언어명.
 * **`is_active`** (`boolean`): 대시보드 편집기 등에 표시하고 실제 시스템에서 지원할지 여부.
@@ -547,8 +660,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 4단계: 공유하기 버튼 클릭 (공유 참여율)
 유저가 공유하기를 누른 시점에 클릭 여부를 갱신합니다.
-- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_log_id: log_id, p_action: 'share_click' })`를 호출하여 `share_clicked`를 `true`로 갱신합니다.
-- **KPI 연결**: 이 값이 `true`가 된 유저 수를 합산하여 **공유 참여율**을 도출합니다.
+- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_log_id: log_id, p_action: 'share_click' })`를 호출하여 `share_clicked`를 `모두 허용`로 갱신합니다.
+- **KPI 연결**: 이 값이 `모두 허용`가 된 유저 수를 합산하여 **공유 참여율**을 도출합니다.
 
 ### 5단계: 공유 링크 생성 (바이럴 확산 준비)
 유저가 누군가에게 공유할 링크(URL)를 만들 때는 새로운 트랙을 생성하는 것이 아닙니다. 
@@ -561,7 +674,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 7단계: 쿠폰 발급 및 사용 (쿠폰 사용률)
 - **DB 작업 (발급 시 INSERT)**: 쿠폰 획득 시 `issued_coupons`에 기록 (**총 발급 수** 집계).
-- **DB 작업 (사용 시 UPDATE)**: 오프라인 매장 등에서 사용 처리 시 `issued_coupons`의 `is_used`를 `true`로 갱신.
+- **DB 작업 (사용 시 UPDATE)**: 오프라인 매장 등에서 사용 처리 시 `issued_coupons`의 `is_used`를 `모두 허용`로 갱신.
 - **KPI 연결**: `is_used = true`인 쿠폰 수를 집계하여 발급 수 대비 **쿠폰 사용률**을 자동 도출합니다.
 
 # QR Scanner Implementation Guidelines
