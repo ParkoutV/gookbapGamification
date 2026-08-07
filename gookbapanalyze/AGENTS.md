@@ -460,10 +460,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   ```json
   {
     "success": true,
-    "coupon_type": {
-      "ko": "국밥 1그릇 무료 뚝딱 쿠폰",
-      "en": "Free Gookbap"
-    },
+    "coupon_type": "{\"ko\": \"국밥 1그릇 무료 뚝딱 쿠폰\", \"en\": \"Free Gookbap\"}",
     "score_used": 1500,
     "coupon_id": "uuid-string-here",
     "web_coupon_code": "A1B2C3D4" // 웹 전용 쿠폰 당첨 시에만 반환
