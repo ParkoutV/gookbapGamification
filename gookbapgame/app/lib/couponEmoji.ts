@@ -8,7 +8,19 @@ import type { LocalizedName } from "./i18n/localizedName.ts";
  * 언어마다 키워드 표를 만들면 표가 세 배로 늘고 어차피 새 상품은 못 맞춘다.
  * 한국어 이름은 관리자가 반드시 채우는 값이라 이것만 봐도 실질 적중률이 같다.
  */
-export const DEFAULT_COUPON_EMOJI = "🍽️";
+/**
+ * **U+FE0F(VS16)를 붙이지 말 것.** 이 이모지는 원래 `"\u{1F37D}\u{FE0F}"`였는데,
+ * 그 상태에서는 서브셋 폰트가 글자를 그리지 못하고 시스템 컬러 이모지로 떨어졌다
+ * (2026-08-07 실측: VS16이 붙은 글자만 폭이 폴백과 같았다).
+ *
+ * cmap에 U+FE0F가 들어 있어도 소용없다 — build-emoji-font.sh가 `--layout-features=''`로
+ * GSUB 기능을 비우기 때문에 VS16 클러스터가 합쳐지지 않고, 브라우저는 그래핌
+ * 전체를 못 그린다고 보고 다음 폰트로 넘어간다. 게다가 VS16은 "컬러로 그려달라"는
+ * 요청이라 흑백 서브셋을 쓰는 이 화면의 의도와 애초에 반대다.
+ *
+ * `docs/check-emoji-font.py`는 코드포인트를 낱개로 보므로 이 문제를 잡지 못한다.
+ */
+export const DEFAULT_COUPON_EMOJI = "\u{1F37D}";
 
 /**
  * 먼저 걸리는 항목이 이긴다 — **순서가 곧 우선순위다.**

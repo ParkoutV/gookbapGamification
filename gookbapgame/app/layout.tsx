@@ -33,6 +33,25 @@ const notoEmoji = localFont({
 export const metadata: Metadata = {
   title: "다른그림찾기 - 국밥",
   description: "국밥 한 상차림 다른그림찾기 게임",
+  other: {
+    /**
+     * Darkreader 등 강제 다크모드 확장을 페이지 전체에서 끈다.
+     *
+     * 이 게임은 이미 어두운 우드톤 테마라 강제 다크모드가 개선할 것이 없고,
+     * 오히려 **카드 앞면을 망가뜨린다** — 앞면은 밝은 픽셀 애셋 위에 어두운 글자를
+     * 올리는 구조인데, 확장은 이미지는 그대로 두고 글자색만 뒤집어서 밝은 배경에
+     * 밝은 글자가 된다(실측: #3A2E24 → #C9C3B8). 상품명·만료일·테두리가 사라진다.
+     *
+     * 서브트리만 제외하는 방법은 없다. `data-darkreader-ignore` 같은 속성은 실제
+     * Darkreader 코드에 존재하지 않고, `color-scheme: only light`도 무시된다 —
+     * 4.9.128 실물로 확인했다. 이 meta가 유일하게 동작하는 수단이다.
+     *
+     * content 값은 Darkreader가 보지 않는다(`meta[name="darkreader-lock"]` 존재만 확인).
+     * 그래도 **빈 문자열은 안 된다** — Next가 값 없는 항목을 태그째 버려서 meta가
+     * 아예 렌더되지 않는다(실측). 그래서 의미 없는 값이라도 채워 둔다.
+     */
+    "darkreader-lock": "1",
+  },
 };
 
 export default function RootLayout({
