@@ -166,7 +166,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 **[`gatcha_logs` - 가챠 참여 이력] (Admin: ALL, Anon: INSERT)**
 * **`log_id`** (`uuid`, Primary Key): 로그 식별자.
 * **`participant_id`** (`uuid`): 참가자. (`participants` 외래키, `CASCADE`)
-* **`joined_at`** (`timestamp with time zone`): 가챠 시도 일시.
+* **`joined_at`** (`timestamp with time zone`): 가챠 시도 일시. (이 이력을 바탕으로 `gatcha_settings`의 글로벌 횟수 제한 초과 여부를 검증합니다.)
 
 ### 11. `coupon_effects` & `issued_coupons` (쿠폰 마스터 및 발급 정보)
 **[`coupon_effects` - 혜택 정의] (Admin: ALL, Everyone: SELECT)**
@@ -185,7 +185,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`coupon_effect_id`** (`uuid`): 혜택 원본. (`coupon_effects` 외래키)
 * **`is_used`** (`boolean`): 쿠폰 사용(매장 스캔) 완료 여부.
 * **`issued_at` / `used_at` / `expired_at`** (`timestamp with time zone`): 각각 발급/사용/만료 일시. 만료 일시는 쿠폰 정보 획득 및 무효 판별에 활용됩니다.
-  * *참고:* 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다.
+  * *참고 1:* 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다.
+  * *참고 2:* 발급된 쿠폰이 웹 전용 쿠폰(`is_online_coupon`)일 경우, `expired_at`은 연산되지 않고 영구적으로 null 값을 가집니다.
 
 ### 12. `web_coupons` & `web_coupon_settings` (웹 전용 이벤트 쿠폰) (Admin: ALL)
 **[`web_coupons`] (*조회 및 할당은 익명 유저가 RPC 함수를 통해 수행*)**
@@ -464,7 +465,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
       "en": "Free Gookbap"
     },
     "score_used": 1500,
-    "coupon_id": "uuid-string-here"
+    "coupon_id": "uuid-string-here",
+    "web_coupon_code": "A1B2C3D4" // 웹 전용 쿠폰 당첨 시에만 반환
   }
   ```
 - **Response (No Win / 꽝 - 200 OK)**:
@@ -480,7 +482,16 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 - **Response (Error - 400/500/Cooldown/NoScore)**:
   ```json
   {
-    "error": "아직 룰렛을 돌릴 수 없습니다."
+    "error": "제한 횟수 초과 (N일/시간 이내 최대 M번 참여 가능)",
+    "code": "LIMIT_EXCEEDED"
+  }
+  ```
+- **Response (Error - Survey Required - 403 Forbidden)**:
+  (가챠를 돌리기 전, 설문조사 Phase 1의 필수 항목 완료 여부를 검증합니다)
+  ```json
+  {
+    "error": "설문조사를 먼저 완료해주세요.",
+    "code": "SURVEY_REQUIRED"
   }
   ```
 
@@ -505,20 +516,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
     "success": true,
     "data": {
       "success": true,
-      "code": "A1B2C3D4",
-      "already_assigned": false
-    }
-  }
-  ```
-- **Response (Already Assigned - 200 OK)**:
-  (이미 발급받은 유저가 재요청을 보낼 경우, 새로운 쿠폰을 차감하지 않고 기존 쿠폰 번호를 그대로 반환합니다)
-  ```json
-  {
-    "success": true,
-    "data": {
-      "success": true,
-      "code": "A1B2C3D4",
-      "already_assigned": true
+      "code": "A1B2C3D4"
     }
   }
   ```
