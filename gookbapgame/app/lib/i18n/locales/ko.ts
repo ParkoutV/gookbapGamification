@@ -96,6 +96,10 @@ export const ko: Dictionary = {
   "card.saveButton": "이미지로 저장",
   "card.saving": "저장하는 중...",
   "card.saveError": "저장에 실패했어요. 잠시 후 다시 시도해주세요.",
+
+  "sound.muteAria": "소리 끄기",
+  "sound.unmuteAria": "소리 켜기",
+
   "wheel.wonTitle": "쿠폰에 당첨됐어요!",
   "wheel.missTitle": "아쉽게도 꽝이에요",
   "wheel.missDescription": "다음 기회에 다시 도전해주세요.",

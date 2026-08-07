@@ -96,6 +96,10 @@ export const en: Partial<Dictionary> = {
   "card.saveButton": "Save as image",
   "card.saving": "Saving...",
   "card.saveError": "Couldn't save the image. Please try again later.",
+
+  "sound.muteAria": "Mute sound",
+  "sound.unmuteAria": "Unmute sound",
+
   "wheel.wonTitle": "You won a coupon!",
   "wheel.missTitle": "No luck this time",
   "wheel.missDescription": "Please try again next time.",

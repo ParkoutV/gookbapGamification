@@ -8,6 +8,7 @@ import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
 import { DATE_LOCALES } from "../lib/i18n/dateLocales";
 import { renderCardImage } from "../lib/cardImage";
 import { saveOrShareImage } from "../lib/shareCard";
+import { playSfx, SFX } from "../lib/sfx";
 import type { IssuedCoupon } from "../actions";
 
 /** 밝은 카드면 위의 글자색. 테마의 --ink는 어두운 배경용 밝은 색이라 여기서는 안 보인다. */
@@ -49,6 +50,24 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
    * 끼면 그 유효 시간이 소모되어 NotAllowedError로 거부된다.
    * 미리 구워두면 클릭 핸들러가 곧바로 share를 부를 수 있다.
    */
+  // 뒤집는 동작 자체의 소리. 결과 소리는 아래 effect가 한 박자 늦게 낸다.
+  const handleFlip = () => {
+    playSfx(SFX.touch);
+    onFlip();
+  };
+
+  /**
+   * 결과 소리는 카드가 실제로 돌아간 뒤에 낸다. 탭하자마자 내면 앞면이 보이기도
+   * 전에 당첨/꽝이 소리로 새어나간다. 지연은 뒤집기 트랜지션(700ms)의 후반부다.
+   */
+  useEffect(() => {
+    if (!flipped) return;
+    const timer = setTimeout(() => {
+      playSfx(coupon ? SFX.coupon : SFX.couponLose);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [flipped, coupon]);
+
   useEffect(() => {
     if (!flipped || !coupon) return;
     let cancelled = false;
@@ -119,11 +138,11 @@ export default function GatchaCard({ coupon, flipped, canFlip, onFlip }: GatchaC
               role: "button" as const,
               tabIndex: 0,
               "aria-label": t("wheel.flipHint"),
-              onClick: onFlip,
+              onClick: handleFlip,
               onKeyDown: (e: React.KeyboardEvent) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onFlip();
+                  handleFlip();
                 }
               },
             }

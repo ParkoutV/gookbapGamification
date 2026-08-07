@@ -7,6 +7,7 @@ import { useLocale } from "../lib/i18n/LocaleContext";
 import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
 import HintClipboard from "./HintClipboard";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
+import { playSfx, SFX } from "../lib/sfx";
 
 interface GameScreenProps {
   session: GameSession;
@@ -92,6 +93,7 @@ export default function GameScreen({
     if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
 
     setWrongMarks((prev) => [...prev, { id: wrongMarkIdRef.current++, x, y, side }]);
+    playSfx(SFX.pencilFailed);
     onWrongTouch();
 
     const next = wrongTouchCount + 1;
@@ -123,6 +125,7 @@ export default function GameScreen({
       newSet.add(slotId);
       return newSet;
     });
+    playSfx(SFX.pencilSuccess);
     onCorrectFind();
   };
 

@@ -85,3 +85,19 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     iOS Safari는 `navigator.share`를 사용자 제스처가 유효한 동안에만 허용하는데, 탭과
     호출 사이에 이미지 로드·직렬화가 끼면 `NotAllowedError`로 거부되고 공유 시트 대신
     조용히 파일 다운로드로 떨어진다.
+
+# 효과음 (`app/lib/sfx.ts`)
+
+- **포맷은 m4a(AAC) 하나로 통일한다.** 원본은 opus인데 **iOS Safari가 .ogg 컨테이너를
+  재생하지 못한다** — 모바일 웹 게임이라 그쪽에서 안 들리면 의미가 없다.
+  원본은 기획 폴더에 있고 리포에는 변환본만 둔다(`bash docs/build-sfx.sh`).
+- **첫 재생은 사용자 제스처 안에서 일어나야 한다.** iOS·Android는 제스처 없는 재생을
+  막는다. 시작 버튼(`page.tsx`의 `handleStart`)에서 `unlockSfx()`로 무음 재생을 한 번
+  돌려 잠금을 풀어둔다 — 이걸 빼면 게임 안에서 정답 소리가 첫 번째만 안 난다.
+- **재생 실패는 절대 던지지 않는다.** 소리는 게임 진행에 필수가 아니고, 제스처 전
+  자동재생 차단(NotAllowedError)은 정상 동작이다. `playSfx`는 모든 실패를 삼킨다.
+- 같은 소리를 연달아 내야 하므로(정답 연속) 재생 중이면 `currentTime = 0`으로 되감는다.
+  엘리먼트는 이름당 하나만 만들어 캐시한다.
+- 결과 소리(당첨/꽝)는 **카드가 돌아간 뒤에** 낸다(`GatchaCard`의 450ms 지연).
+  탭하자마자 내면 앞면이 보이기도 전에 결과가 소리로 새어나간다.
+- 음소거 상태는 `localStorage`에 남긴다. 매장·공공장소에서 소리를 못 켜는 상황이 흔하다.

@@ -98,6 +98,10 @@ export const ja: Partial<Dictionary> = {
   "card.saveButton": "画像として保存",
   "card.saving": "保存中...",
   "card.saveError": "保存に失敗しました。しばらくしてからお試しください。",
+
+  "sound.muteAria": "音を消す",
+  "sound.unmuteAria": "音を出す",
+
   "wheel.wonTitle": "クーポンが当たりました！",
   "wheel.missTitle": "残念、はずれです",
   "wheel.missDescription": "またの機会にご挑戦ください。",
