@@ -11,12 +11,19 @@ import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
-import {
-  sortByIssuedAt,
-  toIssuedCoupon,
-  type IssuedCoupon,
-  type IssuedCouponRow,
-} from "./lib/issuedCoupons";
+import { sortByIssuedAt, toIssuedCoupon, type IssuedCouponRow } from "./lib/issuedCoupons";
+import type { IssuedCoupon } from "./lib/issuedCoupons";
+
+/**
+ * 화면들이 `actions`에서 가져다 쓰던 타입이라 여기서도 계속 내보낸다.
+ *
+ * **`export type { IssuedCoupon }`(중괄호만) 형태로 쓰지 말 것.** 그러면 번들에
+ * 값 참조가 남아 런타임에 `ReferenceError: IssuedCoupon is not defined`로 터진다 —
+ * `tsc --noEmit`도 `next build`도 잡지 못하고, 프로덕션에서 이 파일의 서버 액션이
+ * **전부** 500이 된다(2026-08-07에 실제로 그랬다. 시작 화면의 `ensureParticipant`가
+ * 죽어 닉네임이 빈 채로 떴다). `from`을 붙여 원본에서 직접 re-export해야 지워진다.
+ */
+export type { IssuedCoupon } from "./lib/issuedCoupons";
 import { toSurveyFetchResult, type SurveyFetchResult } from "./lib/surveyFetchResult";
 import {
   buildSurveyResponseRows,
@@ -452,8 +459,6 @@ export async function submitSurveyResponses(
     return { ok: false };
   }
 }
-
-export type { IssuedCoupon };
 
 export type DrawCouponResult =
   | { status: "won"; coupon: IssuedCoupon }
