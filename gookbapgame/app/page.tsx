@@ -150,8 +150,19 @@ export default function Home({ searchParams }: PageProps) {
       goToPhase("wheel");
       return;
     }
-    const hasQuestions = await loadQuestions();
-    if (!hasQuestions && phaseRef.current === "surveyIntro") goToPhase("wheel");
+    const outcome = await loadQuestions();
+    // "empty"(문항 0건)와 "failed"(조회 실패) 모두 룰렛으로 보낸다 — 설문을 못 불러왔다고
+    // 쿠폰 기회까지 막으면 사용자에게 더 큰 손해다. 다만 "failed"는 콘솔에만 남던 것을
+    // 여기서 구분해 기록한다. 두 경우가 동일하게 처리되던 탓에 프로덕션에서 설문이
+    // 안 뜨는 원인을 추적할 수 없었다.
+    if (outcome === "failed") {
+      console.error(
+        "[enterSurveyFlow] 설문 문항 조회 실패 — 설문을 건너뛰고 룰렛으로 진행한다."
+      );
+    }
+    if (outcome !== "shown" && phaseRef.current === "surveyIntro") {
+      goToPhase("wheel");
+    }
   }, [resetCoupon, goToPhase, loadQuestions]);
 
   const enterDrawFromStart = useCallback(async () => {

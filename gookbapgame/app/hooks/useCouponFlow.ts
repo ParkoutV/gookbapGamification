@@ -33,16 +33,31 @@ export function useCouponFlow() {
   // 두 번째는 쿨타임 403을 받아 사용자에게 없던 실패로 보인다.
   const drawStartedRef = useRef(false);
 
-  const loadQuestions = useCallback(async (): Promise<boolean> => {
+  /**
+   * "설문을 보여줄 수 있는가"와 "왜 못 보여주는가"를 구분해서 돌려준다.
+   * - "shown":   문항을 불러왔다. 설문 화면으로 간다.
+   * - "empty":   정상 조회했지만 Phase 1 문항이 0건. 설문을 건너뛰는 게 맞다.
+   * - "failed":  조회 자체가 실패(RLS·네트워크·DB 장애). 건너뛰면 안 되고
+   *              사용자에게 알려야 한다 — 이걸 "empty"로 뭉뚱그렸던 것이
+   *              프로덕션 장애를 조용한 스킵으로 위장시킨 원인이다.
+   */
+  const loadQuestions = useCallback(async (): Promise<
+    "shown" | "empty" | "failed"
+  > => {
     setState("loadingQuestions");
-    const loaded = await fetchSurveyQuestions();
-    setQuestions(loaded);
-    if (loaded.length === 0) {
+    const result = await fetchSurveyQuestions();
+    setQuestions(result.questions);
+
+    if (!result.ok) {
       setState("idle");
-      return false;
+      return "failed";
+    }
+    if (result.questions.length === 0) {
+      setState("idle");
+      return "empty";
     }
     setState("survey");
-    return true;
+    return "shown";
   }, []);
 
   // 재제출 차단. 서버에서 SELECT로 막을 수 없어(survey_responses는 INSERT만 열림)

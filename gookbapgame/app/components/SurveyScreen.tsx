@@ -27,7 +27,10 @@ export default function SurveyScreen({
   const { locale, t } = useLocale();
   const [answers, setAnswers] = useState<SurveyAnswerMap>({});
 
-  const allAnswered = questions.every((q) => isAnswered(q, answers[q.questionId]));
+  // 선택 문항(isRequired=false)은 비워도 제출할 수 있다.
+  const allAnswered = questions.every(
+    (q) => !q.isRequired || isAnswered(q, answers[q.questionId])
+  );
 
   const toggleChoice = (question: SurveyQuestion, index: number) => {
     setAnswers((prev) => {
@@ -55,6 +58,11 @@ export default function SurveyScreen({
               <div key={question.questionId}>
                 <p className="font-bold mb-3 text-ink">
                   {resolveLocalizedName(question.text, locale)}
+                  {!question.isRequired && (
+                    <span className="ml-1 font-normal text-muted">
+                      {t("survey.optional")}
+                    </span>
+                  )}
                 </p>
 
                 {question.questionType === 2 ? (
