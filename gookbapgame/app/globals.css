@@ -36,56 +36,62 @@ body {
   font-family: var(--font-body), -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
 
+/* 픽셀 모서리 깎기 — clip-path 단일 경로.
+ *
+ * 배경(두 번의 실패한 접근):
+ * 1) pixel-*.svg 한 장을 `mask-size: 100% 100%`로 늘려 씌웠다. SVG가 고정
+ *    viewBox(360x240) + preserveAspectRatio="none"이라 모서리 계단이 요소 크기에
+ *    비례해 확대/축소됐다 — 넓은 카드는 계단이 2배, 세로로 긴 요소는 가로/세로
+ *    배율이 달라 정사각형이어야 할 픽셀이 찌그러졌다.
+ * 2) 모서리 SVG 4장을 고정 px로 배치하고 mask-composite로 합성했다. 크기 문제는
+ *    풀렸지만 마스크 레이어 4장이 겹치는 구조라 경계에 합성 아티팩트가 남았다.
+ *
+ * 그래서 레이어 합성 자체를 없앤다. clip-path polygon 하나로 테두리 전체를 그린다.
+ * 좌표가 전부 정수 px이라 서브픽셀 보간이 원천적으로 생기지 않고, calc()로 잡으니
+ * 요소가 아무리 커져도 계단은 항상 3px 격자를 유지한다. SVG 파일도 필요 없다.
+ *
+ * 계단은 좌상단 기준 (3,0)→(2,1)→(1,2)→(0,3). 나머지 3모서리는 이를 대칭시킨 것.
+ */
 .pixel-frame {
   background: var(--wood);
 }
+.pixel-frame--card,
+.pixel-frame--btn,
+.pixel-frame-inner--card,
+.pixel-frame-inner--btn,
+.pixel-mask-btn-solid {
+  clip-path: polygon(
+    3px 0,                       calc(100% - 3px) 0,
+    calc(100% - 3px) 1px,        calc(100% - 2px) 1px,
+    calc(100% - 2px) 2px,        calc(100% - 1px) 2px,
+    calc(100% - 1px) 3px,        100% 3px,
+    100% calc(100% - 3px),       calc(100% - 1px) calc(100% - 3px),
+    calc(100% - 1px) calc(100% - 2px), calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 1px), calc(100% - 3px) calc(100% - 1px),
+    calc(100% - 3px) 100%,       3px 100%,
+    3px calc(100% - 1px),        2px calc(100% - 1px),
+    2px calc(100% - 2px),        1px calc(100% - 2px),
+    1px calc(100% - 3px),        0 calc(100% - 3px),
+    0 3px,                       1px 3px,
+    1px 2px,                     2px 2px,
+    2px 1px,                     3px 1px
+  );
+}
 .pixel-frame--card {
   padding: 2px;
-  mask-image: url(/masks/pixel-card.svg);
-  -webkit-mask-image: url(/masks/pixel-card.svg);
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
 }
 .pixel-frame--btn {
-  padding: 1.5px;
-  mask-image: url(/masks/pixel-btn.svg);
-  -webkit-mask-image: url(/masks/pixel-btn.svg);
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
+  padding: 2px;
 }
 .pixel-frame-inner {
   background: var(--surface);
   height: 100%;
 }
 .pixel-frame-inner--card {
-  mask-image: url(/masks/pixel-card-inner.svg);
-  -webkit-mask-image: url(/masks/pixel-card-inner.svg);
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
   padding: 1.5rem 1.25rem;
 }
 .pixel-frame-inner--btn {
-  mask-image: url(/masks/pixel-btn-inner.svg);
-  -webkit-mask-image: url(/masks/pixel-btn-inner.svg);
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
   padding: .7rem .6rem;
-}
-.pixel-mask-btn-solid {
-  mask-image: url(/masks/pixel-btn-solid.svg);
-  -webkit-mask-image: url(/masks/pixel-btn-solid.svg);
-  mask-size: 100% 100%;
-  -webkit-mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
 }
 
 @keyframes shake {
