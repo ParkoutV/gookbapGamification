@@ -122,6 +122,72 @@ body {
   container-type: size;
 }
 
+/* 카드 앞면 안쪽 테두리. 좌상/우하 모서리를 계단식으로 파내 이모지 자리를 만든다
+   (트럼프 카드의 코너 마크 위치). 테두리가 그 자리를 비켜 가므로 이모지를 키워도
+   선과 겹치지 않는다.
+   계단이 3단인 것은 .pixel-frame의 3px 격자와 같은 리듬을 쓰기 위한 것이다 —
+   여기서는 요소가 커서 px 대신 %로 잡는다. */
+/* 카드 앞면 안쪽 테두리. 좌상/우하 모서리를 계단식으로 파내 이모지 자리를 만든다
+   (트럼프 카드의 코너 마크 위치). 테두리가 그 자리를 비켜 가므로 이모지를 키워도
+   선과 겹치지 않는다.
+   테두리를 border가 아니라 배경 그라디언트 4줄로 그리는 이유: border를 쓰면
+   clip-path가 노치 구간의 선을 통째로 지워 끊긴 선처럼 보인다. 배경으로 그리면
+   잘린 모서리를 따라 선이 이어져 계단 모양이 실제로 드러난다. */
+/* 앞 4줄이 바깥 사각형, 뒤 4줄이 노치의 꺾인 변이다.
+   노치는 --notch 한 변짜리 정사각이다. %로 잡으면 요소가 세로로 길어서
+   가로/세로 길이가 달라지므로 px로 고정한다. */
+/* 노치 한 변. 테두리와 코너 마크가 같은 값을 봐야 자리가 어긋나지 않는다. */
+.card-inner-frame,
+.card-corner-layer {
+  --notch: 44px;
+}
+
+.card-inner-frame {
+  --line: rgba(58, 46, 36, 0.45);
+  background:
+    linear-gradient(var(--line), var(--line)) 0 0 / 100% 2px no-repeat,
+    linear-gradient(var(--line), var(--line)) 0 100% / 100% 2px no-repeat,
+    linear-gradient(var(--line), var(--line)) 0 0 / 2px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) 100% 0 / 2px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) 0 var(--notch) / var(--notch) 2px no-repeat,
+    linear-gradient(var(--line), var(--line)) var(--notch) 0 / 2px var(--notch) no-repeat,
+    linear-gradient(var(--line), var(--line)) 100% calc(100% - var(--notch)) / var(--notch) 2px
+      no-repeat,
+    linear-gradient(var(--line), var(--line)) calc(100% - var(--notch)) 100% / 2px var(--notch)
+      no-repeat;
+  clip-path: polygon(
+    var(--notch) 0,
+    100% 0,
+    100% calc(100% - var(--notch)),
+    calc(100% - var(--notch)) calc(100% - var(--notch)),
+    calc(100% - var(--notch)) 100%,
+    0 100%,
+    0 var(--notch),
+    var(--notch) var(--notch)
+  );
+}
+
+/* 코너 마크. 파인 정사각 안에 중앙 정렬한다 — 노치와 같은 --notch를 써야
+   한쪽만 어긋나는 일이 없다. 위치까지 여기서 정하는 것은 Tailwind의 top-0/left-0가
+   이 파일의 규칙에 밀려 무시되기 때문이다. */
+.card-corner-mark {
+  position: absolute;
+  width: var(--notch, 44px);
+  height: var(--notch, 44px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.card-corner-mark--tl {
+  top: 0;
+  left: 0;
+}
+.card-corner-mark--br {
+  bottom: 0;
+  right: 0;
+}
+
 /* 가챠 카드. 비율은 애셋 원본(card-back.webp) 1000x1371 그대로다 — 어긋나면
    object-contain이 여백을 만들어 앞뒤 면의 크기가 달라 보인다.
    높이 기준으로 잡고 너비를 vw로 제한해, 좁은 화면에서도 카드가 잘리지 않는다. */
@@ -130,6 +196,29 @@ body {
   width: auto;
   height: min(55vh, calc(80vw * 1371 / 1000));
   perspective: 1200px;
+  /* scale은 여기(바깥)에 건다. 안쪽 __inner는 rotateY를 쓰고 있어서 거기에 얹으면
+     뒤집기 트랜지션과 같은 속성을 두고 다툰다. */
+  transition: transform 100ms ease-out;
+}
+/* 아직 뒤집을 수 없을 때(draw 응답 대기)는 눌러도 반응이 없으므로 커서와
+   스케일 피드백도 주지 않는다 — 누를 수 있다는 거짓 신호가 된다. */
+.gatcha-card--interactive {
+  cursor: pointer;
+}
+.gatcha-card--interactive:hover,
+.gatcha-card--interactive:focus-visible {
+  transform: scale(1.03);
+}
+.gatcha-card--interactive:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gatcha-card {
+    transition: none;
+  }
+  .gatcha-card__inner {
+    transition: none;
+  }
 }
 
 /* 뒤집기는 3D 컨텍스트가 성립해야 동작한다. preserve-3d와 backface-visibility를
