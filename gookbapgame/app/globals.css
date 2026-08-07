@@ -35,8 +35,18 @@ body {
   color: var(--ink);
   /* 이모지 폰트를 맨 앞에 둔다. 뒤에 두면 시스템 컬러 이모지가 먼저 잡혀
      화면 톤에서 튄다. 서브셋이라 이모지 말고는 글리프가 없어서, 한글·라틴은
-     자연히 다음 폰트로 넘어간다 — 본문 서체를 가리지 않는다. */
-  font-family: var(--font-emoji), var(--font-body), -apple-system, "Apple SD Gothic Neo",
+     자연히 다음 폰트로 넘어간다 — 본문 서체를 가리지 않는다.
+
+     **var(--font-emoji)를 그대로 쓰면 안 된다.** next/font가 그 변수에 폰트를
+     두 개 넣는데(`"notoEmoji", "notoEmoji Fallback"`), 뒤엣것은 레이아웃 시프트를
+     줄이려고 만든 메트릭 폰트라 실체가 `local(Arial)`이다. Arial은 이모지
+     글리프가 없어 시스템 컬러 이모지로 폴백하므로, 서브셋에 멀쩡히 있는 이모지도
+     본문 폰트에 닿기 전에 컬러로 가로채인다(실제로 이 증상을 겪었다).
+     그래서 첫 항목의 실제 family 이름만 직접 적는다 — cardImage.ts가 canvas에서
+     같은 이유로 목록의 첫 항목만 떼어 쓰는 것과 같은 처리다.
+     이름은 next/font의 `localFont({ src: "../public/fonts/NotoEmoji-subset.woff2" })`가
+     파일명에서 만들어낸 것이라, 그 파일을 옮기거나 이름을 바꾸면 여기도 바뀐다. */
+  font-family: notoEmoji, var(--font-body), -apple-system, "Apple SD Gothic Neo",
     sans-serif;
 }
 
@@ -171,6 +181,20 @@ body {
   );
 }
 
+/* 카드 앞면은 **밝은** 픽셀 애셋(card-front.webp) 위에 어두운 글자를 올리는 구조라,
+ * 색이 뒤집히면 밝은 배경에 밝은 글자가 되어 내용이 통째로 사라진다.
+ *
+ * 여기서 막는 것은 **OS 고대비 모드**뿐이다. 색 자체가 정보라 시스템 색으로 치환되면
+ * 읽을 수 없다.
+ *
+ * Darkreader 같은 확장은 이걸로 막지 못한다 — `color-scheme: only light`도 무시하고,
+ * 서브트리만 제외하는 수단 자체가 없다(실측 확인). 그쪽은 layout.tsx의
+ * `<meta name="darkreader-lock">`이 페이지 전체를 잠가서 해결한다.
+ */
+.card-face-fixed-colors {
+  forced-color-adjust: none;
+}
+
 /* 코너 마크. 파인 정사각 안에 중앙 정렬한다 — 노치와 같은 --notch를 써야
    한쪽만 어긋나는 일이 없다. 위치까지 여기서 정하는 것은 Tailwind의 top-0/left-0가
    이 파일의 규칙에 밀려 무시되기 때문이다. */
@@ -197,8 +221,24 @@ body {
    높이 기준으로 잡고 너비를 vw로 제한해, 좁은 화면에서도 카드가 잘리지 않는다. */
 .gatcha-card {
   aspect-ratio: 1000 / 1371;
-  width: auto;
-  height: min(55vh, calc(80vw * 1371 / 1000));
+  /* 폭을 정하고 높이는 aspect-ratio에 맡긴다 — 두 축을 다 지정하면 비율이 깨져
+     object-contain이 레터박스를 만들고 앞뒤 면 크기가 달라 보인다.
+
+     예전에는 vw/vh만 봐서 컨테이너 폭을 한 번도 확인하지 않았다. 카드는
+     max-w-sm 패널 안에 들어가는데, 그 안쪽 폭(패딩 제외)보다 vw 쪽이 커지면
+     카드가 좌우로 넘치고 pixel-frame의 clip-path에 양옆이 잘려나갔다.
+     넓은 화면만의 문제가 아니다 — 390px 폰에서도 패널 안쪽은 약 298px인데
+     80vw는 312px이라 이미 넘쳤다. 그래서 100%를 상한에 넣는다.
+
+     vh 항은 세로로 짧은 화면에서 카드가 화면을 넘지 않게 하는 몫인데,
+     높이를 직접 지정할 수 없으므로 비율로 나눠 폭으로 환산해서 건다. */
+  width: min(100%, calc(55vh * 1000 / 1371));
+  height: auto;
+  /* 앞면 내용물(QR)이 뷰포트가 아니라 카드 폭에 비례하도록 컨테이너를 연다.
+     size가 아니라 inline-size여야 한다 — size는 높이도 컨테이너가 정하게 만드는데,
+     이 요소의 높이는 aspect-ratio가 정하므로 순환이 생긴다.
+     __inner의 preserve-3d와는 층이 달라 뒤집기에 영향을 주지 않는다. */
+  container-type: inline-size;
   perspective: 1200px;
   /* scale은 여기(바깥)에 건다. 안쪽 __inner는 rotateY를 쓰고 있어서 거기에 얹으면
      뒤집기 트랜지션과 같은 속성을 두고 다툰다. */

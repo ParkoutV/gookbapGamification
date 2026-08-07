@@ -142,28 +142,58 @@ export default function GameScreen({
     return `polygon(${points})`;
   };
 
+  /**
+   * 히트 영역. 파트 실루엣 모양대로 clip-path를 씌워 정확한 곳만 눌리게 한다.
+   *
+   * **정답 표시를 이 안에 넣지 말 것.** clip-path는 서브트리 전체에 적용되고
+   * 자식이 취소할 수 없어서(`[clip-path:none]`도 소용없다), 실루엣 밖으로 나가는
+   * 만큼 마커가 잘려 나가고 슬롯마다 크기도 달라 보인다. 마커는 아래
+   * renderFoundMarks가 형제 레이어로 그린다 — renderWrongMarks와 같은 구조다.
+   */
   const renderClickOverlays = (side: "left" | "right") =>
     differenceSlots.map((slot) => (
       <div
         key={slot.slotId}
-        className="absolute cursor-pointer overflow-hidden"
+        className="absolute cursor-pointer"
         style={{
           left: `${slot.x * scale}px`,
           top: `${slot.y * scale}px`,
           width: `${100 * slot.slotScale * scale}px`,
           height: `${100 * slot.slotScale * scale}px`,
           clipPath: buildClipPath(side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon),
-          zIndex: foundSlots.has(slot.slotId) ? 2 : 1,
+          zIndex: 1,
         }}
         onClick={handleSlotClick(slot.slotId)}
-      >
-        {foundSlots.has(slot.slotId) && (
-          <div className="absolute inset-0 flex items-center justify-center animate-in zoom-in [clip-path:none]">
-            <img src="/icons/check-success.svg" alt="" className="w-8 h-8" />
-          </div>
-        )}
-      </div>
+      />
     ));
+
+  /**
+   * 정답 표시. 슬롯 중심에 고정 크기로 놓는다 — 히트 영역의 clip-path 바깥이라
+   * 실루엣 모양과 무관하게 항상 온전한 크기로 보인다.
+   * 오답 표시(renderWrongMarks)와 같은 32px, 같은 중심 정렬 방식이다.
+   */
+  const FOUND_MARK_SIZE = 32;
+  const renderFoundMarks = () =>
+    differenceSlots
+      .filter((slot) => foundSlots.has(slot.slotId))
+      .map((slot) => {
+        const size = 100 * slot.slotScale * scale;
+        return (
+          <img
+            key={slot.slotId}
+            src="/icons/check-success.svg"
+            alt=""
+            className="absolute pointer-events-none animate-in zoom-in"
+            style={{
+              left: slot.x * scale + size / 2 - FOUND_MARK_SIZE / 2,
+              top: slot.y * scale + size / 2 - FOUND_MARK_SIZE / 2,
+              width: FOUND_MARK_SIZE,
+              height: FOUND_MARK_SIZE,
+              zIndex: 2,
+            }}
+          />
+        );
+      });
 
   const renderWrongMarks = (side: "left" | "right") =>
     wrongMarks
@@ -208,6 +238,7 @@ export default function GameScreen({
             onLoad={handleImageLoad}
           />
           {renderClickOverlays("left")}
+          {renderFoundMarks()}
           {renderWrongMarks("left")}
         </div>
 
@@ -222,6 +253,7 @@ export default function GameScreen({
             className="w-full h-full object-contain select-none pointer-events-none"
           />
           {renderClickOverlays("right")}
+          {renderFoundMarks()}
           {renderWrongMarks("right")}
         </div>
       </main>

@@ -39,6 +39,12 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 - **`GATCHA_DRAW_API_URL`**: `gookbapanalyze`의 `/api/gatcha/draw`. **로컬 폴백이 없다** —
   닉네임과 달리 쿠폰은 서버가 DB에 INSERT해야만 유효하고, 클라이언트가 지어낸 쿠폰은
   매장 스캐너에서 인식되지 않는다. 폴백을 추가하지 말 것.
+- **`coupon_type`은 jsonb가 아니라 `text`다** — 다국어 이름 맵이 JSON **문자열**로
+  들어 있어 Supabase가 파싱해주지 않는다(`gookbapanalyze/AGENTS.md`의 `coupon_effects`
+  정의, 그쪽 코드도 전부 `JSON.parse`한다). `app/lib/couponType.ts`의 `parseCouponType`이
+  `toIssuedCoupon` 경계에서 편다. 파싱을 빼먹으면 `name["ko"]`가 undefined가 되어
+  **에러 없이** 상품명이 "—"로, 코너 이모지가 기본값으로 떨어진다(2026-08-07 실제
+  배포에서 이 증상이 났다). 설문의 `question_text`도 같은 형태이며 이미 같은 처리를 한다.
 - **draw 응답에 `coupon_id`가 없다.** 그 API는 insert에 `.select()`를 붙이지 않는다.
   발급 성공 후 `get_my_coupons` RPC로 최신 쿠폰을 다시 읽어 id를 얻는다.
 - **draw는 룰렛 진입당 1회.** `useCouponFlow`의 `drawStartedRef`가 중복 호출을 막는다.
@@ -47,6 +53,13 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   이때는 `fetchMyCoupons()`의 최신 쿠폰을 그대로 보여준다.
 - **QR 페이로드**: `` `<coupon_id>?<locale>` ``. 스캐너는 `?` 앞이 UUID 정규식을 통과하지
   못하면 **조용히 무시**한다(에러 표시 없음). `app/lib/couponPayload.ts`가 이 형식을 고정한다.
+- **QR의 흰 배경과 quiet zone은 SVG 안에서 만든다**(`marginSize={4}`, 2026-08-07).
+  바깥 div의 `padding` + `bg-white`로 여백을 만들면, 강제 다크모드 확장이 div 배경만
+  뒤집고 SVG 내부 경로는 그대로 둬서 **quiet zone이 어두워진다** — 스캐너가 코드를
+  못 읽는다. `marginSize`를 주면 배경 `<path>`가 여백까지 덮어 함께 살아남는다
+  (실측: viewBox 29→37, 배경 path도 `h37v37`로 커짐).
+  - `cardImage.ts`도 이에 맞춰 흰 사각형을 **그리지 않는다**. 양쪽이 여백을 각자
+    만들면 화면과 저장본의 QR 크기가 조용히 어긋난다.
 - **Phase 1 문항이 0개면** 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
 - **접속 실패 시 재시도 버튼을 두지 않는다.** 안내 문구만 띄우고 흐름을 진행시킨 뒤,
   `pendingDraw` 표시를 남겨 다음 방문 시작 화면에 뽑기 진입 버튼을 노출한다. 이 표시는
@@ -69,6 +82,21 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     DOM 캡처가 아니라 같은 구성을 canvas에 다시 그린 것이라, 두 곳이 같은 좌표(13%/11%
     inset, 노치 크기, 코너 마크 위치, QR 비율)를 각각 들고 있다. 한쪽만 고치면 화면과
     저장본이 조용히 달라진다(실제로 한 번 어긋났다 — 화면엔 노치, 저장본엔 민무늬 사각형).
+  - **카드 크기는 `vw`/`vh`가 아니라 컨테이너 폭(`100%`)을 상한으로 잡는다**(2026-08-07).
+    카드는 `max-w-sm` 패널 안에 들어가는데 예전엔 뷰포트만 봐서, 390px 폰에서도
+    패널 안쪽(283px)보다 카드(312px)가 커져 `pixel-frame`의 clip-path에 양옆이
+    잘렸다. **넓은 화면만의 문제가 아니다.**
+    - 폭만 지정하고 높이는 `aspect-ratio`에 맡길 것. 두 축을 다 지정하면 비율이 깨져
+      `object-contain`이 레터박스를 만들고 앞뒤 면 크기가 달라 보인다. 세로 상한이
+      필요하면 비율로 나눠 폭으로 환산해서 건다.
+    - 그 `100%`가 기준을 가지려면 `items-center` 아래의 래퍼들에 `w-full`이 있어야
+      한다(`GatchaCard` 루트, `WheelScreen`의 카드 래퍼). 빠지면 shrink-to-fit이 되어
+      다시 넘친다.
+    - 카드 **안쪽** 요소도 `vw`를 쓰면 안 된다. 카드는 컨테이너에 갇혀 뷰포트와 따로
+      노므로, QR은 `cqw`(카드 폭 기준)를 쓴다 — `.gatcha-card`의 `container-type:
+      inline-size`가 그 기준을 연다. `44cqw`는 `cardImage.ts`의 `CARD_W * 0.44`와
+      같은 값이다 — 다만 **QR 코드 자체만** 일치한다. 흰 여백은 화면이 `p-3`(12px 고정),
+      canvas가 `qrSize * 0.08`(카드에 비례)이라 카드 크기에 따라 갈린다.
   - **이모지는 흑백 서브셋 폰트를 쓴다**(`public/fonts/NotoEmoji-subset.woff2`, 21KB).
     시스템 이모지는 대부분 컬러라 픽셀 아트 + 어두운 우드톤 화면에서 튀고 기기마다
     모양도 다르다. `globals.css`의 `font-family`에서 **본문 폰트보다 앞에** 둬야
@@ -77,14 +105,60 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
       없는 글자는 에러 없이 두부(􏿽)로 보인다 — `python3 docs/check-emoji-font.py`로
       검사하고, `bash docs/build-emoji-font.sh`로 다시 만든다. 여유분을 넣어둬서
       (63자 수록, 29자 사용) 웬만한 추가는 바로 된다.
+    - **이모지에 VS16(U+FE0F)을 붙이지 말 것**(2026-08-07, 실측으로 확인). 서브셋의
+      cmap에 U+FE0F가 들어 있어도 소용없다 — `build-emoji-font.sh`가 `--layout-features=''`로
+      GSUB을 비우기 때문에 VS16 클러스터가 합쳐지지 않고, 브라우저는 그래핌 전체를
+      못 그린다고 판단해 **시스템 컬러 이모지로 넘어간다**. 실제로 `DEFAULT_COUPON_EMOJI`가
+      `"🍽️"`(U+1F37D + U+FE0F)여서 카드 코너 마크만 컬러로 떴다. `"\u{1F37D}"`처럼
+      VS16 없이 쓴다. 어차피 VS16은 "컬러로 그려달라"는 요청이라 흑백 서브셋과 정반대다.
+      - `docs/check-emoji-font.py`는 코드포인트를 낱개로 보므로 이걸 **잡지 못한다**.
+        대신 `couponEmoji.test.ts`가 소스를 훑어 VS16을 막는데, 검사 범위는
+        `couponEmoji.ts` **한 파일뿐이다** — 컴포넌트에 직접 박은 이모지(SoundToggle의
+        🔇/🔊 등)에 VS16을 붙이면 아무도 못 잡는다.
     - canvas(`cardImage.ts`)도 같은 폰트를 쓴다. `--font-emoji` 변수에는 폰트가 **두 개**
       들어 있는데(`"notoEmoji", "notoEmoji Fallback"`), 뒤엣것은 next/font의 로컬 메트릭
-      폰트라 네트워크에서 받을 수 없다 — 목록째로 `document.fonts.load()`에 넘기면
-      NetworkError가 난다. 첫 항목만 떼어 쓸 것.
+      폰트(`local(Arial)`)라 네트워크에서 받을 수 없다 — 목록째로 `document.fonts.load()`에
+      넘기면 NetworkError가 난다. 첫 항목만 떼어 쓸 것.
+      - 같은 이유로 `globals.css`의 `font-family`도 `var(--font-emoji)`가 아니라
+        `notoEmoji`를 직접 적는다. Arial이 실제로 있는 환경(iOS·Windows)에서는 그
+        Fallback이 로드에 성공해 본문 폰트에 닿기 전에 이모지를 가로챌 수 있다.
+        이름은 next/font가 파일명에서 만든 것이라 **폰트 파일을 옮기거나 이름을 바꾸면
+        여기도 같이 고쳐야 한다.**
+  - **강제 다크모드(Darkreader 등)는 페이지 전체에서 끈다** — `layout.tsx` metadata의
+    `<meta name="darkreader-lock">`(2026-08-07). 이 게임은 이미 어두운 테마라 얻을 것이
+    없고, 앞면은 **밝은** 애셋 위에 어두운 글자를 올리는 구조라 글자색만 뒤집히면
+    내용이 통째로 사라진다(실측: `#3A2E24` → `#C9C3B8`).
+    - **서브트리만 제외하는 방법은 없다.** 흔히 언급되는 `data-darkreader-ignore`
+      속성은 Darkreader 4.9.128 코드에 **존재하지 않고**, `color-scheme: only light`도
+      무시된다 — 둘 다 실물로 확인했다. 이 meta가 유일하게 동작한다.
+    - **content 값을 비우지 말 것.** Darkreader는 값을 보지 않지만, Next가 값 없는
+      metadata 항목을 태그째 버려서 meta가 렌더되지 않는다.
+    - `globals.css`의 `.card-face-fixed-colors`는 별개다 — 그쪽은 OS 고대비 모드
+      (`forced-color-adjust`)를 막는다.
+  - **뒤집은 뒤의 주 행동은 '이미지로 저장'이다.** 그 버튼이 하단 전체 폭을 차지하고,
+    **한 번 누른 뒤에야** 옆에 '다음'(화살표)이 들어온다(2026-08-07, 이란토).
+    처음부터 둘 다 띄우면 저장하려던 사람이 '다음'을 눌러 넘어가고, 그 카드는
+    이 화면에서 다시 볼 수 없다.
+    - 판정은 **저장 성공이 아니라 시도**다. 공유 시트는 앨범에 저장했는지 전송했는지
+      알려주지 않고 다운로드도 브라우저에 넘긴 시점까지만 알 수 있어서, "저장 완료"는
+      애초에 감지할 수 없다. 취소·실패해도 화살표는 유지한다 — 숨기면 "눌렀는데 왜
+      안 생기지"가 된다.
+    - 그래서 저장 로직은 `useCardImageSave` 훅에 있다. 버튼은 `WheelScreen`(하단),
+      그림 소재인 QR `<svg>`는 `GatchaCard` 안이라 한쪽에 둘 수 없다.
   - **저장 이미지는 카드가 뒤집힐 때 미리 굽는다.** 버튼을 누른 뒤에 굽기 시작하면 안 된다 —
     iOS Safari는 `navigator.share`를 사용자 제스처가 유효한 동안에만 허용하는데, 탭과
     호출 사이에 이미지 로드·직렬화가 끼면 `NotAllowedError`로 거부되고 공유 시트 대신
     조용히 파일 다운로드로 떨어진다.
+
+# 게임 화면 (`app/components/GameScreen.tsx`)
+
+- **정답·오답 표시를 히트 영역 안에 넣지 말 것.** 히트 영역은 파트 실루엣 모양대로
+  `clip-path`를 쓰는데, clip-path는 **서브트리 전체**에 적용되고 자식이 취소할 수 없다
+  (`[clip-path:none]`을 걸어도 소용없다). 안에 넣으면 마커가 실루엣 밖으로 나가는 만큼
+  잘려 나가고, 슬롯마다 크기가 달라 보인다(2026-08-07까지 실제로 그랬다).
+  두 마커 모두 씬 컨테이너의 **직속 자식**으로 두고 좌표로 배치한다 —
+  `renderFoundMarks`/`renderWrongMarks`가 같은 구조다. `globals.css`의
+  `card-corner-layer`도 같은 이유로 형제 레이어다.
 
 # 효과음 (`app/lib/sfx.ts`)
 

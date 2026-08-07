@@ -1,6 +1,7 @@
 "use server";
 
 import { supabase } from "./lib/db";
+import { parseCouponType } from "./lib/couponType";
 import { clampDifferenceCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
@@ -466,7 +467,12 @@ export type DrawCouponResult =
 
 type IssuedCouponRow = {
   coupon_id: string;
-  coupon_type: LocalizedName;
+  /**
+   * `coupon_effects.coupon_type`은 jsonb가 아니라 **text**다 — 다국어 이름 맵이
+   * JSON **문자열**로 들어 있다(gookbapanalyze/AGENTS.md의 테이블 정의).
+   * 그래서 Supabase가 파싱해주지 않고 문자열 그대로 온다.
+   */
+  coupon_type: string | LocalizedName;
   is_used: boolean;
   expired_at: string | null;
 };
@@ -474,7 +480,7 @@ type IssuedCouponRow = {
 function toIssuedCoupon(row: IssuedCouponRow): IssuedCoupon {
   return {
     couponId: row.coupon_id,
-    couponType: row.coupon_type,
+    couponType: parseCouponType(row.coupon_type),
     isUsed: row.is_used,
     expiredAt: row.expired_at,
   };
