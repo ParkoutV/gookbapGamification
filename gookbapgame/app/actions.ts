@@ -11,6 +11,12 @@ import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
+import {
+  sortByIssuedAt,
+  toIssuedCoupon,
+  type IssuedCoupon,
+  type IssuedCouponRow,
+} from "./lib/issuedCoupons";
 import { toSurveyFetchResult, type SurveyFetchResult } from "./lib/surveyFetchResult";
 import {
   buildSurveyResponseRows,
@@ -447,13 +453,7 @@ export async function submitSurveyResponses(
   }
 }
 
-export type IssuedCoupon = {
-  couponId: string;
-  couponType: LocalizedName;
-  isUsed: boolean;
-  /** ISO 문자열. null이면 만료 없음. */
-  expiredAt: string | null;
-};
+export type { IssuedCoupon };
 
 export type DrawCouponResult =
   | { status: "won"; coupon: IssuedCoupon }
@@ -465,25 +465,42 @@ export type DrawCouponResult =
   /** 네트워크·설정 오류. 재시도 버튼을 보여줄 상황. */
   | { status: "error"; message: string };
 
-type IssuedCouponRow = {
-  coupon_id: string;
-  /**
-   * `coupon_effects.coupon_type`은 jsonb가 아니라 **text**다 — 다국어 이름 맵이
-   * JSON **문자열**로 들어 있다(gookbapanalyze/AGENTS.md의 테이블 정의).
-   * 그래서 Supabase가 파싱해주지 않고 문자열 그대로 온다.
-   */
-  coupon_type: string | LocalizedName;
-  is_used: boolean;
-  expired_at: string | null;
-};
+/**
+ * `coupon_effect_id` → 다국어 상품명. `coupon_effects`는 RLS가 Everyone: SELECT라
+ * anon도 직접 읽을 수 있다(RPC 불필요).
+ *
+ * `coupon_type` 컬럼은 jsonb가 아니라 **text**라 다국어 맵이 JSON **문자열**로
+ * 들어 있다 — Supabase가 파싱해주지 않으므로 `parseCouponType`으로 편다.
+ *
+ * 조회에 실패해도 던지지 않는다. 이름이 없으면 "—"로 보일 뿐이지만, 여기서 던지면
+ * QR까지 사라져 쿠폰을 매장에서 쓸 수 없게 된다 — 이름보다 QR이 중요하다.
+ */
+async function fetchCouponNames(effectIds: string[]): Promise<Map<string, LocalizedName>> {
+  const names = new Map<string, LocalizedName>();
+  if (effectIds.length === 0) return names;
 
-function toIssuedCoupon(row: IssuedCouponRow): IssuedCoupon {
-  return {
-    couponId: row.coupon_id,
-    couponType: parseCouponType(row.coupon_type),
-    isUsed: row.is_used,
-    expiredAt: row.expired_at,
-  };
+  const { data, error } = await supabase
+    .from("coupon_effects")
+    .select("coupon_effect_id, coupon_type")
+    .in("coupon_effect_id", effectIds);
+
+  if (error) {
+    console.error("[fetchCouponNames] coupon_effects 조회 실패:", error);
+    return names;
+  }
+
+  for (const row of (data ?? []) as { coupon_effect_id: string; coupon_type: string }[]) {
+    names.set(row.coupon_effect_id, parseCouponType(row.coupon_type));
+  }
+
+  // Supabase의 SELECT RLS는 에러를 내지 않고 **행을 걸러낸다**(error: null, data: []).
+  // 그래서 위의 error 분기로는 권한 문제를 잡을 수 없고, 화면 증상은 이 수정 이전과
+  // 완전히 똑같아진다(이름 "—", 이모지 기본값). 이 로그가 없으면 배포 후에도
+  // 어느 층에서 끊겼는지 구분할 수 없다.
+  if (names.size < effectIds.length) {
+    console.error(`[fetchCouponNames] 이름 누락 ${names.size}/${effectIds.length}`, effectIds);
+  }
+  return names;
 }
 
 /**
@@ -499,17 +516,11 @@ export async function fetchMyCoupons(): Promise<IssuedCoupon[]> {
       return [];
     }
 
-    // RPC의 정렬 순서는 코드로 확인할 수 없다(마이그레이션 파일이 없는 프로덕션 전용 함수).
-    // drawCoupon()이 [0]을 "방금 발급된 쿠폰"으로 쓰기 때문에 순서가 뒤집히면
-    // 오래된 쿠폰의 QR을 새 당첨 상품으로 내보이게 된다 — 에러 없이 조용히 틀린다.
-    // 발급 시각 컬럼이 있으면 여기서 최신순으로 강제한다. Step 4에서 실제 반환 컬럼을
-    // 확인한 뒤 아래 컬럼명을 맞출 것.
-    const rows = (data ?? []) as (IssuedCouponRow & { created_at?: string })[];
-    const sorted = rows.every((r) => typeof r.created_at === "string")
-      ? [...rows].sort((a, b) => (a.created_at! < b.created_at! ? 1 : -1))
-      : rows;
+    const sorted = sortByIssuedAt((data ?? []) as IssuedCouponRow[]);
 
-    return sorted.map(toIssuedCoupon);
+    // 상품명은 별도 조회다 — RPC 응답에 없다(issuedCoupons.ts의 IssuedCouponRow 주석).
+    const names = await fetchCouponNames([...new Set(sorted.map((r) => r.coupon_effect_id))]);
+    return sorted.map((row) => toIssuedCoupon(row, names));
   } catch (error) {
     console.error("[fetchMyCoupons] 예기치 못한 예외:", error);
     return [];

@@ -39,12 +39,27 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 - **`GATCHA_DRAW_API_URL`**: `gookbapanalyze`의 `/api/gatcha/draw`. **로컬 폴백이 없다** —
   닉네임과 달리 쿠폰은 서버가 DB에 INSERT해야만 유효하고, 클라이언트가 지어낸 쿠폰은
   매장 스캐너에서 인식되지 않는다. 폴백을 추가하지 말 것.
-- **`coupon_type`은 jsonb가 아니라 `text`다** — 다국어 이름 맵이 JSON **문자열**로
-  들어 있어 Supabase가 파싱해주지 않는다(`gookbapanalyze/AGENTS.md`의 `coupon_effects`
-  정의, 그쪽 코드도 전부 `JSON.parse`한다). `app/lib/couponType.ts`의 `parseCouponType`이
-  `toIssuedCoupon` 경계에서 편다. 파싱을 빼먹으면 `name["ko"]`가 undefined가 되어
-  **에러 없이** 상품명이 "—"로, 코너 이모지가 기본값으로 떨어진다(2026-08-07 실제
-  배포에서 이 증상이 났다). 설문의 `question_text`도 같은 형태이며 이미 같은 처리를 한다.
+- **`get_my_coupons`는 상품명을 돌려주지 않는다.** 반환 컬럼은 `coupon_id` /
+  `participant_id` / `coupon_effect_id` / `is_used` / `issued_at` / `expired_at`뿐이다
+  (`gookbapanalyze/AGENTS.md`의 반환 예시, 2026-08-07 저쪽 담당자 확인). 이름은
+  `coupon_effect_id`로 `coupon_effects`를 **따로 읽어야** 나온다 —
+  `fetchMyCoupons`의 `fetchCouponNames`가 그 조회다. `coupon_effects`는 RLS가
+  `Everyone: SELECT`라 anon도 직접 읽을 수 있다(RPC 불필요, 프로덕션 정책 실물 확인).
+  - **`row.coupon_type`을 기대하지 말 것.** 그 컬럼은 응답에 없어서 `undefined`가 되고,
+    **에러 없이** 상품명이 "—"로 코너 이모지가 기본값으로 떨어진다(2026-08-07 배포에서
+    실제로 났다). 두 증상이 **동시에** 나면 이 경우다.
+  - **이걸 파싱 문제로 오진하지 말 것.** `parseCouponType`은 파싱에 실패해도
+    `{ ko: 원본문자열 }`로 폴백하므로, 파싱이 빠졌다면 화면에 "—"가 아니라
+    `{"ko":...}` JSON이 통째로 뜬다. 증상이 다르다 — 2026-08-07에 실제로 이
+    구분 때문에 원인 진단이 한 번 갈렸다.
+- **`coupon_effects.coupon_type`은 jsonb가 아니라 `text`다** — 다국어 이름 맵이 JSON
+  **문자열**로 들어 있어 Supabase가 파싱해주지 않는다(그쪽 코드도 전부 `JSON.parse`한다).
+  `app/lib/couponType.ts`의 `parseCouponType`이 `fetchCouponNames` 경계에서 편다.
+  설문의 `question_text`도 같은 형태이며 이미 같은 처리를 한다.
+- **발급 시각 컬럼은 `created_at`이 아니라 `issued_at`이다.** `sortByIssuedAt`이
+  최신순을 강제하는데(RPC의 정렬 순서를 신뢰할 수 없다), 컬럼명을 틀리면 `every()`가
+  false가 되어 정렬이 **통째로 건너뛰어진다**. `drawCoupon()`이 `[0]`을 "방금 발급된
+  쿠폰"으로 쓰기 때문에, 그러면 오래된 쿠폰의 QR이 새 당첨 상품으로 조용히 나간다.
 - **draw 응답에 `coupon_id`가 없다.** 그 API는 insert에 `.select()`를 붙이지 않는다.
   발급 성공 후 `get_my_coupons` RPC로 최신 쿠폰을 다시 읽어 id를 얻는다.
 - **draw는 룰렛 진입당 1회.** `useCouponFlow`의 `drawStartedRef`가 중복 호출을 막는다.
