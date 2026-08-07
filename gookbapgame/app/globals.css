@@ -122,6 +122,39 @@ body {
   container-type: size;
 }
 
+/* 가챠 카드. 비율은 애셋 원본(card-back.webp) 1000x1371 그대로다 — 어긋나면
+   object-contain이 여백을 만들어 앞뒤 면의 크기가 달라 보인다.
+   높이 기준으로 잡고 너비를 vw로 제한해, 좁은 화면에서도 카드가 잘리지 않는다. */
+.gatcha-card {
+  aspect-ratio: 1000 / 1371;
+  width: auto;
+  height: min(55vh, calc(80vw * 1371 / 1000));
+  perspective: 1200px;
+}
+
+/* 뒤집기는 3D 컨텍스트가 성립해야 동작한다. preserve-3d와 backface-visibility를
+   인라인 style로 흩어놓으면 Tailwind 유틸리티와 섞이며 조용히 무시되는 조합이
+   생긴다(실제로 뒷면이 통째로 안 보이는 증상을 겪었다). 한곳에 모아둔다. */
+.gatcha-card__inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 700ms ease-in-out;
+}
+.gatcha-card__inner--flipped {
+  transform: rotateY(180deg);
+}
+.gatcha-card__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.gatcha-card__face--front {
+  transform: rotateY(180deg);
+}
+
 /* 씬 두 장이 좌우로 놓이는 배치에서는 클립보드를 더 줄인다.
    이 배치에서는 씬이 화면 높이의 일부만 차지하므로, 위 기본값을 쓰면 클립보드가
    씬을 완전히 덮어버려 어색하다.

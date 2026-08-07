@@ -80,22 +80,23 @@ export const en: Partial<Dictionary> = {
 
 
   "surveyIntro.title": "Care to take a quick survey?",
-  "surveyIntro.description": "Answer a few questions to spin the coupon wheel.",
+  "surveyIntro.description": "Answer a few questions to draw a coupon card.",
   "surveyIntro.participateButton": "Take the survey",
   "surveyIntro.declineLink": "Maybe later",
 
-  "survey.submitButton": "Submit and spin",
+  "survey.submitButton": "Submit and draw",
   "survey.submitting": "Submitting...",
   "survey.submitError": "Submission failed. Please try again.",
   "survey.requiredNotice": "Please answer the required questions.",
   "survey.optional": "(optional)",
 
-  "wheel.title": "Wheel of Fortune",
-  "wheel.spinning": "Drawing your coupon...",
+  "wheel.title": "Card of Fortune",
+  "wheel.spinning": "Drawing your card...",
+  "wheel.flipHint": "Tap the card to flip it",
   "wheel.wonTitle": "You won a coupon!",
   "wheel.missTitle": "No luck this time",
   "wheel.missDescription": "Please try again next time.",
-  "wheel.rejected": "The wheel isn't available right now. Please try again later.",
+  "wheel.rejected": "You can't draw a card right now. Please try again later.",
   "wheel.error": "We can't reach the server right now. Please try again later.",
   "start.goToDrawButton": "Go draw your coupon",
   "wheel.nextButton": "Next",

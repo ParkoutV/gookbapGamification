@@ -55,3 +55,13 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   최고 점수가 0이 되어 모든 플레이어가 최저 gatcha_cases 구간으로 뽑힌다.
 - **`issued_coupons` 직접 SELECT 금지** — RLS로 막혀 있다. `get_my_coupons` RPC 필수
   (`gookbapanalyze/AGENTS.md`).
+- **`wheel` 단계의 연출은 룰렛이 아니라 카드 뒤집기다**(2026-08-07). 키 이름과 단계
+  이름만 `wheel`로 남아 있다 — 이름만 보고 룰렛으로 되돌리지 말 것.
+  - draw는 `WheelScreen` 마운트 시 1회. **탭은 API를 부르지 않는다.** 이미 받아둔
+    결과를 보여줄 뿐이다. 탭으로 옮기면 `drawStartedRef`가 막아주던 중복 호출이 되살아난다.
+  - 카드를 쓰는 결과는 `won`/`miss` 둘뿐. `wonButHidden`은 앞면에 올릴 payload가 없고
+    (`{ status: "wonButHidden" }`이 전부), `rejected`/`error`는 뽑기가 소진되지 않은
+    상태라 뒤집으면 소비한 것처럼 보인다.
+  - 앞면(`card-front.webp`)은 **밝은** 애셋이다. 테마의 `--ink`/`text-muted`는 어두운
+    배경용이라 그대로 쓰면 글자가 보이지 않는다 — `GatchaCard`의 `CARD_FACE_INK`를 쓴다.
+    `CouponQR`의 `showEmoji`가 이 "밝은 면 위" 상황을 가리키는 플래그를 겸한다.

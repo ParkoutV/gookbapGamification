@@ -80,22 +80,23 @@ export const ko: Dictionary = {
 
 
   "surveyIntro.title": "설문에 참여하시겠어요?",
-  "surveyIntro.description": "설문에 답하면 쿠폰 룰렛을 돌릴 수 있어요.",
+  "surveyIntro.description": "설문에 답하면 쿠폰 카드를 뽑을 수 있어요.",
   "surveyIntro.participateButton": "참여하기",
   "surveyIntro.declineLink": "다음에 할게요",
 
-  "survey.submitButton": "제출하고 룰렛 돌리기",
+  "survey.submitButton": "제출하고 카드 뽑기",
   "survey.submitting": "제출 중...",
   "survey.submitError": "제출에 실패했어요. 다시 시도해주세요.",
   "survey.requiredNotice": "필수 문항에 답해주세요.",
   "survey.optional": "(선택)",
 
-  "wheel.title": "행운의 돌림판",
-  "wheel.spinning": "쿠폰을 뽑는 중...",
+  "wheel.title": "행운의 카드",
+  "wheel.spinning": "카드를 뽑는 중...",
+  "wheel.flipHint": "카드를 눌러서 뒤집어보세요",
   "wheel.wonTitle": "쿠폰에 당첨됐어요!",
   "wheel.missTitle": "아쉽게도 꽝이에요",
   "wheel.missDescription": "다음 기회에 다시 도전해주세요.",
-  "wheel.rejected": "지금은 룰렛을 돌릴 수 없어요. 잠시 후 다시 시도해주세요.",
+  "wheel.rejected": "지금은 카드를 뽑을 수 없어요. 잠시 후 다시 시도해주세요.",
   "wheel.error": "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.",
   "start.goToDrawButton": "쿠폰 뽑으러 가기",
   "wheel.nextButton": "다음",
