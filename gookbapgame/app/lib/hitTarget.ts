@@ -174,7 +174,11 @@ export function resolveHitTargetBox(
   // 배수로 키우면 넘치는 축까지 함께 커져 인접 슬롯을 덮는다.
   const tooSmall = effectiveW < minTarget || effectiveH < minTarget;
 
-  if (tooSmall) {
+  // **폴리곤이 없으면 크기와 무관하게 사각형 경로로 간다.** 아래 clip 경로는
+  // 폴리곤을 재배치·확장하므로 null이면 터진다 — 실제로 그랬다(2026-08-07 배포에서
+  // `Cannot read properties of null (reading 'map')`으로 3단계 진입 시 화면이
+  // 통째로 죽었다). 큰 슬롯이라도 실루엣 추출에 실패하면 여기로 와야 한다.
+  if (tooSmall || !bounds) {
     // 실루엣이 이 정도로 작으면 모양을 지키는 의미가 없다. clip을 포기하고 사각형으로
     // 넓힌다 — 폴리곤을 남기면 %로 정의돼 있어 박스와 같은 비율로 커지고,
     // 결국 유효 면적은 원래대로 작게 남는다.
@@ -200,6 +204,14 @@ export function resolveHitTargetBox(
     };
   }
 
+  // 여기 도달했다면 bounds가 있다는 뜻이고, bounds는 polygon이 유효할 때만 만들어진다
+  // (polygonBoundsRatio가 null/길이/NaN을 모두 걸러낸다). non-null 단언(`polygon!`)을
+  // 쓰지 않는 이유는, 그 단언이 위 분기를 잘못 건드렸을 때 타입 검사를 조용히
+  // 통과시켜 런타임에 터지게 만들기 때문이다 — 실제로 그렇게 터졌다.
+  if (!polygon) {
+    throw new Error("resolveHitTargetBox: bounds가 있는데 polygon이 없다 — 도달 불가");
+  }
+
   // 2단계: 크기가 충분한 슬롯은 실루엣 모양을 지키되, 테두리 바깥으로 safe-zone만큼
   // 여유를 준다. 박스를 양쪽으로 넓히고 폴리곤을 그만큼 바깥으로 밀어낸다 —
   // 박스만 넓히면 %로 정의된 폴리곤이 비례해 커져 여유가 균일하지 않다.
@@ -216,13 +228,13 @@ export function resolveHitTargetBox(
     offsetX: safeZone,
     offsetY: safeZone,
     useClipPath: true,
-    polygon: rebaseAndExpand(polygon!, slotSizePx, width, height, safeZone),
+    polygon: rebaseAndExpand(polygon, slotSizePx, width, height, safeZone),
     deadZone: {
       width: dzW,
       height: dzH,
       offsetX: safeZone + deadZone,
       offsetY: safeZone + deadZone,
-      polygon: rebaseAndExpand(polygon!, slotSizePx, dzW, dzH, safeZone + deadZone),
+      polygon: rebaseAndExpand(polygon, slotSizePx, dzW, dzH, safeZone + deadZone),
     },
   };
 }
