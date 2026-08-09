@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
+import { WRONG_TOUCH_LIMIT_PER_LEVEL, GLOBAL_TIME_LIMIT_SEC } from "../lib/stageConfig";
+import { resolveIndicatorCells, resolveGaugeRatio, isTimeCritical } from "../lib/hudIndicators";
 import HintClipboard from "./HintClipboard";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
@@ -52,6 +53,10 @@ export default function GameScreen({
   // 차이 슬롯 1개당 정확히 한 줄. 이름이 겹쳐도 dedupe 하지 않는다 —
   // 줄이 줄어들면 플레이어가 문제를 다 찾은 것으로 착각한다.
   const hintNames = differenceSlots.map((slot) => resolveLocalizedName(slot.categoryName, locale));
+
+  const indicatorCells = resolveIndicatorCells(totalDifferences, foundSlots.size);
+  const gaugeRatio = resolveGaugeRatio(remainingTimeSec, GLOBAL_TIME_LIMIT_SEC);
+  const timeCritical = isTimeCritical(remainingTimeSec);
 
   const updateScale = () => {
     if (containerRef.current) {
@@ -265,86 +270,143 @@ export default function GameScreen({
   return (
     <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
       <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
-        <span className="absolute left-1/2 -translate-x-1/2 text-lg md:text-xl font-bold">
-          {t("game.stageProgress", { current: stageNumber, total: totalStages })}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
+        {/* Lv 표시 + 진행 칩. 칩은 시각 정보라 스크린리더에는 기존 문장을 남긴다. */}
+        <div
+          className="flex flex-col items-end gap-1"
+          role="img"
+          aria-label={t("game.stageProgress", { current: stageNumber, total: totalStages })}
+        >
+          <span className="text-xl md:text-2xl font-bold leading-none">Lv.{stageNumber}</span>
+          <div className="flex items-center gap-1" aria-hidden="true">
+            {Array.from({ length: totalStages }).map((_, i) => (
+              <span
+                key={i}
+                className={`w-3 h-3 md:w-4 md:h-4 ${i < stageNumber ? "bg-accent" : "bg-wood/30"}`}
+              />
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-3 md:gap-4 overflow-auto">
+        {/* 왼쪽(세로 배치에서는 위쪽) 장면 + 그 아래 문항 인디케이터 */}
+        <div className="flex flex-col items-center gap-2 w-full max-w-[1200px]">
+          {/* 프레임은 인화지(순수 장식)다. 좌표계는 안쪽 사진 영역이므로 containerRef와
+              배경 클릭 판정은 .photo-frame__photo에 붙인다 — 프레임에 붙이면
+              clientWidth에 좌우 여백 20px이 섞여 scale이 어긋나고, 배경 클릭
+              좌표도 여백만큼 밀린다. */}
+          <div className="photo-frame w-full">
+            <div
+              ref={containerRef}
+              className="photo-frame__photo cursor-pointer"
+              onClick={handleBackgroundClick("left")}
+            >
+              <img
+                src={session.leftSceneUrl}
+                alt="Scene Left"
+                className="w-full h-full object-contain select-none pointer-events-none"
+                onLoad={handleImageLoad}
+              />
+              {renderDeadZones("left")}
+              {renderClickOverlays("left")}
+              {renderFoundMarks()}
+              {renderWrongMarks("left")}
+            </div>
+          </div>
+
+          {/* 문항 인디케이터. 가로 배치에서는 왼쪽 그림 아래에 붙는다.
+              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다. */}
+          <div
+            className="flex items-center gap-1 self-start"
+            role="img"
+            aria-label={t("game.remainingCount", {
+              found: totalDifferences - foundSlots.size,
+              total: totalDifferences,
+            })}
+          >
+            {indicatorCells.map((cell, i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                className={`w-4 h-4 rounded-full border-2 border-wood ${
+                  cell === "filled" ? "bg-accent" : "bg-transparent"
+                } ${cell === "hidden" ? "opacity-0" : "opacity-100"}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* 힌트 + 게이지 (두 그림 사이) */}
+        <div className="flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
+          <PixelPanel size="btn" className="min-w-12 shrink-0">
+            <button
+              type="button"
+              className="w-full font-bold text-ink text-xl leading-none py-1"
+              onClick={() => setIsHintOpen((prev) => !prev)}
+              aria-expanded={isHintOpen}
+              aria-label={t("game.hintButton")}
+            >
+              ?
+            </button>
+          </PixelPanel>
+
+          <div
+            className="time-gauge relative flex-1 md:flex-none h-3 w-full md:h-40 md:w-3 bg-wood/30 overflow-hidden"
+            style={{ ["--gauge-ratio" as string]: gaugeRatio }}
+            role="img"
+            aria-label={`${t("game.timeRemainingLabel")} ${t("game.secondsUnit", { seconds: remainingTimeSec })}`}
+          >
+            <div className={`time-gauge__fill ${timeCritical ? "bg-error" : "bg-amber"}`} />
+          </div>
+
           <span
-            className={`text-2xl md:text-3xl font-extrabold ${remainingTimeSec <= 30 ? "text-error animate-pulse" : "text-amber"}`}
+            className={`text-lg md:text-xl font-extrabold shrink-0 ${
+              timeCritical ? "text-error animate-pulse" : "text-amber"
+            }`}
           >
             {t("game.secondsUnit", { seconds: remainingTimeSec })}
           </span>
         </div>
-      </header>
 
-      <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-6 overflow-auto">
-        <div
-          ref={containerRef}
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
-          style={{ aspectRatio: "1200 / 800" }}
-          onClick={handleBackgroundClick("left")}
-        >
-          <img
-            src={session.leftSceneUrl}
-            alt="Scene Left"
-            className="w-full h-full object-contain select-none pointer-events-none"
-            onLoad={handleImageLoad}
-          />
-          {renderDeadZones("left")}
-          {renderClickOverlays("left")}
-          {renderFoundMarks()}
-          {renderWrongMarks("left")}
-        </div>
+        {/* 오른쪽(세로 배치에서는 아래쪽) 장면 + 그 아래 오답 인디케이터 */}
+        <div className="flex flex-col items-center gap-2 w-full max-w-[1200px]">
+          <div className="photo-frame w-full">
+            <div
+              className="photo-frame__photo cursor-pointer"
+              onClick={handleBackgroundClick("right")}
+            >
+              <img
+                src={session.rightSceneUrl}
+                alt="Scene Right"
+                className="w-full h-full object-contain select-none pointer-events-none"
+              />
+              {renderDeadZones("right")}
+              {renderClickOverlays("right")}
+              {renderFoundMarks()}
+              {renderWrongMarks("right")}
+            </div>
+          </div>
 
-        <div
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
-          style={{ aspectRatio: "1200 / 800" }}
-          onClick={handleBackgroundClick("right")}
-        >
-          <img
-            src={session.rightSceneUrl}
-            alt="Scene Right"
-            className="w-full h-full object-contain select-none pointer-events-none"
-          />
-          {renderDeadZones("right")}
-          {renderClickOverlays("right")}
-          {renderFoundMarks()}
-          {renderWrongMarks("right")}
+          <div
+            className="flex items-center gap-1 self-end"
+            role="img"
+            aria-label={t("game.wrongTouchAria", {
+              count: wrongTouchCount,
+              limit: WRONG_TOUCH_LIMIT_PER_LEVEL,
+            })}
+          >
+            {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+              <img
+                key={i}
+                src="/icons/check-failed.svg"
+                alt=""
+                aria-hidden="true"
+                className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+              />
+            ))}
+          </div>
         </div>
       </main>
-
-      <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
-        {/* 라벨 대신 '?' 아이콘. 글자가 사라졌으므로 버튼의 의미는 aria-label로 남긴다
-            — 화면에 안 보여도 스크린리더에는 "힌트"로 읽혀야 한다. */}
-        <PixelPanel size="btn" className="min-w-12">
-          <button
-            type="button"
-            className="w-full font-bold text-ink text-xl leading-none py-1"
-            onClick={() => setIsHintOpen((prev) => !prev)}
-            aria-expanded={isHintOpen}
-            aria-label={t("game.hintButton")}
-          >
-            ?
-          </button>
-        </PixelPanel>
-        <div
-          className="flex items-center gap-1"
-          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
-        >
-          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
-            <img
-              key={i}
-              src="/icons/check-failed.svg"
-              alt=""
-              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
-            />
-          ))}
-        </div>
-        <span className="text-lg font-bold">
-          {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
-        </span>
-      </footer>
       {isHintOpen && <HintClipboard names={hintNames} onClose={() => setIsHintOpen(false)} />}
     </div>
   );
