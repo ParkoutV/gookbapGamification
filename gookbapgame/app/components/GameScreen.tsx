@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
-import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { WRONG_TOUCH_LIMIT_PER_LEVEL } from "../lib/stageConfig";
+import { WRONG_TOUCH_LIMIT_PER_LEVEL, GLOBAL_TIME_LIMIT_SEC } from "../lib/stageConfig";
+import { resolveIndicatorCells, resolveGaugeRatio, isTimeCritical } from "../lib/hudIndicators";
 import HintClipboard from "./HintClipboard";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
@@ -22,6 +22,17 @@ interface GameScreenProps {
 }
 
 const FORCE_ADVANCE_DELAY_MS = 400;
+
+/**
+ * 직전 단계의 장면 URL. 모듈 스코프에 두는 이유는 GameScreen이 단계마다
+ * 리마운트되기 때문이다(page.tsx의 key). 컴포넌트 상태로는 이전 단계 값을
+ * 넘겨받을 수 없다.
+ *
+ * page.tsx에 상태를 추가하지 않는 이유는 그쪽이 GameScreen 두 개를 동시에
+ * 살리는 구조로 번지기 쉬워서다 — 그러면 타이머 effect와 onStageClear 콜백이
+ * 둘씩 살아난다(useGameProgress.ts:111~114의 stale closure 주석 참고).
+ */
+let lastSceneUrls: { left: string; right: string } | null = null;
 
 type WrongMark = { id: number; x: number; y: number; side: "left" | "right" };
 
@@ -42,6 +53,11 @@ export default function GameScreen({
   const [isShaking, setIsShaking] = useState(false);
   const [scale, setScale] = useState(1);
   const [isHintOpen, setIsHintOpen] = useState(false);
+  // 단계 전환 연출용. 리마운트되므로 "이전 단계"가 아니라 **이 컴포넌트가 처음
+  // 그려질 때 겹쳐 보여줄 직전 사진**을 page.tsx가 아니라 여기서 들고 있는다.
+  //
+  // prevSceneUrls가 null이면 전환 연출 없이 그냥 그린다(첫 단계 또는 연출 종료 후).
+  const [prevSceneUrls, setPrevSceneUrls] = useState<{ left: string; right: string } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const wrongMarkIdRef = React.useRef(0);
   const forceAdvanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +68,10 @@ export default function GameScreen({
   // 차이 슬롯 1개당 정확히 한 줄. 이름이 겹쳐도 dedupe 하지 않는다 —
   // 줄이 줄어들면 플레이어가 문제를 다 찾은 것으로 착각한다.
   const hintNames = differenceSlots.map((slot) => resolveLocalizedName(slot.categoryName, locale));
+
+  const indicatorCells = resolveIndicatorCells(totalDifferences, foundSlots.size);
+  const gaugeRatio = resolveGaugeRatio(remainingTimeSec, GLOBAL_TIME_LIMIT_SEC);
+  const timeCritical = isTimeCritical(remainingTimeSec);
 
   const updateScale = () => {
     if (containerRef.current) {
@@ -89,6 +109,24 @@ export default function GameScreen({
       }
     };
   }, []);
+
+  // 마운트 시점에 직전 단계 사진이 있으면 겹쳐 놓고 0.3s 뒤에 치운다.
+  // CSS 애니메이션 duration(photo-swap-out)과 같은 값이어야 한다.
+  useEffect(() => {
+    const incoming = { left: session.leftSceneUrl, right: session.rightSceneUrl };
+    const previous = lastSceneUrls;
+    lastSceneUrls = incoming;
+
+    // 같은 사진이면(첫 단계, 또는 리마운트가 단계 변경이 아닌 경우) 연출하지 않는다.
+    if (!previous || (previous.left === incoming.left && previous.right === incoming.right)) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 1회, 외부(모듈 스코프) 값을 React로 들여오는 처리
+    setPrevSceneUrls(previous);
+    const timeoutId = setTimeout(() => setPrevSceneUrls(null), 300);
+    return () => clearTimeout(timeoutId);
+  }, [session.leftSceneUrl, session.rightSceneUrl]);
 
   const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
     if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
@@ -265,86 +303,175 @@ export default function GameScreen({
   return (
     <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
       <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
-        <span className="absolute left-1/2 -translate-x-1/2 text-lg md:text-xl font-bold">
-          {t("game.stageProgress", { current: stageNumber, total: totalStages })}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-xl md:text-2xl font-bold">{t("game.timeRemainingLabel")}</span>
-          <span
-            className={`text-2xl md:text-3xl font-extrabold ${remainingTimeSec <= 30 ? "text-error animate-pulse" : "text-amber"}`}
-          >
-            {t("game.secondsUnit", { seconds: remainingTimeSec })}
-          </span>
+        {/* Lv 표시 + 진행 칩. 칩은 시각 정보라 스크린리더에는 기존 문장을 남긴다. */}
+        <div
+          className="flex flex-col items-end gap-1"
+          role="img"
+          aria-label={t("game.stageProgress", { current: stageNumber, total: totalStages })}
+        >
+          <span className="text-xl md:text-2xl font-bold leading-none">Lv.{stageNumber}</span>
+          <div className="flex items-center gap-1" aria-hidden="true">
+            {Array.from({ length: totalStages }).map((_, i) => (
+              <span
+                key={i}
+                className={`w-3 h-3 md:w-4 md:h-4 ${i < stageNumber ? "bg-accent" : "bg-wood/30"}`}
+              />
+            ))}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-6 overflow-auto">
-        <div
-          ref={containerRef}
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
-          style={{ aspectRatio: "1200 / 800" }}
-          onClick={handleBackgroundClick("left")}
-        >
-          <img
-            src={session.leftSceneUrl}
-            alt="Scene Left"
-            className="w-full h-full object-contain select-none pointer-events-none"
-            onLoad={handleImageLoad}
-          />
-          {renderDeadZones("left")}
-          {renderClickOverlays("left")}
-          {renderFoundMarks()}
-          {renderWrongMarks("left")}
+      <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-3 md:gap-4 overflow-auto">
+        {/* 왼쪽(세로 배치에서는 위쪽) 장면 + 문항 인디케이터.
+            인디케이터는 세로 배치에서 그림 **위**, 가로 배치에서 그림 **아래**에 온다
+            (2026-08-09, 이란토). DOM 순서를 바꾸지 않고 order로 처리하는 이유는
+            그림이 먼저 읽히는 편이 스크린리더 순서로도 자연스럽기 때문이다. */}
+        <div className="flex flex-col items-center gap-2 w-full max-w-[1200px]">
+          {/* 프레임은 인화지(순수 장식)다. 좌표계는 안쪽 사진 영역이므로 containerRef와
+              배경 클릭 판정은 .photo-frame__photo에 붙인다 — 프레임에 붙이면
+              clientWidth에 좌우 여백 20px이 섞여 scale이 어긋나고, 배경 클릭
+              좌표도 여백만큼 밀린다. */}
+          <div className="photo-frame w-full">
+            <div
+              ref={containerRef}
+              className="photo-frame__photo cursor-pointer"
+              onClick={handleBackgroundClick("left")}
+            >
+              {prevSceneUrls && (
+                <img
+                  src={prevSceneUrls.left}
+                  alt=""
+                  aria-hidden="true"
+                  className="photo-swap__outgoing w-full h-full object-contain select-none pointer-events-none"
+                />
+              )}
+              <img
+                src={session.leftSceneUrl}
+                alt="Scene Left"
+                className={`w-full h-full object-contain select-none pointer-events-none ${
+                  prevSceneUrls ? "photo-swap__incoming" : ""
+                }`}
+                onLoad={handleImageLoad}
+              />
+              {renderDeadZones("left")}
+              {renderClickOverlays("left")}
+              {renderFoundMarks()}
+              {renderWrongMarks("left")}
+            </div>
+          </div>
+
+          {/* 문항 인디케이터. 세로 배치에서는 그림 위(order -1)에 가운데 정렬,
+              가로 배치에서는 그림 아래 왼쪽 정렬로 돌아간다.
+              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다. */}
+          <div
+            className="flex items-center gap-1 order-first md:order-none md:self-start"
+            role="img"
+            aria-label={t("game.remainingCount", {
+              found: totalDifferences - foundSlots.size,
+              total: totalDifferences,
+            })}
+          >
+            {indicatorCells.map((cell, i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                className={`w-4 h-4 rounded-full border-2 border-wood ${
+                  cell === "filled" ? "bg-accent" : "bg-transparent"
+                } ${cell === "hidden" ? "opacity-0" : "opacity-100"}`}
+              />
+            ))}
+          </div>
         </div>
 
-        <div
-          className="relative group rounded-2xl overflow-hidden shadow-2xl border-4 border-wood hover:border-accent transition-colors w-full max-w-[1200px] cursor-pointer"
-          style={{ aspectRatio: "1200 / 800" }}
-          onClick={handleBackgroundClick("right")}
-        >
-          <img
-            src={session.rightSceneUrl}
-            alt="Scene Right"
-            className="w-full h-full object-contain select-none pointer-events-none"
-          />
-          {renderDeadZones("right")}
-          {renderClickOverlays("right")}
-          {renderFoundMarks()}
-          {renderWrongMarks("right")}
-        </div>
-      </main>
-
-      <footer className="flex justify-between items-center p-4 md:px-8 bg-surface border-t border-wood">
-        {/* 라벨 대신 '?' 아이콘. 글자가 사라졌으므로 버튼의 의미는 aria-label로 남긴다
-            — 화면에 안 보여도 스크린리더에는 "힌트"로 읽혀야 한다. */}
-        <PixelPanel size="btn" className="min-w-12">
+        {/* 힌트 + 게이지 (두 그림 사이) */}
+        <div className="flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
+          {/* 힌트 버튼. 좌상단 언어·소리 토글과 같은 양식(w-9 h-9 원형)이다
+              — 화면에 떠 있는 보조 버튼이라는 성격이 같아서 생김새를 맞췄다.
+              아이콘은 물음표 이모지(U+2753). **그림 이모지를 쓰지 말 것**
+              (2026-08-09에 구명보트로 바꿨다가 되돌렸다) — 서브셋 폰트(Noto Emoji)는
+              흑백 **아웃라인**이라 속이 빈 모양이 되어, 형태가 복잡한 그림은
+              게임 중 순간적으로 알아보기 어렵다. 물음표는 형태가 단순해 견딘다.
+              **VS16(U+FE0F)을 붙이지 말 것** — 서브셋은 GSUB이 비어 있어 VS16
+              클러스터가 합쳐지지 않고 시스템 컬러 이모지로 넘어간다. */}
           <button
             type="button"
-            className="w-full font-bold text-ink text-xl leading-none py-1"
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0"
             onClick={() => setIsHintOpen((prev) => !prev)}
             aria-expanded={isHintOpen}
             aria-label={t("game.hintButton")}
           >
-            ?
+            <span aria-hidden="true">{"❓"}</span>
           </button>
-        </PixelPanel>
-        <div
-          className="flex items-center gap-1"
-          aria-label={t("game.wrongTouchAria", { count: wrongTouchCount, limit: WRONG_TOUCH_LIMIT_PER_LEVEL })}
-        >
-          {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
-            <img
-              key={i}
-              src="/icons/check-failed.svg"
-              alt=""
-              className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
-            />
-          ))}
+
+          <div
+            className="time-gauge relative flex-1 md:flex-none h-3 w-full md:h-40 md:w-3 bg-wood/30 overflow-hidden"
+            style={{ ["--gauge-ratio" as string]: gaugeRatio }}
+            role="img"
+            aria-label={`${t("game.timeRemainingLabel")} ${t("game.secondsUnit", { seconds: remainingTimeSec })}`}
+          >
+            <div className={`time-gauge__fill ${timeCritical ? "bg-error" : "bg-amber"}`} />
+          </div>
+
+          <span
+            className={`text-lg md:text-xl font-extrabold shrink-0 ${
+              timeCritical ? "text-error animate-pulse" : "text-amber"
+            }`}
+          >
+            {t("game.secondsUnit", { seconds: remainingTimeSec })}
+          </span>
         </div>
-        <span className="text-lg font-bold">
-          {t("game.remainingCount", { found: totalDifferences - foundSlots.size, total: totalDifferences })}
-        </span>
-      </footer>
+
+        {/* 오른쪽(세로 배치에서는 아래쪽) 장면 + 그 아래 오답 인디케이터 */}
+        <div className="flex flex-col items-center gap-2 w-full max-w-[1200px]">
+          <div className="photo-frame w-full">
+            <div
+              className="photo-frame__photo cursor-pointer"
+              onClick={handleBackgroundClick("right")}
+            >
+              {prevSceneUrls && (
+                <img
+                  src={prevSceneUrls.right}
+                  alt=""
+                  aria-hidden="true"
+                  className="photo-swap__outgoing w-full h-full object-contain select-none pointer-events-none"
+                />
+              )}
+              <img
+                src={session.rightSceneUrl}
+                alt="Scene Right"
+                className={`w-full h-full object-contain select-none pointer-events-none ${
+                  prevSceneUrls ? "photo-swap__incoming" : ""
+                }`}
+              />
+              {renderDeadZones("right")}
+              {renderClickOverlays("right")}
+              {renderFoundMarks()}
+              {renderWrongMarks("right")}
+            </div>
+          </div>
+
+          {/* 오답 표시. 세로 배치에서는 가운데, 가로 배치에서는 오른쪽 그림 아래
+              오른쪽 정렬(2026-08-09, 이란토). */}
+          <div
+            className="flex items-center gap-1 md:self-end"
+            role="img"
+            aria-label={t("game.wrongTouchAria", {
+              count: wrongTouchCount,
+              limit: WRONG_TOUCH_LIMIT_PER_LEVEL,
+            })}
+          >
+            {Array.from({ length: WRONG_TOUCH_LIMIT_PER_LEVEL }).map((_, i) => (
+              <img
+                key={i}
+                src="/icons/check-failed.svg"
+                alt=""
+                aria-hidden="true"
+                className={`w-5 h-5 ${i < wrongTouchCount ? "opacity-100" : "opacity-20"}`}
+              />
+            ))}
+          </div>
+        </div>
+      </main>
       {isHintOpen && <HintClipboard names={hintNames} onClose={() => setIsHintOpen(false)} />}
     </div>
   );

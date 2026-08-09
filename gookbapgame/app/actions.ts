@@ -357,17 +357,17 @@ async function ensureParticipantUnsafe(trackId: string | null): Promise<Particip
   // 23505(중복키)면 = 이미 존재하는 참여자(재방문/새로고침) — 이 경우엔 신규가 아님.
   const isNewParticipant = !insertError;
 
-  // track_logs는 신규 참여자일 때만 기록한다(최초 접속 로그라는 설계 의도,
-  // gookbapanalyze/AGENTS.md 참고). 그렇지 않으면 useGameProgress의 mount effect가
-  // 새로고침마다 ensureParticipant를 호출하기 때문에 동일 참여자에 대해 track_logs가
-  // 계속 쌓여서 (participant_id, track_id) 쌍당 1개 row를 가정하는 KPI 집계
-  // (game_start_count UPDATE)가 깨진다.
+  // track_logs는 접속할 때마다 새 row로 남긴다(2026-08-09, 구자건 정책 —
+  // 사이트 실시간 추적 목적). 재방문/새로고침마다 쌓이는 것이 의도된 동작이다.
   //
-  // 알려진 한계: 이미 참여자로 등록된 사람이 "다른" 공유 링크(다른 track_id)로
-  // 재접속하는 경우, isNewParticipant가 false라 그 새 트랙에 대한 접속 로그는
-  // 남지 않는다. 이건 제품 결정이 필요한 부분이라 이번 수정에서는 손대지 않았다 —
-  // 구자건/이란토와 논의 후 별도로 다룰 것.
-  if (isNewParticipant && trackId) {
+  // 예전에는 신규 참여자일 때만 기록했는데, 그 근거로 적혀 있던
+  // "(participant_id, track_id)당 row 1개를 가정하는 game_start_count UPDATE"는
+  // 실재하지 않는 제약이었다 — update_track_log_action은 p_log_id로 특정 row를
+  // 직접 겨냥하므로 row가 몇 개든 깨지지 않는다.
+  //
+  // 참여자의 연속성/최초 방문 판별은 여기가 아니라 participants가 담당한다
+  // (쿠키 해시 기반 participant_id + PK 충돌 23505). 두 관심사는 분리돼 있다.
+  if (trackId) {
     const { error: trackLogError } = await supabase
       .from("track_logs")
       .insert([{ participant_id: participantId, track_id: trackId }]);
