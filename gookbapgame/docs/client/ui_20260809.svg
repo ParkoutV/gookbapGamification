@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   sodipodi:docname="ui_20260809.svg"
+   inkscape:export-filename="ui_20260809.webp"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.46947952"
+     inkscape:cx="126.73609"
+     inkscape:cy="641.13553"
+     inkscape:window-width="2327"
+     inkscape:window-height="1281"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1">
+    <rect
+       x="15.061504"
+       y="459.97649"
+       width="123.38968"
+       height="224.01745"
+       id="rect11" />
+    <rect
+       x="24.851482"
+       y="459.97649"
+       width="113.59971"
+       height="241.34248"
+       id="rect10" />
+    <marker
+       style="overflow:visible"
+       id="Dot"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Dot"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.5)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         d="M 5,0 C 5,2.76 2.76,5 0,5 -2.76,5 -5,2.76 -5,0 c 0,-2.76 2.3,-5 5,-5 2.76,0 5,2.24 5,5 z"
+         sodipodi:nodetypes="sssss"
+         id="path17" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Dot-2"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Dot"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.5)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         d="M 5,0 C 5,2.76 2.76,5 0,5 -2.76,5 -5,2.76 -5,0 c 0,-2.76 2.3,-5 5,-5 2.76,0 5,2.24 5,5 z"
+         sodipodi:nodetypes="sssss"
+         id="path17-7" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect1"
+       width="90.828552"
+       height="146.96368"
+       x="62.689678"
+       y="75.497711" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:7.15034px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:center;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.28151;stroke-linecap:round;stroke-linejoin:round"
+       x="108.10394"
+       y="68.538963"
+       id="text1"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.28151"
+         x="108.10394"
+         y="68.538963">(게임 화면)</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect2"
+       width="74.589905"
+       height="46.30595"
+       x="70.41748"
+       y="98.749046" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect2-3"
+       width="74.589905"
+       height="46.30595"
+       x="70.41748"
+       y="154.76523" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:12.468px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:center;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.245434;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="107.78722"
+       y="126.65237"
+       id="text2"><tspan
+         sodipodi:role="line"
+         id="tspan2"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.245435"
+         x="107.78722"
+         y="126.65237">그림 1</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:12.468px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:center;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.245434;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="107.78722"
+       y="182.66853"
+       id="text2-1"><tspan
+         sodipodi:role="line"
+         id="tspan2-2"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.245435"
+         x="107.78722"
+         y="182.66853">그림 2</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect3"
+       width="55.111214"
+       height="3.1933887"
+       x="80.156822"
+       y="148.30618" />
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.261361;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect3-6"
+       width="36.455349"
+       height="3.2514515"
+       x="80.128738"
+       y="148.27716" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#Dot)"
+       d="m 132.62394,149.47817 25.46645,-11.14038 11.5538,-0.16991"
+       id="path3"
+       sodipodi:nodetypes="ccc" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:5.06194px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:end;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:end;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.0996448;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="192.02669"
+       y="136.0843"
+       id="text3"><tspan
+         sodipodi:role="line"
+         id="tspan3"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.0996448"
+         x="192.02669"
+         y="136.0843">남은시간 게이지</tspan></text>
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#Dot-2)"
+       d="m 89.982102,211.52908 7.721747,15.92415 11.553811,-0.16991"
+       id="path3-6"
+       sodipodi:nodetypes="ccc" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:5.06194px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.0996448;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="112.91805"
+       y="229.58228"
+       id="text3-1"><tspan
+         sodipodi:role="line"
+         id="tspan3-0"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.0996448"
+         x="112.91805"
+         y="229.58228">출제 문항수에 비례</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:8.93727px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:end;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:end;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.175931;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="145.89723"
+       y="92.119949"
+       id="text4"><tspan
+         sodipodi:role="line"
+         id="tspan4"
+         style="stroke-width:0.175931"
+         x="145.89723"
+         y="92.119949">Lv.3</tspan></text>
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4"
+       width="3.5276396"
+       height="2.5301497"
+       x="120.35141"
+       y="94.506866" />
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4-8"
+       width="3.5276396"
+       height="2.5301497"
+       x="116.08554"
+       y="94.506866" />
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4-1"
+       width="3.5276396"
+       height="2.5301497"
+       x="124.61722"
+       y="94.506866" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4-1-0"
+       width="3.5276396"
+       height="2.5301497"
+       x="128.88307"
+       y="94.506866" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4-1-0-9"
+       width="3.5276396"
+       height="2.5301497"
+       x="133.14888"
+       y="94.506866" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4-1-0-7"
+       width="3.5276396"
+       height="2.5301497"
+       x="137.41473"
+       y="94.506866" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4-1-0-93"
+       width="3.5276396"
+       height="2.5301497"
+       x="141.68056"
+       y="94.506866" />
+    <path
+       id="rect5"
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.255348;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 134.47335,203.95288 -1.18738,1.18738 -1.18739,-1.18738 -0.79163,0.79164 1.18738,1.18737 -1.18738,1.1874 0.79163,0.79162 1.18739,-1.18737 1.18738,1.18738 0.79164,-0.79163 -1.18739,-1.1874 1.18739,-1.18738 z" />
+    <path
+       id="rect5-2"
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.255348;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 139.1894,203.95288 -1.18739,1.18738 -1.18738,-1.18738 -0.79163,0.79164 1.18738,1.18737 -1.18738,1.1874 0.79163,0.79162 1.18738,-1.18737 1.18739,1.18738 0.79164,-0.79163 -1.18739,-1.1874 1.18739,-1.18738 z" />
+    <path
+       id="rect5-5"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.255348;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 143.76257,203.95288 -1.18738,1.18738 -1.18739,-1.18738 -0.79163,0.79164 1.18738,1.18737 -1.18738,1.1874 0.79163,0.79162 1.18739,-1.18737 1.18738,1.18738 0.79163,-0.79163 -1.18737,-1.1874 1.18737,-1.18738 z" />
+    <circle
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="path5"
+       cx="74.407799"
+       cy="149.90288"
+       r="3.4927557" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:5.38835px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:end;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:end;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.106069;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="72.067924"
+       y="159.5097"
+       id="text5"
+       transform="scale(1.0507328,0.95171674)"><tspan
+         sodipodi:role="line"
+         id="tspan5"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.10607"
+         x="72.067924"
+         y="159.5097">?</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:6.31982px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:end;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:end;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.124406;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       x="144.00838"
+       y="152.20645"
+       id="text6"><tspan
+         sodipodi:role="line"
+         id="tspan6"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.124406"
+         x="144.00838"
+         y="152.20645">00</tspan></text>
+    <path
+       id="path6"
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 72.978235,203.95383 a 2.1057383,2.1057383 0 0 0 -2.10586,2.10586 2.1057383,2.1057383 0 0 0 2.10586,2.1056 2.1057383,2.1057383 0 0 0 2.105861,-2.1056 2.1057383,2.1057383 0 0 0 -2.105861,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.199817,1.19982 1.1996867,1.1996867 0 0 1 -1.199817,1.19955 1.1996867,1.1996867 0 0 1 -1.199816,-1.19955 1.1996867,1.1996867 0 0 1 1.199816,-1.19982 z" />
+    <path
+       id="path6-3"
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 77.992478,203.95383 a 2.1057383,2.1057383 0 0 0 -2.10586,2.10586 2.1057383,2.1057383 0 0 0 2.10586,2.1056 2.1057383,2.1057383 0 0 0 2.10586,-2.1056 2.1057383,2.1057383 0 0 0 -2.10586,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.199816,1.19982 1.1996867,1.1996867 0 0 1 -1.199816,1.19955 1.1996867,1.1996867 0 0 1 -1.199817,-1.19955 1.1996867,1.1996867 0 0 1 1.199817,-1.19982 z" />
+    <path
+       id="path6-8"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 83.182264,203.95383 a 2.1057383,2.1057383 0 0 0 -2.105861,2.10586 2.1057383,2.1057383 0 0 0 2.105861,2.1056 2.1057383,2.1057383 0 0 0 2.105859,-2.1056 2.1057383,2.1057383 0 0 0 -2.105859,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.199816,1.19982 1.1996867,1.1996867 0 0 1 -1.199816,1.19955 1.1996867,1.1996867 0 0 1 -1.199818,-1.19955 1.1996867,1.1996867 0 0 1 1.199818,-1.19982 z" />
+    <path
+       id="path6-4"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 88.316936,203.95383 a 2.1057383,2.1057383 0 0 0 -2.10586,2.10586 2.1057383,2.1057383 0 0 0 2.10586,2.1056 2.1057383,2.1057383 0 0 0 2.105861,-2.1056 2.1057383,2.1057383 0 0 0 -2.105861,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.199817,1.19982 1.1996867,1.1996867 0 0 1 -1.199817,1.19955 1.1996867,1.1996867 0 0 1 -1.199816,-1.19955 1.1996867,1.1996867 0 0 1 1.199816,-1.19982 z" />
+    <path
+       id="path6-4-8"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 93.68353,203.95383 a 2.1057383,2.1057383 0 0 0 -2.105861,2.10586 2.1057383,2.1057383 0 0 0 2.105861,2.1056 2.1057383,2.1057383 0 0 0 2.10586,-2.1056 2.1057383,2.1057383 0 0 0 -2.10586,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.199817,1.19982 1.1996867,1.1996867 0 0 1 -1.199817,1.19955 1.1996867,1.1996867 0 0 1 -1.199816,-1.19955 1.1996867,1.1996867 0 0 1 1.199816,-1.19982 z" />
+    <path
+       id="path6-4-4"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 99.023665,203.95383 a 2.1057383,2.1057383 0 0 0 -2.10586,2.10586 2.1057383,2.1057383 0 0 0 2.10586,2.1056 2.1057383,2.1057383 0 0 0 2.105865,-2.1056 2.1057383,2.1057383 0 0 0 -2.105865,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.199815,1.19982 1.1996867,1.1996867 0 0 1 -1.199815,1.19955 1.1996867,1.1996867 0 0 1 -1.199816,-1.19955 1.1996867,1.1996867 0 0 1 1.199816,-1.19982 z" />
+    <path
+       id="path6-4-87"
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.257233;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       d="m 104.39511,203.95383 a 2.1057383,2.1057383 0 0 0 -2.10586,2.10586 2.1057383,2.1057383 0 0 0 2.10586,2.1056 2.1057383,2.1057383 0 0 0 2.10587,-2.1056 2.1057383,2.1057383 0 0 0 -2.10587,-2.10586 z m 0,0.90604 a 1.1996867,1.1996867 0 0 1 1.19982,1.19982 1.1996867,1.1996867 0 0 1 -1.19982,1.19955 1.1996867,1.1996867 0 0 1 -1.19981,-1.19955 1.1996867,1.1996867 0 0 1 1.19981,-1.19982 z" />
+    <ellipse
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426367;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="path7"
+       cx="77.20755"
+       cy="90.260353"
+       rx="5.4364972"
+       ry="5.5115876" />
+    <ellipse
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426367;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+       id="path7-4"
+       cx="90.129639"
+       cy="90.260353"
+       rx="5.4364972"
+       ry="5.5115876" />
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.373997;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:0.373997, 0.373997;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect7"
+       width="30.482327"
+       height="14.032068"
+       x="67.900276"
+       y="83.244324" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426367;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:0.426367, 0.426367;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 83.141431,83.244318 71.557862,64.92507 V 54.352436"
+       id="path8" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:5.68501px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.11191;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:0.11191, 0.11191;stroke-dashoffset:0;stroke-opacity:1"
+       x="60.951748"
+       y="52.27142"
+       id="text8"><tspan
+         sodipodi:role="line"
+         id="tspan8"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.11191"
+         x="60.951748"
+         y="52.27142">현행 유지</tspan></text>
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426368;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#Dot);marker-end:url(#Dot)"
+       d="M 75.412751,124.86127 H 56.784586 v 54.37078 l 18.428126,-0.1699"
+       id="path9" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.426367;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       d="M 56.784586,152.04666 H 49.622554"
+       id="path10" />
+    <text
+       xml:space="preserve"
+       transform="scale(0.26458333)"
+       id="text10"
+       style="font-weight:300;font-size:18.6667px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect10);display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.88976;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       x="-113.59971"
+       y="0" />
+    <text
+       xml:space="preserve"
+       transform="matrix(0.22561981,0,0,0.22561981,18.215314,37.310513)"
+       id="text11"
+       style="font-weight:300;font-size:16px;line-height:1.2;font-family:'Noto Sans CJK KR';-inkscape-font-specification:'Noto Sans CJK KR Light';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect11);display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.88976;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       x="-123.38968"
+       y="0"><tspan
+         x="15.060547"
+         y="475.65656"
+         id="tspan9"><tspan
+           style="fill:#000000;stroke:none"
+           id="tspan7">레벨 넘어갈 때
+</tspan></tspan><tspan
+         x="15.060547"
+         y="494.85658"
+         id="tspan12"><tspan
+           style="fill:#000000;stroke:none"
+           id="tspan10">좌측으로 슬라이드
+</tspan></tspan><tspan
+         x="15.060547"
+         y="514.05659"
+         id="tspan14"><tspan
+           style="fill:#000000;stroke:none"
+           id="tspan13">
+</tspan></tspan><tspan
+         x="15.060547"
+         y="533.2566"
+         id="tspan16"><tspan
+           style="fill:#000000;stroke:none"
+           id="tspan15">duration: 0.2s
+</tspan></tspan><tspan
+         x="15.060547"
+         y="552.45661"
+         id="tspan18"><tspan
+           style="fill:#000000;stroke:none"
+           id="tspan17">ease-in-out</tspan></tspan></text>
+  </g>
+</svg>
