@@ -387,17 +387,18 @@ export default function GameScreen({
         <div className="flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
           {/* 힌트 버튼. 좌상단 언어·소리 토글과 같은 양식(w-9 h-9 원형)이다
               — 화면에 떠 있는 보조 버튼이라는 성격이 같아서 생김새를 맞췄다.
-              아이콘은 구명보트(🛟): 힌트는 곤란할 때 꺼내 쓰는 것이라는 의미.
-              **VS16(U+FE0F)을 붙이지 말 것** — 서브셋 폰트는 GSUB이 비어 있어
-              VS16 클러스터가 합쳐지지 않고 시스템 컬러 이모지로 넘어간다. */}
+              **아이콘을 이모지로 바꾸지 말 것**(2026-08-09에 구명보트로
+              바꿨다가 되돌렸다). 서브셋 폰트(Noto Emoji)는 흑백 **아웃라인**이라
+              어떤 이모지를 넣어도 속이 빈 모양이 되고, 게임 중 순간적으로 찾아야
+              하는 버튼에서는 해석이 필요한 그림보다 '?'가 확실하다. */}
           <button
             type="button"
-            className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 font-bold text-ink text-xl leading-none shrink-0"
             onClick={() => setIsHintOpen((prev) => !prev)}
             aria-expanded={isHintOpen}
             aria-label={t("game.hintButton")}
           >
-            <span aria-hidden="true">{"\u{1F6DF}"}</span>
+            ?
           </button>
 
           <div
