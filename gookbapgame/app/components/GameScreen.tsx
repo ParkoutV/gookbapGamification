@@ -24,6 +24,17 @@ interface GameScreenProps {
 
 const FORCE_ADVANCE_DELAY_MS = 400;
 
+/**
+ * 직전 단계의 장면 URL. 모듈 스코프에 두는 이유는 GameScreen이 단계마다
+ * 리마운트되기 때문이다(page.tsx의 key). 컴포넌트 상태로는 이전 단계 값을
+ * 넘겨받을 수 없다.
+ *
+ * page.tsx에 상태를 추가하지 않는 이유는 그쪽이 GameScreen 두 개를 동시에
+ * 살리는 구조로 번지기 쉬워서다 — 그러면 타이머 effect와 onStageClear 콜백이
+ * 둘씩 살아난다(useGameProgress.ts:111~114의 stale closure 주석 참고).
+ */
+let lastSceneUrls: { left: string; right: string } | null = null;
+
 type WrongMark = { id: number; x: number; y: number; side: "left" | "right" };
 
 export default function GameScreen({
@@ -43,6 +54,11 @@ export default function GameScreen({
   const [isShaking, setIsShaking] = useState(false);
   const [scale, setScale] = useState(1);
   const [isHintOpen, setIsHintOpen] = useState(false);
+  // 단계 전환 연출용. 리마운트되므로 "이전 단계"가 아니라 **이 컴포넌트가 처음
+  // 그려질 때 겹쳐 보여줄 직전 사진**을 page.tsx가 아니라 여기서 들고 있는다.
+  //
+  // prevSceneUrls가 null이면 전환 연출 없이 그냥 그린다(첫 단계 또는 연출 종료 후).
+  const [prevSceneUrls, setPrevSceneUrls] = useState<{ left: string; right: string } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const wrongMarkIdRef = React.useRef(0);
   const forceAdvanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,6 +110,24 @@ export default function GameScreen({
       }
     };
   }, []);
+
+  // 마운트 시점에 직전 단계 사진이 있으면 겹쳐 놓고 0.3s 뒤에 치운다.
+  // CSS 애니메이션 duration(photo-swap-out)과 같은 값이어야 한다.
+  useEffect(() => {
+    const incoming = { left: session.leftSceneUrl, right: session.rightSceneUrl };
+    const previous = lastSceneUrls;
+    lastSceneUrls = incoming;
+
+    // 같은 사진이면(첫 단계, 또는 리마운트가 단계 변경이 아닌 경우) 연출하지 않는다.
+    if (!previous || (previous.left === incoming.left && previous.right === incoming.right)) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 1회, 외부(모듈 스코프) 값을 React로 들여오는 처리
+    setPrevSceneUrls(previous);
+    const timeoutId = setTimeout(() => setPrevSceneUrls(null), 300);
+    return () => clearTimeout(timeoutId);
+  }, [session.leftSceneUrl, session.rightSceneUrl]);
 
   const registerWrongTouch = (x: number, y: number, side: "left" | "right") => {
     if (wrongTouchCount >= WRONG_TOUCH_LIMIT_PER_LEVEL) return;
@@ -301,10 +335,20 @@ export default function GameScreen({
               className="photo-frame__photo cursor-pointer"
               onClick={handleBackgroundClick("left")}
             >
+              {prevSceneUrls && (
+                <img
+                  src={prevSceneUrls.left}
+                  alt=""
+                  aria-hidden="true"
+                  className="photo-swap__outgoing w-full h-full object-contain select-none pointer-events-none"
+                />
+              )}
               <img
                 src={session.leftSceneUrl}
                 alt="Scene Left"
-                className="w-full h-full object-contain select-none pointer-events-none"
+                className={`w-full h-full object-contain select-none pointer-events-none ${
+                  prevSceneUrls ? "photo-swap__incoming" : ""
+                }`}
                 onLoad={handleImageLoad}
               />
               {renderDeadZones("left")}
@@ -375,10 +419,20 @@ export default function GameScreen({
               className="photo-frame__photo cursor-pointer"
               onClick={handleBackgroundClick("right")}
             >
+              {prevSceneUrls && (
+                <img
+                  src={prevSceneUrls.right}
+                  alt=""
+                  aria-hidden="true"
+                  className="photo-swap__outgoing w-full h-full object-contain select-none pointer-events-none"
+                />
+              )}
               <img
                 src={session.rightSceneUrl}
                 alt="Scene Right"
-                className="w-full h-full object-contain select-none pointer-events-none"
+                className={`w-full h-full object-contain select-none pointer-events-none ${
+                  prevSceneUrls ? "photo-swap__incoming" : ""
+                }`}
               />
               {renderDeadZones("right")}
               {renderClickOverlays("right")}
