@@ -12,6 +12,9 @@
   --muted: #8A7A64;
   --amber: #E28A3D;
   --error: #E2685A;
+  /* 폴라로이드 인화지. 순백(#FFF)은 어두운 화면에서 너무 튀어 사진보다 먼저
+     눈에 들어온다. 살짝 탁한 값이 실제 인화지에 가깝다. */
+  --photo-paper: #EDE7DC;
 }
 
 @theme inline {
@@ -134,6 +137,49 @@ body {
   width: auto;
   height: min(60vh, calc(69vw * 2624 / 1626));
   container-type: size;
+}
+
+/* 폴라로이드 사진 프레임(GameScreen의 좌/우 장면 전용).
+ *
+ * 게임 화면의 그림 2장에만 쓴다 — 다른 화면은 .pixel-frame이 전역 디자인 언어다.
+ *
+ * 하단 여백만 1.2배인 것은 폴라로이드의 비대칭을 재현하기 위한 것이다. 실물은
+ * 하단이 20~25%지만 그만큼 주면 그림 영역이 깎이고, 슬롯이 작아지면
+ * resolveHitTargetBox의 56px 보정에 걸리는 슬롯이 늘어 실루엣 정밀도가 낮아진다.
+ * 1.2배면 "아래가 더 두껍다"는 신호는 서고 그림은 거의 안 깎인다.
+ *
+ * 하단 여백은 비워 둔다. 캡션에 넣을 정보가 없다 — "그림 1/2"는 좌우 배치로
+ * 이미 자명하고 단계 표시는 우상단에 있다.
+ */
+.photo-frame {
+  --photo-pad: 10px;
+  background: var(--photo-paper);
+  padding: var(--photo-pad) var(--photo-pad) calc(var(--photo-pad) * 1.2);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* 사진 영역.
+ *
+ * 배경이 검은 이유가 두 가지다.
+ * 1) DB 이미지 중 일부는 캔버스 비율(1200/800)에 맞지 않아 투명 영역이 남는다.
+ *    object-contain이라 그 자리는 레터박스가 되는데, 인화지 흰색이 비치면
+ *    사진이 잘린 것처럼 보인다.
+ * 2) 단계 전환에서 새 사진이 내려오는 동안 위쪽이 잠깐 비는데, 같은 검정이
+ *    그 자리도 덮는다.
+ *
+ * aspect-ratio는 프레임이 아니라 **여기**에 건다. 프레임 전체에 걸면 여백만큼
+ * 사진이 찌그러진다.
+ *
+ * overflow: hidden은 전환 중 사진이 프레임 밖으로 새는 것을 막는다.
+ */
+.photo-frame__photo {
+  position: relative;
+  aspect-ratio: 1200 / 800;
+  background: #000;
+  overflow: hidden;
+  /* 인화지에 눌린 깊이감. 얕게 유지할 것 — 이 게임은 다른 그림 찾기라
+     그림자가 짙으면 가장자리 정답 슬롯의 판별을 방해한다. */
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.5);
 }
 
 /* 카드 앞면 안쪽 테두리. 좌상/우하 모서리를 계단식으로 파내 이모지 자리를 만든다
