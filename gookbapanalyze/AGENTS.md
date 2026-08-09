@@ -131,19 +131,25 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`created_at`** (`timestamp with time zone`): 생성 일시.
 * **`branch_id`** (`uuid`): 해당 트랙이 소속된 지점. (`branches(branch_id)` 외래키, `CASCADE`)
 
-**[`track_logs` - KPI 측정을 위한 유저 행동 로그] (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: INSERT)**
+**[`track_logs` - KPI 측정을 위한 유저 행동 로그] (Admin: 전체 SELECT, User: 본인 지점 SELECT, Anon: 권한 없음, RPC 필수)**
 
 **[RLS Policies]**
 - `SELECT` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin SELECT track_logs)*
-- `INSERT` (익명): (조건 없음) *(Policy: Anon INSERT track_logs)*
 - `SELECT` (공개): `해당 지점 관리자 전용` *(Policy: User SELECT track_logs)*
+*익명 유저의 INSERT 권한이 삭제되었으며, 프론트엔드는 반드시 `add_track_log` RPC를 통해서만 세션 기반으로 로그를 생성해야 합니다.*
 * **`log_id`** (`uuid`, Primary Key): 로그 식별자.
 * **`participant_id`** (`uuid`): 방문 유저 식별자. (`participants` 외래키, `CASCADE`)
 * **`track_id`** (`varchar`, Nullable): 접속한 트랙 문자열.
-  * *제약조건:* `tracks.track_id`와 직접적인 외래키(Foreign Key)가 걸려있진 않으나, 존재하지 않는 URL(트랙)로 접속한 경우나 지정하지 않았을 때 앱 차원에서 Null 처리되거나 기본 트랙으로 맵핑됩니다.
+  * *제약조건:* 존재하지 않는 URL(트랙)로 접속한 경우나 지정하지 않았을 때 앱 차원에서 Null 처리되거나 기본 트랙으로 맵핑됩니다. 세션이 유지되는 동안에는 트랙 ID가 변경되어도 덮어쓰지 않습니다.
 * **`access_time`** (`timestamp with time zone`): 접속/방문 시간. (방문자 수 KPI 연결)
 * **`game_start_count`** (`integer`): 해당 유저가 게임을 재시도/시작한 누적 횟수. (게임 시작자, 재도전 유저 KPI 연결)
 * **`share_clicked`** (`boolean`): 이 유저가 게임 종료 후 '공유하기' 버튼을 눌렀는지 여부. (공유 참여율 KPI 연결)
+
+**[`participant_sessions` - 내부 세션 관리 테이블] (Internal Use Only, No RLS)**
+* 프론트엔드에 노출되지 않으며, 중복 접속 추적을 방지하기 위해 RPC 함수 내부적으로만 사용되는 테이블입니다.
+* **`participant_id`** (`uuid`, Primary Key): 세션 주체. (`participants` 외래키, `CASCADE`)
+* **`current_log_id`** (`uuid`): 현재 활성화된 추적 로그. (`track_logs` 외래키, `CASCADE`)
+* **`last_requested_at`** (`timestamp with time zone`): 마지막 활동 시간. (기본 30분 타임아웃 검증용)
 
 **[`get_track_kpi_dashboard` (KPI 통계 RPC)]** 
 9대 지표(방문자수, 시작/완주/재도전율, 공유 참여/유입, 설문/쿠폰)를 시간 조건에 맞춰 동적으로 필터링하여 집계해주는 강력한 함수입니다.
@@ -475,11 +481,17 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
      ]
      ```
 
-7. **방문 로그 액션 업데이트 (`track_logs` - 익명 유저용)**
+7. **방문 로그 생성 및 세션 유지 (`track_logs` - 익명 유저 접속 시)**
+   - 익명 유저는 `track_logs` 테이블에 대한 직접적인 `INSERT` 권한이 없으므로, 접속 시 반드시 아래의 RPC 함수를 호출해야 합니다.
+   - 이 RPC 함수는 프론트엔드에서 로컬 스토리지 필터링을 거친 후, 세션이 만료되었거나 신규일 때만 호출하는 것을 권장합니다.
+   - ✅ `supabase.rpc('add_track_log', { p_participant_id: '유저의 UUID', p_track_id: '접속한 track_id (없으면 null)' })`
+   - **반환값:** 유효한 현재 세션의 `log_id` (UUID)
+
+8. **방문 로그 액션 업데이트 (`track_logs` - 익명 유저용)**
    - 익명 유저는 `track_logs` 테이블에 대한 직접적인 `UPDATE` 권한이 없습니다. 
    - 따라서 익명 유저의 액션(게임 시작, 공유하기)을 업데이트하려면 RLS를 우회하도록 `SECURITY DEFINER`로 생성된 아래의 RPC 함수를 호출해야 합니다.
-   - **게임 시작/재도전 카운트 +1 증가:** ✅ `supabase.rpc('update_track_log_action', { p_log_id: '유저의 접속 log_id', p_action: 'game_start' })`
-   - **공유하기 클릭 상태 갱신:** ✅ `supabase.rpc('update_track_log_action', { p_log_id: '유저의 접속 log_id', p_action: 'share_click' })`
+   - **게임 시작/재도전 카운트 +1 증가:** ✅ `supabase.rpc('update_track_log_action', { p_participant_id: '유저의 UUID', p_action: 'game_start' })`
+   - **공유하기 클릭 상태 갱신:** ✅ `supabase.rpc('update_track_log_action', { p_participant_id: '유저의 UUID', p_action: 'share_click' })`
 
 
 
@@ -644,13 +656,13 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 프론트엔드 및 게임 클라이언트에서 9대 핵심 KPI를 대시보드에 정확히 집계하기 위해, 유저 행동 단계별로 수행해야 할 DB 연동 가이드입니다.
 
 ### 1단계: 유저 접속 (방문자 수 / 공유 유입 수)
-유저가 최초로 페이지에 들어오면, 익명 UUID(`participant_id`)를 발급하고 `track_logs`에 접속 로그를 남깁니다.
-- **DB 작업 (INSERT)**: `track_logs` 테이블에 `track_id`, `participant_id`, `game_start_count: 0`, `share_clicked: false`로 기록.
+유저가 최초로 페이지에 들어오면, 익명 UUID(`participant_id`)를 발급하고 `add_track_log` RPC를 호출하여 세션 기반 접속 로그를 남깁니다.
+- **DB 작업 (RPC 호출)**: `supabase.rpc('add_track_log', { p_participant_id: participant_id, p_track_id: track_id })` 호출. (직접 INSERT 금지)
 - **KPI 연결**: 이를 통해 **방문자 수**가 카운트됩니다. 접속한 `track_id`가 `is_shared=true`인 트랙이라면 자동으로 **공유 유입 수**로 분류됩니다.
 
 ### 2단계: 게임 시작 및 재도전 (게임 시작률 / 재도전율)
 유저가 게임을 시작할 때마다 카운터를 증가시킵니다.
-- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_log_id: log_id, p_action: 'game_start' })`를 호출하여 카운트를 1 증가시킵니다.
+- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_participant_id: participant_id, p_action: 'game_start' })`를 호출하여 현재 세션의 카운트를 1 증가시킵니다.
 - **KPI 연결**: 값이 1 이상이면 **게임 시작자**, 2 이상이면 **재도전 유저**로 자동 집계됩니다.
 
 ### 3단계: 게임 완료 (게임 완주율)
@@ -660,8 +672,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 
 ### 4단계: 공유하기 버튼 클릭 (공유 참여율)
 유저가 공유하기를 누른 시점에 클릭 여부를 갱신합니다.
-- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_log_id: log_id, p_action: 'share_click' })`를 호출하여 `share_clicked`를 `모두 허용`로 갱신합니다.
-- **KPI 연결**: 이 값이 `모두 허용`가 된 유저 수를 합산하여 **공유 참여율**을 도출합니다.
+- **DB 작업 (RPC 호출)**: 익명 유저는 `UPDATE` 권한이 없으므로 `supabase.rpc('update_track_log_action', { p_participant_id: participant_id, p_action: 'share_click' })`를 호출하여 `share_clicked`를 `true`로 갱신합니다.
+- **KPI 연결**: 이 값이 `true`가 된 유저 수를 합산하여 **공유 참여율**을 도출합니다.
 
 ### 5단계: 공유 링크 생성 (바이럴 확산 준비)
 유저가 누군가에게 공유할 링크(URL)를 만들 때는 새로운 트랙을 생성하는 것이 아닙니다. 
@@ -693,3 +705,61 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
    - "전체 늘리기(Fill)" 옵션을 선택할 경우, 이미지가 찌그러지더라도 빈 공간이나 픽셀 잘림 없이 화면(컨테이너)을 가득 채워야 합니다.
    - 그러나 iOS WebKit 등 일부 모바일 환경에서는 WebRTC `<video>` 요소에 `object-fit: fill` CSS를 주입해도 OS 단에서 비율 유지를 강제하여 명령을 무시합니다.
    - 따라서 'Fill' 모드일 경우에는 반드시 JavaScript `setInterval` 루프를 이용해 비디오 원본의 가로/세로 길이(`videoWidth`, `videoHeight`) 대비 뷰포트 컨테이너의 가로/세로 길이를 계산한 후, CSS `transform: scale(X, Y)`를 주입하여 렌더링을 강제로 잡아 늘려야 합니다.
+
+# Session Management (세션 관리 정책)
+유저의 단순 페이지 새로고침 등으로 인해 `track_logs`의 통계(예: 방문자 수, 게임 시작 수)가 비정상적으로 뻥튀기되는 현상을 방지하기 위해 세션 기반 추적 시스템을 사용합니다.
+
+## 세션의 정의 및 타임아웃
+* **세션 테이블**: `participant_sessions` 테이블이 각 참가자(`participant_id`)의 현재 활성화된 세션(`current_log_id`)과 마지막 활동 시간(`last_requested_at`)을 내부적으로 관리합니다. 이 테이블은 프론트엔드에 노출되지 않으며 RLS가 적용되지 않은 순수 내부 상태 저장소입니다.
+* **타임아웃(Timeout)**: 마지막 요청(`last_requested_at`)으로부터 **30분** 동안 아무런 액션이 없으면 해당 세션은 만료된 것으로 간주됩니다.
+
+## 세션의 생성 및 유지 (`add_track_log` RPC)
+* 프론트엔드에서 사용자가 접속했을 때 직접 `track_logs`에 INSERT하는 것은 금지되어 있습니다. (Anon INSERT 권한 삭제됨)
+* 접속 시 반드시 `add_track_log(participant_id, track_id)` RPC를 호출해야 합니다.
+  * **세션 유지**: 기존 세션이 30분 이내에 존재할 경우, 새로운 `track_logs` 항목을 생성하지 않고 기존의 `log_id`를 반환하며 `last_requested_at` 시간만 갱신합니다. (이때 `track_id`가 변경되더라도 무시합니다.)
+  * **세션 생성**: 세션이 만료되었거나 신규 접속인 경우에만 새로운 `track_logs` 한 줄을 생성하고, 세션 정보를 갱신합니다.
+
+## 세션 활동 기록 (`update_track_log_action` RPC)
+* 유저가 게임 시작('game_start') 또는 공유하기('share_click') 액션을 취했을 때 호출합니다.
+* 기존에는 `log_id`를 직접 넘겼으나, 이제는 `update_track_log_action(participant_id, action_string)` 형태로 `participant_id`만 전달합니다.
+* 내부 로직에서 자동으로 현재 활성 세션의 `log_id`를 찾아 액션을 업데이트하며, 만약 활성 세션이 없거나 만료된 경우에는 **강제로 새로운 세션(새 log_id)을 생성한 뒤** 해당 액션을 기록합니다.
+
+## 프론트엔드 연동 가이드 (브라우저 세션 최적화)
+서버에 이미 강력한 2중 방어(30분 내 중복 생성 방지) 로직이 구현되어 있지만, 프론트엔드에서 불필요한 RPC 네트워크 요청(새로고침 연타 시 등)을 줄이기 위해 브라우저 단에서 1차 필터링하는 것이 권장됩니다.
+
+### 1. 접속(페이지 로드) 시 세션 초기화 및 만료 탐지
+페이지에 접속했을 때, 로컬 스토리지(`localStorage`)를 확인하여 세션 만료 여부를 자체적으로 탐지한 뒤 RPC를 호출합니다.
+
+```javascript
+const lastActive = localStorage.getItem('track_last_active');
+const now = new Date().getTime();
+
+// 안전한 세션 유지를 위해 서버 타임아웃(30분)보다 짧은 20분(1200000ms)을 기준으로 잡는 것을 권장합니다.
+// 20분이 지났거나 기록이 아예 없는 경우(세션 만료 임박 또는 신규)에만 RPC 호출
+if (!lastActive || (now - parseInt(lastActive)) > 1200000) {
+    // 세션이 만료되었거나 처음이므로 새 세션 생성 (또는 기존 세션 갱신) 요청
+    await supabase.rpc('add_track_log', { 
+        p_participant_id: id, 
+        p_track_id: trackId 
+    });
+}
+
+// 접속/새로고침 했으므로 마지막 활동 시간을 현재로 갱신 (세션 연장)
+localStorage.setItem('track_last_active', now.toString());
+```
+
+### 2. 특정 행동(액션) 발생 시 세션 연장
+게임 시작('game_start') 등의 특정 행동이 발생할 때마다, 이 역시 세션을 활동을 의미하므로 로컬 스토리지 시간을 함께 갱신해줍니다. 
+
+```javascript
+const now = new Date().getTime();
+
+// 액션을 서버로 보냄 (DB 단에서 알아서 현재 세션을 찾아 갱신하거나, 만료되었으면 새 세션을 자동 생성해줌)
+await supabase.rpc('update_track_log_action', { 
+    p_participant_id: id, 
+    p_action: 'game_start' 
+});
+
+// 행동이 발생했으므로 세션 활동 시간 갱신 (세션 연장)
+localStorage.setItem('track_last_active', now.toString());
+```
