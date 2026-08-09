@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
-import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { WRONG_TOUCH_LIMIT_PER_LEVEL, GLOBAL_TIME_LIMIT_SEC } from "../lib/stageConfig";
 import { resolveIndicatorCells, resolveGaugeRatio, isTimeCritical } from "../lib/hudIndicators";
@@ -386,17 +385,20 @@ export default function GameScreen({
 
         {/* 힌트 + 게이지 (두 그림 사이) */}
         <div className="flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
-          <PixelPanel size="btn" className="min-w-12 shrink-0">
-            <button
-              type="button"
-              className="w-full font-bold text-ink text-xl leading-none py-1"
-              onClick={() => setIsHintOpen((prev) => !prev)}
-              aria-expanded={isHintOpen}
-              aria-label={t("game.hintButton")}
-            >
-              ?
-            </button>
-          </PixelPanel>
+          {/* 힌트 버튼. 좌상단 언어·소리 토글과 같은 양식(w-9 h-9 원형)이다
+              — 화면에 떠 있는 보조 버튼이라는 성격이 같아서 생김새를 맞췄다.
+              아이콘은 구명보트(🛟): 힌트는 곤란할 때 꺼내 쓰는 것이라는 의미.
+              **VS16(U+FE0F)을 붙이지 말 것** — 서브셋 폰트는 GSUB이 비어 있어
+              VS16 클러스터가 합쳐지지 않고 시스템 컬러 이모지로 넘어간다. */}
+          <button
+            type="button"
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg shrink-0"
+            onClick={() => setIsHintOpen((prev) => !prev)}
+            aria-expanded={isHintOpen}
+            aria-label={t("game.hintButton")}
+          >
+            <span aria-hidden="true">{"\u{1F6DF}"}</span>
+          </button>
 
           <div
             className="time-gauge relative flex-1 md:flex-none h-3 w-full md:h-40 md:w-3 bg-wood/30 overflow-hidden"
