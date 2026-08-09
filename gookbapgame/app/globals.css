@@ -182,6 +182,65 @@ body {
   box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.5);
 }
 
+/* 단계 전환. 프레임은 고정이고 안쪽 사진만 갈린다 — 액자에 사진을 갈아끼우는
+ * 연출이라 폴라로이드 컨셉과 맞는다.
+ *
+ * 방향은 **하향 고정**이다(세로·가로 레이아웃 동일). 필름 스트립에서 "위에 있는
+ * 사진으로 올라간다"는 은유이며, 그래서 콘텐츠는 아래로 흐른다 — 레벨 상승으로
+ * 읽힌다(2026-08-09, 이란토).
+ *
+ * 횡축을 쓰지 않는 이유: 사진 영역이 가로로 길어(1200/800) 이동 거리가 길고,
+ * 0.3s 안에 긴 거리를 움직이면 오히려 부자연스럽다. 짧은 축이 이 duration에 맞는다.
+ * 가로 레이아웃에서 두 그림을 바깥으로 벌리는 안은 폐기했다 — 좌우 배치에서만
+ * 자연스럽고 세로에서는 두 그림이 반대로 움직여 화면이 갈라져 보인다.
+ * 하향 고정이면 레이아웃 분기 자체가 없다.
+ */
+@keyframes photo-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes photo-swap-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+.photo-swap__incoming {
+  animation: photo-swap-in 0.3s ease-in-out;
+}
+
+/* 빠져나가는 사진. absolute로 띄워 들어오는 사진과 같은 자리에 겹친다.
+   pointer-events: none이라 전환 중 클릭을 가로채지 않는다. */
+.photo-swap__outgoing {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: photo-swap-out 0.3s ease-in-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-swap__incoming,
+  .photo-swap__outgoing {
+    animation: none;
+  }
+  /* 애니메이션이 없으면 빠져나가는 사진이 그대로 남아 새 사진을 덮는다. */
+  .photo-swap__outgoing {
+    display: none;
+  }
+}
+
 /* 카드 앞면 안쪽 테두리. 좌상/우하 모서리를 계단식으로 파내 이모지 자리를 만든다
    (트럼프 카드의 코너 마크 위치). 테두리가 그 자리를 비켜 가므로 이모지를 키워도
    선과 겹치지 않는다.
