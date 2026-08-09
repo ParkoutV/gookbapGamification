@@ -323,7 +323,10 @@ export default function GameScreen({
       </header>
 
       <main className="flex-1 flex flex-col md:flex-row items-center justify-center p-4 gap-3 md:gap-4 overflow-auto">
-        {/* 왼쪽(세로 배치에서는 위쪽) 장면 + 그 아래 문항 인디케이터 */}
+        {/* 왼쪽(세로 배치에서는 위쪽) 장면 + 문항 인디케이터.
+            인디케이터는 세로 배치에서 그림 **위**, 가로 배치에서 그림 **아래**에 온다
+            (2026-08-09, 이란토). DOM 순서를 바꾸지 않고 order로 처리하는 이유는
+            그림이 먼저 읽히는 편이 스크린리더 순서로도 자연스럽기 때문이다. */}
         <div className="flex flex-col items-center gap-2 w-full max-w-[1200px]">
           {/* 프레임은 인화지(순수 장식)다. 좌표계는 안쪽 사진 영역이므로 containerRef와
               배경 클릭 판정은 .photo-frame__photo에 붙인다 — 프레임에 붙이면
@@ -358,10 +361,11 @@ export default function GameScreen({
             </div>
           </div>
 
-          {/* 문항 인디케이터. 가로 배치에서는 왼쪽 그림 아래에 붙는다.
+          {/* 문항 인디케이터. 세로 배치에서는 그림 위(order -1)에 가운데 정렬,
+              가로 배치에서는 그림 아래 왼쪽 정렬로 돌아간다.
               hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다. */}
           <div
-            className="flex items-center gap-1 self-start"
+            className="flex items-center gap-1 order-first md:order-none md:self-start"
             role="img"
             aria-label={t("game.remainingCount", {
               found: totalDifferences - foundSlots.size,
@@ -441,8 +445,10 @@ export default function GameScreen({
             </div>
           </div>
 
+          {/* 오답 표시. 세로 배치에서는 가운데, 가로 배치에서는 오른쪽 그림 아래
+              오른쪽 정렬(2026-08-09, 이란토). */}
           <div
-            className="flex items-center gap-1 self-end"
+            className="flex items-center gap-1 md:self-end"
             role="img"
             aria-label={t("game.wrongTouchAria", {
               count: wrongTouchCount,
