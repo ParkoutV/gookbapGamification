@@ -361,7 +361,7 @@ export default function WebCouponsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800">
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">총 등록된 쿠폰</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total.toLocaleString()}개</p>
@@ -380,7 +380,7 @@ export default function WebCouponsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-8 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 p-6">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center mb-4">
             <Upload className="w-5 h-5 mr-2 text-gray-500" />
@@ -421,7 +421,7 @@ export default function WebCouponsPage() {
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-zinc-800 flex justify-between items-center bg-gray-50 dark:bg-zinc-900/50">
+        <div className="p-4 border-b border-gray-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50 dark:bg-zinc-900/50">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mr-4">데이터 관리</h2>
             {selectedCoupons.size > 0 && (
@@ -435,14 +435,15 @@ export default function WebCouponsPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4 mt-4 md:mt-0">
             <button onClick={() => fetchPage(page > 0 ? page - 1 : 0)} disabled={page === 0} className="text-sm text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white disabled:opacity-50">이전</button>
             <span className="text-sm text-gray-500">{page + 1} 페이지</span>
             <button onClick={() => fetchPage(page + 1)} disabled={coupons.length < pageSize} className="text-sm text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white disabled:opacity-50">다음</button>
             <button onClick={() => { fetchAll() }} className="ml-4 p-2 bg-gray-100 dark:bg-zinc-800 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700"><RefreshCw className="w-4 h-4 text-gray-600 dark:text-gray-300" /></button>
           </div>
         </div>
-        <table className="w-full text-left border-collapse">
+        <div className="w-full overflow-x-auto pb-8">
+          <table className="w-full text-left border-collapse min-w-max whitespace-nowrap">
           <thead>
             <tr className="bg-gray-50 dark:bg-zinc-900/50">
               <th className="px-6 py-3 w-12 border-b border-gray-200 dark:border-zinc-800 text-center">
@@ -505,6 +506,7 @@ export default function WebCouponsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Excel Select Modal */}

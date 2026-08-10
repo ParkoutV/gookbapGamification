@@ -148,9 +148,9 @@ export default function LanguagesPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 rounded-xl overflow-visible relative pb-16">
-        <div className="w-full overflow-visible">
-          <table className="w-full text-sm text-left">
+      <div className="bg-white dark:bg-zinc-900 shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 rounded-xl overflow-visible relative pb-32">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-sm text-left min-w-max whitespace-nowrap">
             <thead className="text-xs text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-800 uppercase">
               <tr>
                 <th className="px-6 py-4 font-semibold">언어 코드</th>

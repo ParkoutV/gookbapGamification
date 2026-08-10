@@ -513,7 +513,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
                 <div className="w-20 h-20 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Gift className="w-10 h-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-8 leading-relaxed break-keep whitespace-pre-wrap text-center">
+                <h2 className="text-2xl font-bold text-white mb-8 leading-relaxed break-words whitespace-pre-wrap text-center">
                   {displayQuestion}
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
@@ -539,7 +539,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
                   <Check className="w-10 h-10" />
                 </div>
                 <h2 className="text-3xl font-bold text-green-400 mb-4">완료!</h2>
-                <p className="text-2xl text-white font-medium leading-relaxed break-keep whitespace-pre-wrap text-center mb-10">{displaySuccess}</p>
+                <p className="text-2xl text-white font-medium leading-relaxed break-words whitespace-pre-wrap text-center mb-10">{displaySuccess}</p>
                 <button 
                   onClick={handleCancelUse}
                   className="w-full max-w-[200px] py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl text-xl font-bold transition-colors mx-auto"

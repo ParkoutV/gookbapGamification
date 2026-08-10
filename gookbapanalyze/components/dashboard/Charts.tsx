@@ -80,16 +80,16 @@ export function CouponStatsChart({ data }: { data: CouponData[] }) {
       <h3 className="text-lg font-bold mb-4 dark:text-white">쿠폰 종류별 발급/사용 현황</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+            <XAxis type="number" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+            <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={100} />
             <RechartsTooltip 
               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
             />
             <Legend wrapperStyle={{ fontSize: '12px' }} />
-            <Bar dataKey="issued" name="발급 수" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="used" name="사용 수" fill="#10b981" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="issued" name="발급 수" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="used" name="사용 수" fill="#10b981" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

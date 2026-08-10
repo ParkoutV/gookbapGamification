@@ -278,7 +278,7 @@ export default function NicknameClient({
 
     return (
       <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg shadow-sm">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-sm text-left min-w-max whitespace-nowrap">
           <thead className="bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
             <tr>
               <th className="px-4 py-3 font-semibold w-16">상태</th>

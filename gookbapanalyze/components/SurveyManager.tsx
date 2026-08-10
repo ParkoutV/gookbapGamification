@@ -313,7 +313,7 @@ export default function SurveyManager({
                       <GripVertical className="w-5 h-5" />
                     </div>
                     
-                    <div className="flex-1 space-y-4">
+                    <div className="flex-1 space-y-4 min-w-0">
                       <div className="flex flex-col gap-3 border-b border-zinc-200 dark:border-zinc-700 pb-4">
                         {activeLanguages.map(lang => (
                           <div key={lang.lang_code} className="flex items-center gap-3">
@@ -323,11 +323,11 @@ export default function SurveyManager({
                               value={q.question_text?.[lang.lang_code] || ''}
                               onChange={(e) => updateQuestionText(q.question_id, lang.lang_code, e.target.value)}
                               placeholder={`질문 제목 (${lang.lang_name})`}
-                              className="w-full text-lg font-medium bg-transparent border-b border-transparent hover:border-zinc-200 focus:outline-none focus:border-blue-500 transition-colors"
+                              className="flex-1 min-w-0 text-lg font-medium bg-transparent border-b border-transparent hover:border-zinc-200 focus:outline-none focus:border-blue-500 transition-colors"
                             />
                           </div>
                         ))}
-                        <div className="flex items-center justify-end gap-2 shrink-0 mt-2">
+                        <div className="flex items-center justify-end flex-wrap gap-2 shrink-0 mt-2">
                           <label className="cursor-pointer p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-blue-500">
                             <input 
                               type="file" 
@@ -340,7 +340,7 @@ export default function SurveyManager({
                             <ImageIcon className="w-5 h-5" />
                           </label>
                           <select
-                            className="bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-3 py-2 text-sm whitespace-nowrap"
+                            className="max-w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-3 py-2 text-sm"
                             value={q.question_type}
                             onChange={(e) => updateQuestion(q.question_id, { question_type: Number(e.target.value) })}
                           >
@@ -367,8 +367,8 @@ export default function SurveyManager({
                         <div className="space-y-4 pl-2 mt-4">
                           {q.options?.map((opt, idx) => (
                             <div key={idx} className="flex gap-3 group/opt items-start">
-                              <div className="w-4 h-4 mt-2 rounded-full border border-zinc-400 flex-shrink-0" />
-                              <div className="flex-1 space-y-2">
+                              <div className={`w-4 h-4 mt-2 border border-zinc-400 flex-shrink-0 ${q.question_type === 1 ? 'rounded-sm' : 'rounded-full'}`} />
+                              <div className="flex-1 space-y-2 min-w-0">
                                 {activeLanguages.map(lang => (
                                   <div key={lang.lang_code} className="flex items-center gap-2">
                                     <span className="text-xs font-bold uppercase w-8 text-zinc-400 shrink-0">{lang.lang_code}</span>
@@ -377,7 +377,7 @@ export default function SurveyManager({
                                       value={opt[lang.lang_code] || ''}
                                       onChange={(e) => updateOptionText(q.question_id, idx, lang.lang_code, e.target.value)}
                                       placeholder={`옵션 ${idx + 1} (${lang.lang_name})`}
-                                      className="flex-1 bg-transparent border-b border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 focus:border-blue-500 focus:outline-none transition-colors"
+                                      className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 focus:border-blue-500 focus:outline-none transition-colors"
                                     />
                                   </div>
                                 ))}
@@ -412,7 +412,7 @@ export default function SurveyManager({
                                   value={q.options?.[0]?.[lang.lang_code] || ''}
                                   onChange={(e) => updateOptionText(q.question_id, 0, lang.lang_code, e.target.value)}
                                   placeholder={`단답형 부가설명/안내문 (${lang.lang_name})`}
-                                  className="flex-1 bg-transparent border-b border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 focus:border-blue-500 focus:outline-none transition-colors text-sm text-zinc-500 focus:text-zinc-900 dark:focus:text-zinc-100"
+                                  className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 focus:border-blue-500 focus:outline-none transition-colors text-sm text-zinc-500 focus:text-zinc-900 dark:focus:text-zinc-100"
                                 />
                               </div>
                             ))}

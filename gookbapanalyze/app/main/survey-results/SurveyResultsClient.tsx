@@ -202,10 +202,10 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
     if (data.length === 0) return <div className="text-zinc-400 text-sm py-4">응답 데이터가 없습니다.</div>
 
     return (
-      <div className="h-64 w-full relative">
+      <div className="h-80 w-full relative">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+            <Pie data={data} cx="50%" cy="40%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
@@ -214,7 +214,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
               itemStyle={{ fontWeight: 600 }}
             />
-            <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
+            <Legend verticalAlign="bottom" align="center" layout="horizontal" iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
           </PieChart>
         </ResponsiveContainer>
       </div>

@@ -640,7 +640,7 @@ export default function CouponsPage() {
                   </div>
                 </div>
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select 
                   value={settings?.limit_type || 'days'} 
                   onChange={e => handleSettingsChange('limit_type', e.target.value)} 
@@ -649,7 +649,7 @@ export default function CouponsPage() {
                   <option value="days">일 (Days)</option>
                   <option value="hours">시간 (Hours)</option>
                 </select>
-                <span className="text-sm text-gray-600 dark:text-gray-400">기준으로</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">기준으로</span>
                 <input 
                   type="number" 
                   min="0" 
@@ -658,7 +658,7 @@ export default function CouponsPage() {
                   onBlur={() => handleSettingsChange('limit_n', localLimitN)} 
                   className="w-16 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center outline-none focus:ring-2 focus:ring-blue-500" 
                 />
-                <span className="text-sm text-gray-600 dark:text-gray-400">{settings?.limit_type === 'hours' ? '시간 동안 최대' : '일 동안 최대'}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{settings?.limit_type === 'hours' ? '시간 동안 최대' : '일 동안 최대'}</span>
                 <input 
                   type="number" 
                   min="0" 
@@ -667,7 +667,7 @@ export default function CouponsPage() {
                   onBlur={() => handleSettingsChange('limit_m', localLimitM)} 
                   className="w-16 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center outline-none focus:ring-2 focus:ring-blue-500" 
                 />
-                <span className="text-sm text-gray-600 dark:text-gray-400">번 참여 가능</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">번 참여 가능</span>
               </div>
             </div>
             
@@ -806,7 +806,7 @@ export default function CouponsPage() {
         </div>
 
         <div className="w-full overflow-x-auto pb-4">
-          <table className="w-full min-w-max border-collapse border border-gray-300 dark:border-zinc-700 rounded-lg overflow-hidden">
+          <table className="w-full min-w-max whitespace-nowrap border-collapse border border-gray-300 dark:border-zinc-700 rounded-lg overflow-hidden">
             <thead className="bg-gray-100 dark:bg-zinc-800">
               <tr>
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-12 text-center"></th>
