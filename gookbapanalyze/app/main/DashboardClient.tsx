@@ -102,11 +102,13 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
       
       // Filter by branch
       if (isAdmin && branchId) {
-        if (branchId === 'DIRECT') {
-          filteredAgg = filteredAgg.filter((row: any) => row.track_id === null);
-        } else {
-          filteredAgg = filteredAgg.filter((row: any) => row.branch_id === branchId || row.track_id?.includes(branchId));
-        }
+        filteredAgg = filteredAgg.filter((row: any) => {
+          // 온라인 지점(직접 접속 통합본)인 경우, 소속 지점이 없는(null) 잉여 데이터도 모두 포함
+          if (branchId === '186876a6-5166-40f8-a95f-5faf70df4efa' && (!row.branch_id || row.branch_id === null)) {
+            return true;
+          }
+          return row.branch_id === branchId || row.track_id?.includes(branchId);
+        });
       }
       
       // Filter by is_shared

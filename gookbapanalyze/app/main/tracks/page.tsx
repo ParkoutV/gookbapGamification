@@ -30,8 +30,14 @@ export default function TracksListPage() {
     ])
 
     if (tracksRes.error) setError(tracksRes.error)
-    else if (tracksRes.tracks) setTracks(tracksRes.tracks)
-
+    else if (tracksRes.tracks) {
+      const sortedTracks = [...tracksRes.tracks].sort((a, b) => {
+        const aName = typeof a.branch_name === 'string' && a.branch_name.includes('온라인') ? 1 : 0;
+        const bName = typeof b.branch_name === 'string' && b.branch_name.includes('온라인') ? 1 : 0;
+        return bName - aName;
+      });
+      setTracks(sortedTracks);
+    }
     if (langsRes.error) setError(langsRes.error)
     else if (langsRes.languages) {
       setLanguages(langsRes.languages)

@@ -38,6 +38,10 @@ export function FilterControls({ onFilterChange, isAdmin }: FilterControlsProps)
             // Already string or not JSON
           }
           return { ...b, branch_name: name };
+        }).sort((a, b) => {
+          const aIsOnline = a.branch_name.includes('온라인') ? 1 : 0;
+          const bIsOnline = b.branch_name.includes('온라인') ? 1 : 0;
+          return bIsOnline - aIsOnline;
         });
         setBranches(parsedBranches);
       }
@@ -73,7 +77,6 @@ export function FilterControls({ onFilterChange, isAdmin }: FilterControlsProps)
             className="p-2 border rounded-lg text-sm bg-gray-50 dark:bg-zinc-800 dark:border-zinc-700 min-w-[150px]"
           >
             <option value="">모든 지점 (합산)</option>
-            <option value="DIRECT">직접 접속 (소속 없음)</option>
             {branches.map(b => (
               <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
             ))}
