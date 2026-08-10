@@ -362,7 +362,11 @@ export default function GameScreen({
 
           {/* 문항 인디케이터. 세로 배치에서는 그림 위(order -1)에 가운데 정렬,
               가로 배치에서는 그림 아래 왼쪽 정렬로 돌아간다.
-              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다. */}
+              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다.
+
+              오답 카운터와 같은 방식으로 마커 이미지를 그대로 쓴다(2026-08-10, 이란토) —
+              한쪽만 원형 도트면 같은 줄에 놓인 두 지표가 다른 체계로 보인다.
+              찾은 칸은 불투명, 남은 칸은 opacity-20으로 흐리게 (오답 쪽과 동일). */}
           <div
             className="flex items-center gap-1 order-first md:order-none md:self-start"
             role="img"
@@ -372,12 +376,14 @@ export default function GameScreen({
             })}
           >
             {indicatorCells.map((cell, i) => (
-              <span
+              <img
                 key={i}
+                src="/icons/check-success.svg"
+                alt=""
                 aria-hidden="true"
-                className={`w-4 h-4 rounded-full border-2 border-wood ${
-                  cell === "filled" ? "bg-accent" : "bg-transparent"
-                } ${cell === "hidden" ? "opacity-0" : "opacity-100"}`}
+                className={`w-5 h-5 ${
+                  cell === "hidden" ? "opacity-0" : cell === "filled" ? "opacity-100" : "opacity-20"
+                }`}
               />
             ))}
           </div>
