@@ -24,6 +24,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [isShared, setIsShared] = useState<IsSharedFilter>('BOTH');
+  const [excludeDuplicates, setExcludeDuplicates] = useState<boolean>(false);
 
   const [loading, setLoading] = useState(false);
   const [storeTrackId, setStoreTrackId] = useState<string | null>(null);
@@ -89,7 +90,8 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
       // 1. Fetch Aggregated Data
       const params: any = {
         start_date: startDate ? startDate.toISOString() : undefined,
-        end_date: endDate ? endDate.toISOString() : undefined
+        end_date: endDate ? endDate.toISOString() : undefined,
+        exclude_duplicates: excludeDuplicates
       };
 
       const { data: aggData, error: aggError } = await supabase.rpc('get_track_kpi_dashboard', params);
@@ -127,13 +129,15 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
 
       filteredAgg.forEach((row: any) => {
         totals.visitors += Number(row.visitors || 0);
-        totals.gameStarts += Number(row.game_starts || 0);
-        totals.completions += Number(row.completions || 0);
-        totals.surveyCompletions += Number(row.survey_completions || 0);
-        totals.couponIssues += Number(row.coupon_issues || 0);
-        totals.couponUses += Number(row.coupon_uses || 0);
-        totals.shares += Number(row.shares || 0);
-        totals.shareInflows += Number(row.share_inflows || 0);
+        totals.gameStarts += Number(row.game_starters || 0);
+        totals.completions += Number(row.game_completers || 0);
+        totals.surveyCompletions += Number(row.survey_completers || 0);
+        totals.couponIssues += Number(row.total_coupons_issued || 0);
+        totals.couponUses += Number(row.total_coupons_used || 0);
+        totals.shares += Number(row.share_clickers || 0);
+        if (row.is_shared) {
+          totals.shareInflows += Number(row.visitors || 0);
+        }
       });
 
       setKpis(totals);
@@ -204,7 +208,8 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         dailyPromises.push(
           supabase.rpc('get_track_kpi_dashboard', {
             start_date: startOfDayStr,
-            end_date: endOfDayStr
+            end_date: endOfDayStr,
+            exclude_duplicates: excludeDuplicates
           })
         );
       }
@@ -229,7 +234,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         let v = 0; let g = 0;
         dAgg.forEach((r: any) => {
           v += Number(r.visitors || 0);
-          g += Number(r.game_starts || 0);
+          g += Number(r.game_starters || 0);
         });
 
         return {
@@ -249,7 +254,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, branchId, isShared, isAdmin, supabase]);
+  }, [startDate, endDate, branchId, isShared, excludeDuplicates, isAdmin, supabase]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -291,8 +296,9 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         
         <div className="flex flex-col gap-4 w-full lg:w-auto">
           <DateRangePicker onFilterChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
-          <FilterControls isAdmin={isAdmin} onFilterChange={(b, s) => { setBranchId(b); setIsShared(s); }} />
-        </div>
+          <FilterControls isAdmin={isAdmin} onFilterChange={(b, s, e) => { 
+            setBranchId(b); setIsShared(s); setExcludeDuplicates(e); 
+          }} />  </div>
       </div>
 
       {loading && (
@@ -306,8 +312,8 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         <StatCard title="방문자 수" value={kpis.visitors.toLocaleString()} icon={<Users className="w-5 h-5" />} />
         <StatCard title="게임 시작률" value={`${gameStartRate}%`} icon={<PlayCircle className="w-5 h-5" />} subtitle={`시작 ${kpis.gameStarts}건`} />
         <StatCard title="완주율" value={`${completionRate}%`} icon={<CheckCircle className="w-5 h-5" />} subtitle={`완주 ${kpis.completions}건`} />
-        <StatCard title="쿠폰 사용률" value={`${couponUseRate}%`} icon={<Ticket className="w-5 h-5" />} subtitle={`사용 ${kpis.couponUses}건`} />
         <StatCard title="설문 완료율" value={`${surveyCompletionRate}%`} icon={<CheckSquare className="w-5 h-5" />} subtitle={`완료 ${kpis.surveyCompletions}건`} />
+        <StatCard title="쿠폰 사용률" value={`${couponUseRate}%`} icon={<Ticket className="w-5 h-5" />} subtitle={`사용 ${kpis.couponUses}건`} />
       </div>
 
       {/* Charts & KPIs Grid */}

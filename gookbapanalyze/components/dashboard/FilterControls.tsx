@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client';
 export type IsSharedFilter = 'TRUE' | 'FALSE' | 'BOTH';
 
 interface FilterControlsProps {
-  onFilterChange: (branchId: string | null, isShared: IsSharedFilter) => void;
+  onFilterChange: (branchId: string | null, isShared: IsSharedFilter, excludeDuplicates: boolean) => void;
   isAdmin: boolean;
 }
 
@@ -19,6 +19,7 @@ export function FilterControls({ onFilterChange, isAdmin }: FilterControlsProps)
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [isShared, setIsShared] = useState<IsSharedFilter>('BOTH');
+  const [excludeDuplicates, setExcludeDuplicates] = useState<boolean>(false);
 
   const supabase = createClient();
 
@@ -45,8 +46,8 @@ export function FilterControls({ onFilterChange, isAdmin }: FilterControlsProps)
   }, [isAdmin, supabase]);
 
   useEffect(() => {
-    onFilterChange(selectedBranchId, isShared);
-  }, [selectedBranchId, isShared, onFilterChange]);
+    onFilterChange(selectedBranchId, isShared, excludeDuplicates);
+  }, [selectedBranchId, isShared, excludeDuplicates, onFilterChange]);
 
   return (
     <div className="flex flex-wrap gap-4 items-center bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm">
@@ -79,6 +80,21 @@ export function FilterControls({ onFilterChange, isAdmin }: FilterControlsProps)
           </select>
         </div>
       )}
+
+      <div className="flex flex-col space-y-1 ml-auto">
+        <label className="text-xs font-medium text-transparent hidden sm:block">중복 제거</label>
+        <label className="flex items-center space-x-2 p-2 border rounded-lg text-sm bg-gray-50 dark:bg-zinc-800 dark:border-zinc-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+          <input 
+            type="checkbox" 
+            checked={excludeDuplicates} 
+            onChange={(e) => setExcludeDuplicates(e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-800 focus:ring-2 dark:bg-zinc-700 dark:border-zinc-600"
+          />
+          <span className="font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+            중복 유저 제외 (기기 기준)
+          </span>
+        </label>
+      </div>
     </div>
   );
 }
