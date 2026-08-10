@@ -25,14 +25,31 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 
 - **쿠키 토큰**: `gookbapgame_token`(httpOnly, 만료 2년). `getOrIssueToken()`이 없으면 발급, 있으면 그대로 사용.
 - **participant_id 산출**: `hashToken(token)`으로 SHA-256(64자 hex)을 만든 뒤, `resolveParticipantId()`가 앞 32자를 잘라 `8-4-4-4-12` 하이픈 형태(uuid 문자열 형식)로 재배열해서 `participant_id`로 씀. `participants.participant_id`는 프로덕션 기준 실제 `uuid` 타입 컬럼이라 이 포맷팅이 필요함.
-- **`ensureParticipant(trackId)`**: `participants`에 `INSERT`(uuid PK 충돌 시 `23505`는 "이미 존재하는 참여자"로 정상 처리, `ON CONFLICT`는 안 씀 — RLS가 걸린 테이블에서 `ON CONFLICT`는 SELECT 정책을 요구해서 실패하기 때문). `trackId`가 있으면 **접속할 때마다** `track_logs`에 새 row를 남김(2026-08-09, 구자건 정책 — 사이트 실시간 추적 목적). 재방문/새로고침마다 쌓이는 것이 의도된 동작이다.
-  - 예전 문서에는 "신규 참여자일 때만 기록"으로 적혀 있었고 근거가 "`game_start_count` UPDATE가 `(participant_id, track_id)`당 row 1개를 가정"이었는데, **이 제약은 실재하지 않는다** — `update_track_log_action`은 `p_log_id`로 특정 row를 직접 겨냥하므로 row 개수와 무관하다. 이 근거를 되살리지 말 것.
+- **`ensureParticipant(trackId)`**: `participants`에 `INSERT`(uuid PK 충돌 시 `23505`는 "이미 존재하는 참여자"로 정상 처리, `ON CONFLICT`는 안 씀 — RLS가 걸린 테이블에서 `ON CONFLICT`는 SELECT 정책을 요구해서 실패하기 때문). 그다음 **`add_track_log` RPC**로 접속 로그를 남김.
+  - **`track_logs`에 직접 `INSERT`하지 말 것.** anon의 INSERT 권한이 삭제됐다(2026-08-10, `gookbapanalyze` 커밋 a4a6416). 직접 넣으면 실패하는데, best-effort라 로그만 찍고 조용히 넘어가서 **방문자 수 KPI가 아무 신호 없이 0이 된다.**
+  - **중복 집계 방지는 서버가 한다.** 30분 이내 활성 세션이 있으면 새 row를 만들지 않고 기존 `log_id`를 돌려준다(`participant_sessions` 테이블). 그래서 여기서 "신규 참여자일 때만" 같은 조건을 걸 필요가 없다 — 새로고침 연타로 방문자 수가 부풀지 않는다.
+  - `trackId`가 `null`이어도 호출한다(문서 7번이 "없으면 null"을 명시). 부작용으로 `?q=` 없는 개발/QA 직접 접속도 방문자 수에 잡힌다.
+  - **반환되는 `log_id`는 쓰지 않는다.** `update_track_log_action`이 `participant_id`만 받도록 바뀌어서(예전엔 `p_log_id`) 클라이언트가 `log_id`를 들고 있을 이유가 없다. 저장하는 코드를 되살리지 말 것.
   - **연속성·최초 방문 판별을 `track_logs`로 하지 말 것.** 그건 `participants`가 담당한다(쿠키 해시 기반 `participant_id` + PK 충돌 `23505`). `participant_id`는 매 접속마다 새로 생기지 않는다 — 같은 기기면 계속 동일하다.
-  - **아직 `log_id`를 받아오지 않는다.** insert에 `.select()`가 없어서 `update_track_log_action`(게임 시작 카운트, 공유 클릭)을 부를 수단이 없고, 실제로 호출부가 코드베이스에 0건이다. KPI 2·4단계는 미구현 상태다.
+- **KPI 액션 기록 (`recordGameStart` / `recordShareClick`)**: `update_track_log_action` RPC를 부르는 서버 액션. `participant_id`가 httpOnly 쿠키에서 나오므로 클라이언트에서 직접 못 부른다. 둘 다 실패를 삼킨다 — KPI 집계 실패가 게임 진행을 막아서는 안 된다.
+  - **`game_start`는 `startGame`이 아니라 `phase`가 `"playing"`이 되는 전이에 걸려 있다**(`useGameProgress`의 `wasPlayingRef`). `startGame`은 튜토리얼 진입도 포함해 불리므로 거기 걸면 **튜토리얼에서 이탈한 사람까지 게임 시작자로 잡혀 시작률이 부풀어 오른다.** 또 진입 경로가 여럿이라(프리로드 완료, 튜토리얼 완주, 재시작) 호출부마다 흩어 배선하면 언젠가 하나가 빠진다 — 전이 감지 한 곳으로 유지할 것.
+  - `share_click`은 시작 화면의 '친구 초대하기'가 부른다(아래 참고).
 - **재방문자에게는 닉네임을 재배정하지 않는다.** `assign_random_nickname` RPC는 **멱등하지 않다** — 이미 닉네임이 있는 participant_id로 호출해도 새로 뽑아서 덮어쓴다(2026-08-05 실제 배포에서 확인, 새로고침마다 닉네임이 바뀐다는 제보로 드러남). 그래서 `ensureParticipant`는 `isNewParticipant`가 false면 `lookupExistingNickname()`(→ `get_participant` RPC)으로 저장된 닉네임을 **읽기만** 한다. 조회가 실패하거나 아직 닉네임이 없을 때만 배정으로 넘어간다. `participants` 직접 SELECT는 RLS로 막혀 있어 RPC가 필수다.
   - `reassignNickname()`은 예외다. 사용자가 "닉네임 다시 뽑기"를 눌렀거나 `nicknameSynced: false` 복구가 필요한 경우라 **의도적인** 재배정이며, 그대로 배정 API를 호출한다.
 - **`NICKNAME_ASSIGN_API_URL`**: `gookbapanalyze`의 `/api/nickname/assign`을 가리키는 환경변수. 미설정이거나 실패 시 `generateNickname()`으로 로컬 폴백(형용사+명사 조합)하며 `nicknameSynced: false`를 반환 — 이 상태에서는 방문할 때마다 닉네임이 랜덤하게 바뀜(서버에 저장되지 않으므로 정상 동작).
+
+# 친구 초대하기 (`app/components/StartScreen.tsx`, `app/lib/inviteLink.ts`)
+
+시작 화면의 '친구 초대하기' 버튼. 클립보드에 홍보 문구 + 초대 링크를 복사하고 `share_click`을 기록한다(KPI 4·5단계).
+
+- **현재 URL을 그대로 복사하면 안 된다.** 초대 링크는 새 트랙을 만드는 게 아니라, 현재 접속한 트랙의 **같은 지점(`branch_id`)에 이미 `is_shared = true`로 등록돼 있는 트랙**을 `?q=`에 실어 보낸다(`fetchSharedTrackId`). 매장 QR로 들어온 사람의 주소창에는 `is_shared=false`인 매장 트랙이 붙어 있어서, 그걸 복사하면 유입이 **공유 유입으로 분류되지 않는다.** `buildInviteUrl`이 기존 쿼리·해시를 지우는 이유다.
+  - `is_shared=true` 트랙이 여러 개면 `created_at` 오름차순 첫 번째로 고정한다. 안 그러면 호출할 때마다 링크가 달라진다.
+  - **공유 트랙을 못 찾으면 버튼을 렌더하지 않는다.** 현재 URL로 폴백하지 말 것 — 위 이유로 KPI가 틀어진다. `trackId`가 `null`인 경우(개발/QA 직접 접속)도 마찬가지다.
+  - `tracks`는 RLS가 `Everyone: SELECT`라 anon이 직접 읽을 수 있다(RPC 불필요).
+- **초대 문구는 마운트 시 미리 만들어 state에 들고 있는다.** 클릭 핸들러 안에서 트랙을 조회한 뒤 `clipboard.writeText`를 부르면 iOS Safari가 사용자 제스처와 끊긴 것으로 보고 거부한다 — `useCardImageSave`의 `navigator.share`와 똑같은 제약이다. 핸들러는 `await` 없이 복사만 해야 한다.
+
 - **로컬 마이그레이션 주의**: `supabase/migrations/`의 `tracks`/`participants`/`track_logs` 관련 마이그레이션은 이란토가 공유한 ER 다이어그램 스크린샷과 산문 설명을 근거로 재구성한 로컬 전용 스키마이며, 실제 프로덕션 Supabase의 RLS 정책을 직접 확인한 적이 없음. 로컬에서 통과했다고 프로덕션에서도 동일하게 동작함이 보장되지 않으므로 **프로덕션에 `db push` 하지 말 것**. 배포 전 구자건에게 `participants`/`track_logs` 실제 RLS 정책 확인 필요.
+  - `20260810000000_track_log_sessions.sql`은 프로덕션에 이미 적용돼 있는 것(anon INSERT 회수 + `participant_sessions` + `add_track_log`/`update_track_log_action`)을 **로컬에서 흉내낸 것**이다. 이게 없으면 로컬에서 RPC 호출이 `PGRST202`(함수 없음)로 떨어진다. 초대 링크 테스트용 `is_shared=true` 트랙 시드도 여기 있다.
 
 # 설문 · 쿠폰 (`app/hooks/useCouponFlow.ts`, `app/actions.ts`)
 

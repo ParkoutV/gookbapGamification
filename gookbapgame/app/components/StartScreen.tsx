@@ -1,7 +1,10 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
+import { fetchSharedTrackId, recordShareClick } from "../actions";
+import { buildInviteMessage, buildInviteUrl } from "../lib/inviteLink";
 
 interface StartScreenProps {
   nickname: string;
@@ -10,6 +13,7 @@ interface StartScreenProps {
   onStart: () => void;
   onOpenTutorial: () => void;
   onGoToDraw?: () => void;
+  trackId: string | null;
 }
 
 export default function StartScreen({
@@ -19,8 +23,44 @@ export default function StartScreen({
   onStart,
   onOpenTutorial,
   onGoToDraw,
+  trackId,
 }: StartScreenProps) {
   const { t } = useLocale();
+
+  // 초대 링크는 **미리** 만들어 둔다. 클릭 핸들러 안에서 트랙을 조회한 뒤
+  // clipboard.writeText를 부르면, iOS Safari가 사용자 제스처와 끊긴 것으로 보고
+  // 거부한다(useCardImageSave의 navigator.share와 같은 제약).
+  // 링크만 state로 들고, 문구 조립은 렌더 중에 한다 — 로케일을 바꿨다고
+  // 트랙을 다시 조회할 이유는 없다.
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteFeedback, setInviteFeedback] = useState<"copied" | "failed" | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSharedTrackId(trackId).then((sharedTrackId) => {
+      if (cancelled || !sharedTrackId) return;
+      setInviteUrl(buildInviteUrl(window.location.href, sharedTrackId));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
+
+  const inviteMessage = inviteUrl ? buildInviteMessage(t("start.invitePromo"), inviteUrl) : null;
+
+  const handleInvite = useCallback(() => {
+    if (!inviteMessage) return;
+    // await 없이 곧바로 쓴다(위 useEffect 주석 참고).
+    navigator.clipboard
+      .writeText(inviteMessage)
+      .then(() => setInviteFeedback("copied"))
+      .catch((error) => {
+        console.error("[StartScreen] 초대 링크 복사 실패:", error);
+        setInviteFeedback("failed");
+      });
+    // KPI 4단계. 실패해도 게임 진행을 막지 않는다.
+    void recordShareClick();
+  }, [inviteMessage]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
@@ -53,6 +93,24 @@ export default function StartScreen({
           >
             {t("start.goToDrawButton")}
           </button>
+        )}
+        {/* 공유 트랙을 찾지 못하면 버튼 자체를 띄우지 않는다 — 현재 URL로 대체하면
+            is_shared=false인 매장 트랙이 실려 공유 유입이 잘못 집계된다. */}
+        {inviteMessage && (
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={handleInvite}
+              className="block w-fit mx-auto text-sm text-muted underline underline-offset-4 bg-transparent border-0 p-0"
+            >
+              {t("start.inviteButton")}
+            </button>
+            {inviteFeedback && (
+              <p className="mt-2 text-xs text-muted" role="status">
+                {t(inviteFeedback === "copied" ? "start.inviteCopied" : "start.inviteFailed")}
+              </p>
+            )}
+          </div>
         )}
         <div className="grid grid-cols-3 gap-2 w-full">
           <PixelPanel size="btn">
