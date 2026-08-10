@@ -106,6 +106,10 @@ export const ko: Dictionary = {
   "wheel.rejected": "지금은 카드를 뽑을 수 없어요. 잠시 후 다시 시도해주세요.",
   "wheel.error": "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.",
   "start.goToDrawButton": "쿠폰 뽑으러 가기",
+  "start.inviteButton": "친구 초대하기",
+  "start.invitePromo": "국밥 틀린그림찾기 같이 하자! 쿠폰도 준대 🍲",
+  "start.inviteCopied": "초대 링크를 복사했어요!",
+  "start.inviteFailed": "복사에 실패했어요. 잠시 후 다시 시도해주세요.",
   "wheel.nextButton": "다음",
 
   "coupon.myCouponsButton": "내 쿠폰 보기",

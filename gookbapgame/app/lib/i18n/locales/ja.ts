@@ -108,6 +108,10 @@ export const ja: Partial<Dictionary> = {
   "wheel.rejected": "現在カードを引けません。しばらくしてからお試しください。",
   "wheel.error": "現在サーバーに接続できません。しばらくしてからお試しください。",
   "start.goToDrawButton": "クーポンを引きに行く",
+  "start.inviteButton": "友だちを招待する",
+  "start.invitePromo": "クッパ間違い探し、一緒にやろう！クーポンももらえるよ 🍲",
+  "start.inviteCopied": "招待リンクをコピーしました！",
+  "start.inviteFailed": "コピーできませんでした。しばらくしてからもう一度お試しください。",
   "wheel.nextButton": "次へ",
 
   "coupon.myCouponsButton": "自分のクーポンを見る",
