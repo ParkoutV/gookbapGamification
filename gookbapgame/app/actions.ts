@@ -11,6 +11,7 @@ import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
+import { resolveInviteTrackId } from "./lib/inviteLink";
 import { sortByIssuedAt, toIssuedCoupon, type IssuedCouponRow } from "./lib/issuedCoupons";
 import type { IssuedCoupon } from "./lib/issuedCoupons";
 
@@ -444,8 +445,13 @@ export async function recordShareClick(): Promise<void> {
  * is_shared=false인 매장 트랙이 실려 공유 유입이 잘못 집계된다.
  */
 export async function fetchSharedTrackId(trackId: string | null): Promise<string | null> {
-  if (!trackId) return null;
+  // 지점을 특정할 수 없는 유입(온라인 광고, ?q= 없는 기본 URL, 등록되지 않은 트랙)은
+  // '온라인' 지점의 공유 트랙으로 떨어진다. 이 폴백이 없으면 버튼이 아예 안 뜨는데,
+  // 그러면 그 경로의 공유 유입 KPI를 통째로 포기하게 된다.
+  const fallback = process.env.FALLBACK_SHARED_TRACK_ID ?? null;
   try {
+    if (!trackId) return fallback;
+
     const { data: current, error: currentError } = await supabase
       .from("tracks")
       .select("branch_id")
@@ -453,7 +459,7 @@ export async function fetchSharedTrackId(trackId: string | null): Promise<string
       .maybeSingle();
     if (currentError || !current?.branch_id) {
       if (currentError) console.error("[fetchSharedTrackId] 현재 트랙 조회 실패:", currentError);
-      return null;
+      return fallback;
     }
 
     const { data: shared, error: sharedError } = await supabase
@@ -466,12 +472,13 @@ export async function fetchSharedTrackId(trackId: string | null): Promise<string
       .maybeSingle();
     if (sharedError) {
       console.error("[fetchSharedTrackId] 공유 트랙 조회 실패:", sharedError);
-      return null;
+      return fallback;
     }
-    return shared?.track_id ?? null;
+    // 해당 지점에 공유 트랙이 없으면(아직 안 만들었으면) 온라인으로 떨어뜨린다.
+    return resolveInviteTrackId(shared?.track_id, fallback);
   } catch (error) {
     console.error("[fetchSharedTrackId] 예기치 못한 예외:", error);
-    return null;
+    return fallback;
   }
 }
 
