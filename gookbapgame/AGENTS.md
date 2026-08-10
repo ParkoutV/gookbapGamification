@@ -44,7 +44,8 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 
 - **현재 URL을 그대로 복사하면 안 된다.** 초대 링크는 새 트랙을 만드는 게 아니라, 현재 접속한 트랙의 **같은 지점(`branch_id`)에 이미 `is_shared = true`로 등록돼 있는 트랙**을 `?q=`에 실어 보낸다(`fetchSharedTrackId`). 매장 QR로 들어온 사람의 주소창에는 `is_shared=false`인 매장 트랙이 붙어 있어서, 그걸 복사하면 유입이 **공유 유입으로 분류되지 않는다.** `buildInviteUrl`이 기존 쿼리·해시를 지우는 이유다.
   - `is_shared=true` 트랙이 여러 개면 `created_at` 오름차순 첫 번째로 고정한다. 안 그러면 호출할 때마다 링크가 달라진다.
-  - **공유 트랙을 못 찾으면 버튼을 렌더하지 않는다.** 현재 URL로 폴백하지 말 것 — 위 이유로 KPI가 틀어진다. `trackId`가 `null`인 경우(개발/QA 직접 접속)도 마찬가지다.
+  - **지점을 특정할 수 없으면 '온라인' 지점으로 떨어진다**(`FALLBACK_SHARED_TRACK_ID`). `?q=` 없는 기본 URL, 온라인 광고 유입, 등록되지 않은 트랙, 아직 공유 트랙을 안 만든 지점이 전부 여기로 온다. 온라인 광고는 애초에 특정 지점을 참조하지 않으므로 이게 정상 경로다.
+  - **현재 URL로 폴백하지 말 것.** 위 이유로 KPI가 틀어진다. 폴백까지 없으면(환경변수 미설정) 버튼을 렌더하지 않는다 — 그 경로의 공유 유입을 포기하는 것이므로 프로덕션에는 반드시 설정할 것.
   - `tracks`는 RLS가 `Everyone: SELECT`라 anon이 직접 읽을 수 있다(RPC 불필요).
 - **초대 문구는 마운트 시 미리 만들어 state에 들고 있는다.** 클릭 핸들러 안에서 트랙을 조회한 뒤 `clipboard.writeText`를 부르면 iOS Safari가 사용자 제스처와 끊긴 것으로 보고 거부한다 — `useCardImageSave`의 `navigator.share`와 똑같은 제약이다. 핸들러는 `await` 없이 복사만 해야 한다.
 

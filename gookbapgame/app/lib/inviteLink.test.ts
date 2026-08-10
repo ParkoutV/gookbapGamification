@@ -1,6 +1,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildInviteUrl, buildInviteMessage } from "./inviteLink.ts";
+import { buildInviteUrl, buildInviteMessage, resolveInviteTrackId } from "./inviteLink.ts";
+
+test("resolveInviteTrackId: 지점 공유 트랙이 있으면 그걸 쓴다", () => {
+  assert.equal(resolveInviteTrackId("branch-shared", "online-fallback"), "branch-shared");
+});
+
+test("resolveInviteTrackId: 지점 공유 트랙이 없으면 온라인으로 떨어진다", () => {
+  // ?q= 없는 기본 URL, 온라인 광고 유입, 아직 공유 트랙을 안 만든 지점.
+  // 폴백이 없으면 버튼이 안 떠서 그 경로의 공유 유입 KPI를 통째로 잃는다.
+  assert.equal(resolveInviteTrackId(null, "online-fallback"), "online-fallback");
+  assert.equal(resolveInviteTrackId(undefined, "online-fallback"), "online-fallback");
+  assert.equal(resolveInviteTrackId("", "online-fallback"), "online-fallback");
+});
+
+test("resolveInviteTrackId: 둘 다 없으면 null (호출부가 버튼을 숨긴다)", () => {
+  assert.equal(resolveInviteTrackId(null, null), null);
+  assert.equal(resolveInviteTrackId(null, undefined), null);
+});
 
 test("buildInviteUrl: 공유 트랙 id를 ?q=로 싣는다", () => {
   assert.equal(
