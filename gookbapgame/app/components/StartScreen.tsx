@@ -94,25 +94,7 @@ export default function StartScreen({
             {t("start.goToDrawButton")}
           </button>
         )}
-        {/* 공유 트랙을 찾지 못하면 버튼 자체를 띄우지 않는다 — 현재 URL로 대체하면
-            is_shared=false인 매장 트랙이 실려 공유 유입이 잘못 집계된다. */}
-        {inviteMessage && (
-          <div className="mb-4">
-            <button
-              type="button"
-              onClick={handleInvite}
-              className="block w-fit mx-auto text-sm text-muted underline underline-offset-4 bg-transparent border-0 p-0"
-            >
-              {t("start.inviteButton")}
-            </button>
-            {inviteFeedback && (
-              <p className="mt-2 text-xs text-muted" role="status">
-                {t(inviteFeedback === "copied" ? "start.inviteCopied" : "start.inviteFailed")}
-              </p>
-            )}
-          </div>
-        )}
-        <div className="grid grid-cols-3 gap-2 w-full">
+        <div className="grid grid-cols-1 gap-2 w-full">
           <PixelPanel size="btn">
             <button type="button" className="w-full font-bold text-ink text-sm">{t("start.myResult")}</button>
           </PixelPanel>
@@ -124,7 +106,25 @@ export default function StartScreen({
               {t("tutorial.openButton")}
             </button>
           </PixelPanel>
+          {/* 공유 트랙을 찾지 못하면 버튼 자체를 띄우지 않는다 — 현재 URL로 대체하면
+              is_shared=false인 매장 트랙이 실려 공유 유입이 잘못 집계된다. */}
+          {inviteMessage && (
+            <PixelPanel size="btn">
+              <button
+                type="button"
+                onClick={handleInvite}
+                className="w-full font-bold text-ink text-sm"
+              >
+                {t("start.inviteButton")}
+              </button>
+            </PixelPanel>
+          )}
         </div>
+        {inviteFeedback && (
+          <p className="mt-2 text-xs text-muted" role="status">
+            {t(inviteFeedback === "copied" ? "start.inviteCopied" : "start.inviteFailed")}
+          </p>
+        )}
       </PixelPanel>
     </div>
   );

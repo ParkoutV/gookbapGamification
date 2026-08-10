@@ -35,6 +35,7 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   - **`game_start`는 `startGame`이 아니라 `phase`가 `"playing"`이 되는 전이에 걸려 있다**(`useGameProgress`의 `wasPlayingRef`). `startGame`은 튜토리얼 진입도 포함해 불리므로 거기 걸면 **튜토리얼에서 이탈한 사람까지 게임 시작자로 잡혀 시작률이 부풀어 오른다.** 또 진입 경로가 여럿이라(프리로드 완료, 튜토리얼 완주, 재시작) 호출부마다 흩어 배선하면 언젠가 하나가 빠진다 — 전이 감지 한 곳으로 유지할 것.
   - `share_click`은 시작 화면의 '친구 초대하기'가 부른다(아래 참고).
 - **재방문자에게는 닉네임을 재배정하지 않는다.** `assign_random_nickname` RPC는 **멱등하지 않다** — 이미 닉네임이 있는 participant_id로 호출해도 새로 뽑아서 덮어쓴다(2026-08-05 실제 배포에서 확인, 새로고침마다 닉네임이 바뀐다는 제보로 드러남). 그래서 `ensureParticipant`는 `isNewParticipant`가 false면 `lookupExistingNickname()`(→ `get_participant` RPC)으로 저장된 닉네임을 **읽기만** 한다. 조회가 실패하거나 아직 닉네임이 없을 때만 배정으로 넘어간다. `participants` 직접 SELECT는 RLS로 막혀 있어 RPC가 필수다.
+  - **재방문 경로도 `nickname_number`를 붙여야 한다.** `nicknameFromParticipantRows`가 `nickname_first`/`nickname_last`만 조합하고 번호를 빠뜨리면, 배정 직후에는 `든든한 국밥 #0023`인데 다시 접속하면 `든든한 국밥`으로 떠서 **같은 사람인데 이름이 달라 보인다**(2026-08-10 제보 — "닉네임 다시 뽑기가 안 먹는 것 같다"는 증상으로 드러났다). 배정 API는 DB가 조립한 문자열을 그대로 쓰므로 번호가 이미 들어 있고, 조회 경로만 직접 붙여야 한다. `#` 앞은 non-breaking space(`gookbapanalyze`의 CouponScanner와 같은 규칙), 단어 사이는 일반 공백이다. `nickname_number`는 nullable이라 없으면 붙이지 않는다.
   - `reassignNickname()`은 예외다. 사용자가 "닉네임 다시 뽑기"를 눌렀거나 `nicknameSynced: false` 복구가 필요한 경우라 **의도적인** 재배정이며, 그대로 배정 API를 호출한다.
 - **`NICKNAME_ASSIGN_API_URL`**: `gookbapanalyze`의 `/api/nickname/assign`을 가리키는 환경변수. 미설정이거나 실패 시 `generateNickname()`으로 로컬 폴백(형용사+명사 조합)하며 `nicknameSynced: false`를 반환 — 이 상태에서는 방문할 때마다 닉네임이 랜덤하게 바뀜(서버에 저장되지 않으므로 정상 동작).
 
