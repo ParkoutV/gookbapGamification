@@ -14,7 +14,7 @@ import {
   GukbapTier,
   LevelResult,
 } from "../lib/stageConfig";
-import { ensureParticipant, reassignNickname as reassignNicknameAction, submitGameScore } from "../actions";
+import { ensureParticipant, reassignNickname as reassignNicknameAction, recordGameStart, submitGameScore } from "../actions";
 
 export type GamePhase =
   | "start"
@@ -202,6 +202,21 @@ export function useGameProgress(trackId: string | null) {
       setPhase("playing");
     }
   }, [phase, preloadStatus]);
+
+  // KPI 2단계(게임 시작/재도전). startGame이 아니라 phase가 실제로 "playing"이
+  // 되는 순간에 센다 — startGame은 튜토리얼 진입도 포함해서 불리므로, 거기 걸면
+  // 튜토리얼에서 X를 눌러 이탈한 사람까지 게임 시작자로 잡혀 시작률이 부풀어 오른다.
+  //
+  // 진입 경로가 여럿이라(프리로드 완료, 튜토리얼 완주, 재시작) 각 호출부에 흩어
+  // 배선하면 언젠가 하나가 빠진다. phase 전이 자체를 한 곳에서 감지한다.
+  const wasPlayingRef = useRef(false);
+  useEffect(() => {
+    const isPlaying = phase === "playing";
+    if (isPlaying && !wasPlayingRef.current) {
+      void recordGameStart();
+    }
+    wasPlayingRef.current = isPlaying;
+  }, [phase]);
 
   // withTutorial이면 튜토리얼로 진입하고, 프리로드는 그 뒤에서 병렬로 돈다.
   // 아니면 기존과 동일하게 로딩 화면으로 간다(재방문자 경로).

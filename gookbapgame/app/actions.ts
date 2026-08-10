@@ -357,23 +357,27 @@ async function ensureParticipantUnsafe(trackId: string | null): Promise<Particip
   // 23505(중복키)면 = 이미 존재하는 참여자(재방문/새로고침) — 이 경우엔 신규가 아님.
   const isNewParticipant = !insertError;
 
-  // track_logs는 접속할 때마다 새 row로 남긴다(2026-08-09, 구자건 정책 —
-  // 사이트 실시간 추적 목적). 재방문/새로고침마다 쌓이는 것이 의도된 동작이다.
+  // track_logs에 직접 INSERT하지 않는다 — anon의 INSERT 권한이 삭제됐다
+  // (gookbapanalyze/AGENTS.md, 2026-08-10 커밋 a4a6416). 반드시 add_track_log RPC를 쓴다.
   //
-  // 예전에는 신규 참여자일 때만 기록했는데, 그 근거로 적혀 있던
-  // "(participant_id, track_id)당 row 1개를 가정하는 game_start_count UPDATE"는
-  // 실재하지 않는 제약이었다 — update_track_log_action은 p_log_id로 특정 row를
-  // 직접 겨냥하므로 row가 몇 개든 깨지지 않는다.
+  // 중복 집계 방지는 서버가 한다: 30분 이내 활성 세션이 있으면 새 row를 만들지 않고
+  // 기존 log_id를 돌려주므로, 새로고침을 연타해도 방문자 수가 부풀지 않는다.
+  // 그래서 여기서 "신규 참여자인지" 같은 조건을 걸 필요가 없다.
+  //
+  // trackId가 null이어도 호출한다 — 문서 7번이 "없으면 null"을 명시한다.
+  // (부작용: ?q= 없는 개발/QA 직접 접속도 방문자 수에 잡힌다.)
+  //
+  // 반환되는 log_id는 쓰지 않는다. update_track_log_action이 participant_id만
+  // 받으므로 클라이언트가 log_id를 들고 있을 이유가 없다.
   //
   // 참여자의 연속성/최초 방문 판별은 여기가 아니라 participants가 담당한다
   // (쿠키 해시 기반 participant_id + PK 충돌 23505). 두 관심사는 분리돼 있다.
-  if (trackId) {
-    const { error: trackLogError } = await supabase
-      .from("track_logs")
-      .insert([{ participant_id: participantId, track_id: trackId }]);
-    if (trackLogError) {
-      console.error("[ensureParticipant] track_logs insert 실패(무시, best-effort):", trackLogError);
-    }
+  const { error: trackLogError } = await supabase.rpc("add_track_log", {
+    p_participant_id: participantId,
+    p_track_id: trackId,
+  });
+  if (trackLogError) {
+    console.error("[ensureParticipant] add_track_log 실패(무시, best-effort):", trackLogError);
   }
 
   // 재방문자에게 배정 API를 다시 호출하면 닉네임이 새로 뽑혀서 새로고침마다 바뀐다
@@ -394,6 +398,80 @@ export async function ensureParticipant(trackId: string | null): Promise<Partici
   } catch (error) {
     console.error("[ensureParticipant] 예기치 못한 예외:", error);
     return localFallback();
+  }
+}
+
+/**
+ * KPI 2·4단계. 익명 유저는 track_logs를 직접 UPDATE할 수 없으므로
+ * update_track_log_action RPC로 현재 세션의 로그를 갱신한다
+ * (활성 세션이 없으면 서버가 새 세션을 만들어 기록한다).
+ *
+ * 실패는 삼킨다 — KPI 집계 실패가 게임 진행을 막아서는 안 된다.
+ * participant_id는 httpOnly 쿠키에서 나오므로 클라이언트가 직접 부를 수 없다.
+ */
+async function recordTrackAction(action: "game_start" | "share_click"): Promise<void> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { error } = await supabase.rpc("update_track_log_action", {
+      p_participant_id: participantId,
+      p_action: action,
+    });
+    if (error) {
+      console.error(`[recordTrackAction] ${action} 실패(무시, best-effort):`, error);
+    }
+  } catch (error) {
+    console.error(`[recordTrackAction] ${action} 예기치 못한 예외:`, error);
+  }
+}
+
+export async function recordGameStart(): Promise<void> {
+  await recordTrackAction("game_start");
+}
+
+export async function recordShareClick(): Promise<void> {
+  await recordTrackAction("share_click");
+}
+
+/**
+ * 초대 링크에 실을 공유 트랙 id를 찾는다(KPI 5단계).
+ *
+ * 새 트랙을 만들지 않는다 — 현재 접속한 트랙의 지점(branch_id)에 이미
+ * `is_shared = true`로 등록돼 있는 트랙을 골라 쓴다. 여러 개면 가장 먼저
+ * 만들어진 것으로 고정한다(호출할 때마다 링크가 달라지면 안 되므로).
+ *
+ * tracks는 RLS가 `Everyone: SELECT`라 anon이 직접 읽을 수 있다(RPC 불필요).
+ * 찾지 못하면 null — 호출부는 초대 버튼을 숨긴다. 현재 URL로 대체하면
+ * is_shared=false인 매장 트랙이 실려 공유 유입이 잘못 집계된다.
+ */
+export async function fetchSharedTrackId(trackId: string | null): Promise<string | null> {
+  if (!trackId) return null;
+  try {
+    const { data: current, error: currentError } = await supabase
+      .from("tracks")
+      .select("branch_id")
+      .eq("track_id", trackId)
+      .maybeSingle();
+    if (currentError || !current?.branch_id) {
+      if (currentError) console.error("[fetchSharedTrackId] 현재 트랙 조회 실패:", currentError);
+      return null;
+    }
+
+    const { data: shared, error: sharedError } = await supabase
+      .from("tracks")
+      .select("track_id")
+      .eq("branch_id", current.branch_id)
+      .eq("is_shared", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (sharedError) {
+      console.error("[fetchSharedTrackId] 공유 트랙 조회 실패:", sharedError);
+      return null;
+    }
+    return shared?.track_id ?? null;
+  } catch (error) {
+    console.error("[fetchSharedTrackId] 예기치 못한 예외:", error);
+    return null;
   }
 }
 

@@ -212,6 +212,7 @@ export default function Home({ searchParams }: PageProps) {
           onStart={handleStart}
           onOpenTutorial={openTutorialReview}
           onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
+          trackId={trackId}
         />
       )}
 
