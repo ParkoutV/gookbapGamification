@@ -53,7 +53,7 @@ export const ko: Dictionary = {
     "연속으로 맞히면 콤보 보너스가 쌓입니다.\n" +
     "게임이 끝나면 국밥력 등급이 나오고, 쿠폰 뽑기로 이어집니다.",
 
-  "preload.preparing": "국밥 준비 중...",
+  "preload.preparing": "게임 시작 중...",
   "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
   "preload.levelSessionError": "{level}단계 게임 데이터를 불러오지 못했습니다.",
   "preload.imageError": "이미지를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",

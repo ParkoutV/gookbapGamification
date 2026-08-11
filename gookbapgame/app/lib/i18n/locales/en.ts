@@ -53,7 +53,7 @@ export const en: Partial<Dictionary> = {
     "Consecutive correct taps build a combo bonus.\n" +
     "When the game ends you get a Gukbap rank, then a coupon draw.",
 
-  "preload.preparing": "Preparing gukbap...",
+  "preload.preparing": "Loading...",
   "preload.sessionError": "Failed to load game data. Please check your network connection.",
   "preload.levelSessionError": "Failed to load game data for stage {level}.",
   "preload.imageError": "Failed to load images. Please check your network connection.",
