@@ -24,7 +24,7 @@ export default function TermNotice({ onAcknowledge }: TermNoticeProps) {
       aria-label={t("term.title")}
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
     >
-      <PixelPanel size="card" className="max-w-sm w-full">
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full">
         <h2 className="text-xl font-bold text-ink mb-4 text-center">{t("term.title")}</h2>
         <div className="text-sm text-ink text-left whitespace-pre-line max-h-[45vh] overflow-y-auto mb-4">
           {t("term.body")}

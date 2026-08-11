@@ -7,8 +7,13 @@ import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
 import { playSfx, SFX } from "../lib/sfx";
 import type { IssuedCoupon } from "../actions";
 
-/** 밝은 카드면 위의 글자색. 테마의 --ink는 어두운 배경용 밝은 색이라 여기서는 안 보인다. */
-const CARD_FACE_INK = "#3A2E24";
+/**
+ * 밝은 카드면 위의 글자색. 현재 테마의 --ink와 같은 값이지만 **상수로 남긴다** —
+ * cardImage.ts가 canvas에 같은 글자를 그릴 때 리터럴이 필요하고(CSS 변수를 못 읽는다),
+ * 두 곳이 반드시 같은 값이어야 화면과 저장본이 어긋나지 않기 때문이다.
+ * 테마가 다시 어두워지면 --ink는 밝아져도 이 값은 어두운 채로 남아야 한다.
+ */
+const CARD_FACE_INK = "#1A1F24";
 
 interface GatchaCardProps {
   /** null이면 꽝 앞면. 뒷면만 보이는 동안에도 null일 수 있다. */

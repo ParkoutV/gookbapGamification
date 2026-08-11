@@ -381,8 +381,11 @@ export default function GameScreen({
                 src="/icons/check-success.svg"
                 alt=""
                 aria-hidden="true"
+                /* 미발견 칸의 opacity는 배경 밝기에 종속된다. 어두운 테마 시절엔
+                   0.2로도 윤곽이 보였지만, 밝은 데스크톱 배경에서는 마커의 흰 halo가
+                   배경과 밝기가 비슷해 통째로 사라진다(2026-08-11). */
                 className={`w-5 h-5 ${
-                  cell === "hidden" ? "opacity-0" : cell === "filled" ? "opacity-100" : "opacity-20"
+                  cell === "hidden" ? "opacity-0" : cell === "filled" ? "opacity-100" : "opacity-35"
                 }`}
               />
             ))}
@@ -418,9 +421,11 @@ export default function GameScreen({
             <div className={`time-gauge__fill ${timeCritical ? "bg-error" : "bg-amber"}`} />
           </div>
 
+          {/* 남은 시간 숫자. --amber는 게이지 채움(면)용이라 글자에 쓰면 밝은 바탕에서
+              대비가 모자란다 — 평상시엔 --ink, 임박했을 때만 --error로 경고한다. */}
           <span
             className={`text-lg md:text-xl font-extrabold shrink-0 ${
-              timeCritical ? "text-error animate-pulse" : "text-amber"
+              timeCritical ? "text-error animate-pulse" : "text-ink"
             }`}
           >
             {t("game.secondsUnit", { seconds: remainingTimeSec })}

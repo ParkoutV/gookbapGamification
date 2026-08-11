@@ -12,8 +12,8 @@
 const CARD_W = 1000;
 const CARD_H = 1371;
 
-/** 화면의 CARD_FACE_INK와 같은 값. 밝은 카드면 위의 글자색이다. */
-const INK = "#3A2E24";
+/** 화면의 CARD_FACE_INK와 **반드시 같은 값**. 밝은 카드면 위의 글자색이다. */
+const INK = "#1A1F24";
 
 /**
  * 이모지 폰트의 실제 family 이름. next/font가 이름을 해싱하므로 하드코딩할 수 없고,

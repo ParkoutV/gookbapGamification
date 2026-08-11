@@ -1,20 +1,44 @@
 @import "tailwindcss";
 
+/* 90-00년대 데스크톱 UI — 회색 크롬 + 바다 남색.
+   부산의 지역 아이덴티티 전반을 다루므로 음식점 우드톤에서 갈아엎었다(2026-08-11, 이란토).
+
+   **핵심은 색상(hue)이 아니라 명암 구조다.** 레트로 데스크톱은 밝은 바탕에
+   창틀(크롬)만 색을 갖고, 채도 높은 색은 아주 좁은 면적(타이틀바 한 줄, 버튼)에만
+   쓴다. 어두운 바탕에 채도 높은 색을 넓게 깔면 무슨 색을 넣어도 네온이 되지
+   데스크톱이 되지 않는다 — 실제로 그렇게 한 번 만들어보고 폐기했다.
+
+   토큰 이름은 hue-agnostic한 것(surface/ink/accent/muted)을 그대로 두고,
+   --wood만 이름과 색이 어긋난 채로 남는다. 17군데 유틸리티 호출부를 건드릴 값이
+   아니라 그대로 둔다 — "창틀 색"으로 읽을 것. */
 :root {
-  --bg-deep: #150F0B;
-  --bg: #1C1510;
-  --surface: #29201A;
-  --wood: #B98A54;
-  --wood-dark: #D9BC8E;
-  --accent: #E9B94A;
-  --accent-ink: #2E2620;
-  --ink: #F3E9DC;
-  --muted: #8A7A64;
-  --amber: #E28A3D;
-  --error: #E2685A;
-  /* 폴라로이드 인화지. 순백(#FFF)은 어두운 화면에서 너무 튀어 사진보다 먼저
-     눈에 들어온다. 살짝 탁한 값이 실제 인화지에 가깝다. */
-  --photo-paper: #EDE7DC;
+  /* 데스크톱 바탕. --bg가 창 바깥, --surface가 창 안쪽(문서 영역)이라
+     어두운 테마 시절과 밝기 서열이 뒤집혔다. */
+  --bg-deep: #7A8894;
+  --bg: #C3C7CB;
+  --surface: #F2F4F6;
+  /* 창틀 몸통. 베벨 2색은 이 값에서 밝은 쪽/어두운 쪽으로 갈라진다. */
+  --wood: #C3C7CB;
+  --bevel-light: #FFFFFF;
+  --bevel-dark: #6E7880;
+  /* 타이틀바와 주요 버튼. 부산 바다 남색. */
+  --accent: #1E4E7A;
+  --accent-ink: #FFFFFF;
+  --ink: #1A1F24;
+  /* 밝은 바탕에서는 회색 글자가 쉽게 안 읽힌다 — 어두운 테마 시절(#8A97A1)보다
+     한참 어둡게 잡아야 대비가 선다. */
+  --muted: #5A6570;
+  /* 타이머 게이지 전용에 가깝다. 밝은 화면에서 글자로 쓰면 대비가 모자라므로
+     면(게이지 채움)에만 쓸 것 — 점수 강조는 --accent가 맡는다. */
+  --amber: #B8791A;
+  --error: #C4283C;
+  /* 폴라로이드 인화지. 데스크톱 회색보다 밝아야 사진이 종이 위에 놓인 것으로
+     읽힌다 — 순백보다 살짝 탁한 값이 실제 인화지에 가깝다. */
+  --photo-paper: #FBFBF8;
+  /* 모달 스크림. --bg-deep을 재활용하면 안 된다 — 그건 이제 밝은 색이라
+     반투명으로 깔면 화면이 하얗게 뜨기만 하고 "위에 떠 있다"는 신호가 죽는다. */
+  --scrim: rgba(26, 31, 36, 0.55);
+  color-scheme: light;
 }
 
 @theme inline {
@@ -22,7 +46,6 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-wood: var(--wood);
-  --color-wood-dark: var(--wood-dark);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-ink: var(--ink);
@@ -53,46 +76,28 @@ body {
     sans-serif;
 }
 
-/* 픽셀 모서리 깎기 — clip-path 단일 경로.
+/* 모서리는 **직각으로 둔다.** 예전에는 clip-path polygon으로 3px 계단을 깎았는데
+ * (픽셀 아트 정체성), Windows 9x 창은 모서리가 완전한 직각이라 계단이 오히려
+ * 컨셉을 방해한다(2026-08-11, 이란토). 베벨 2px이 계단을 거의 덮어버려서
+ * 27점짜리 polygon이 비용만 내고 보이지도 않던 상태이기도 했다.
+ * 픽셀 감성은 갈무리 폰트와 카드 애셋이 맡는다.
+ */
+
+/* 베벨. 90s 데스크톱 창틀의 입체감은 그림자가 아니라 **2색 테두리**로 만든다 —
+ * 광원이 좌상단에 있다고 치고 좌상단 변은 밝게, 우하단 변은 어둡게 칠한다.
+ * blur 0짜리 inset box-shadow 두 장이면 변별로 정확히 갈린다.
  *
- * 배경(두 번의 실패한 접근):
- * 1) pixel-*.svg 한 장을 `mask-size: 100% 100%`로 늘려 씌웠다. SVG가 고정
- *    viewBox(360x240) + preserveAspectRatio="none"이라 모서리 계단이 요소 크기에
- *    비례해 확대/축소됐다 — 넓은 카드는 계단이 2배, 세로로 긴 요소는 가로/세로
- *    배율이 달라 정사각형이어야 할 픽셀이 찌그러졌다.
- * 2) 모서리 SVG 4장을 고정 px로 배치하고 mask-composite로 합성했다. 크기 문제는
- *    풀렸지만 마스크 레이어 4장이 겹치는 구조라 경계에 합성 아티팩트가 남았다.
- *
- * 그래서 레이어 합성 자체를 없앤다. clip-path polygon 하나로 테두리 전체를 그린다.
- * 좌표가 전부 정수 px이라 서브픽셀 보간이 원천적으로 생기지 않고, calc()로 잡으니
- * 요소가 아무리 커져도 계단은 항상 3px 격자를 유지한다. SVG 파일도 필요 없다.
- *
- * 계단은 좌상단 기준 (3,0)→(2,1)→(1,2)→(0,3). 나머지 3모서리는 이를 대칭시킨 것.
+ * **linear-gradient(135deg, ...)를 쓰면 안 된다**(실제로 해보고 되돌렸다).
+ * 그라디언트는 대각선으로 갈리는데, .pixel-frame-inner가 부모보다 padding(2px)
+ * 만큼 작아서 아래쪽 띠에 그 대각선이 그대로 노출된다 — 버튼처럼 내용이 짧은
+ * 요소에서 어두운 선이 버튼 한가운데를 가로지르는 것처럼 보였다.
+ * inset box-shadow는 변 단위라 이 문제가 없고, .pixel-mask-btn-solid와도 방식이 같다.
  */
 .pixel-frame {
   background: var(--wood);
-}
-.pixel-frame--card,
-.pixel-frame--btn,
-.pixel-frame-inner--card,
-.pixel-frame-inner--btn,
-.pixel-mask-btn-solid {
-  clip-path: polygon(
-    3px 0,                       calc(100% - 3px) 0,
-    calc(100% - 3px) 1px,        calc(100% - 2px) 1px,
-    calc(100% - 2px) 2px,        calc(100% - 1px) 2px,
-    calc(100% - 1px) 3px,        100% 3px,
-    100% calc(100% - 3px),       calc(100% - 1px) calc(100% - 3px),
-    calc(100% - 1px) calc(100% - 2px), calc(100% - 2px) calc(100% - 2px),
-    calc(100% - 2px) calc(100% - 1px), calc(100% - 3px) calc(100% - 1px),
-    calc(100% - 3px) 100%,       3px 100%,
-    3px calc(100% - 1px),        2px calc(100% - 1px),
-    2px calc(100% - 2px),        1px calc(100% - 2px),
-    1px calc(100% - 3px),        0 calc(100% - 3px),
-    0 3px,                       1px 3px,
-    1px 2px,                     2px 2px,
-    2px 1px,                     3px 1px
-  );
+  box-shadow:
+    inset 2px 2px 0 0 var(--bevel-light),
+    inset -2px -2px 0 0 var(--bevel-dark);
 }
 .pixel-frame--card {
   padding: 2px;
@@ -100,9 +105,87 @@ body {
 .pixel-frame--btn {
   padding: 2px;
 }
+
+/* 버튼 베벨.
+ *
+ * **클래스 이름은 이제 실제와 다르다.** 예전에 픽셀 모서리 clip-path("mask")를
+ * 걸던 자리라 이 이름이 붙었는데, 모서리를 직각으로 되돌리면서 남은 역할은
+ * 베벨뿐이다. 14군데 호출부를 고칠 만한 값이 아니라 이름은 그대로 둔다 —
+ * "버튼 테두리 스타일"로 읽을 것.
+ *
+ * background는 여기서 잡으면 안 된다. 버튼들은 각자 Tailwind 유틸리티
+ * (bg-accent / bg-surface / bg-transparent)로 배경을 칠하므로 덮어쓰게 된다.
+ * inset box-shadow는 배경 위에 얹히므로 호출부를 그대로 두고 베벨만 더한다.
+ *
+ * 누르면 두 색을 뒤집는다(좌상단이 어두워짐 = 눌려 들어감). 90s 데스크톱에서
+ * 가장 알아보기 쉬운 피드백이고, 기존 active:scale-95와 함께 걸려도 어색하지 않다.
+ */
+.pixel-mask-btn-solid {
+  box-shadow:
+    inset 2px 2px 0 0 color-mix(in srgb, var(--bevel-light) 70%, transparent),
+    inset -2px -2px 0 0 color-mix(in srgb, var(--bevel-dark) 70%, transparent);
+}
+.pixel-mask-btn-solid:active {
+  box-shadow:
+    inset 2px 2px 0 0 color-mix(in srgb, var(--bevel-dark) 70%, transparent),
+    inset -2px -2px 0 0 color-mix(in srgb, var(--bevel-light) 70%, transparent);
+}
 .pixel-frame-inner {
   background: var(--surface);
   height: 100%;
+}
+
+/* 창 타이틀바. 90s 데스크톱의 정체성이 사실상 이 한 줄에 있다 —
+ * 채도 높은 색을 화면에서 유일하게 넓게 쓰는 자리이자, 패널을 "창"으로 읽게 만든다.
+ *
+ * .pixel-frame-inner의 패딩 안쪽이 아니라 그 **위**에 놓여야 창틀에 딱 붙는다.
+ * 그래서 PixelPanel이 타이틀바를 쓸 때는 inner의 패딩을 0으로 돌리고
+ * 본문에만 따로 패딩을 준다(.pixel-frame-inner--titled / .pixel-panel-body).
+ */
+.win-titlebar {
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  user-select: none;
+}
+/* 타이틀바의 닫기(✕) 버튼. **동작하는 것만 둔다** — 최소화·최대화는 이 게임에
+   대응하는 동작이 없어서 넣지 않는다(2026-08-11, 이란토).
+   <button>이라 브라우저 기본 스타일을 눌러둬야 창틀 박스처럼 보인다. */
+.win-titlebar__box {
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  background: var(--wood);
+  box-shadow:
+    inset 1px 1px 0 0 var(--bevel-light),
+    inset -1px -1px 0 0 var(--bevel-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink);
+}
+.win-titlebar__box:active {
+  box-shadow:
+    inset 1px 1px 0 0 var(--bevel-dark),
+    inset -1px -1px 0 0 var(--bevel-light);
+}
+.pixel-frame-inner--titled {
+  padding: 0;
+}
+.pixel-panel-body {
+  padding: 1.5rem 1.25rem;
 }
 .pixel-frame-inner--card {
   padding: 1.5rem 1.25rem;
@@ -155,7 +238,10 @@ body {
   --photo-pad: 10px;
   background: var(--photo-paper);
   padding: var(--photo-pad) var(--photo-pad) calc(var(--photo-pad) * 1.2);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  /* 하드 오프셋 그림자. 예전의 blur 16px짜리 부드러운 그림자는 어두운 배경에서만
+     통했고, 밝은 회색 데스크톱 위에서는 얼룩처럼 보인다 — 레트로 데스크톱 UI에는
+     애초에 부드러운 그림자가 없고 전부 하드 엣지다(2026-08-11). */
+  box-shadow: 3px 3px 0 0 var(--bevel-dark);
 }
 
 /* 사진 영역.
@@ -291,7 +377,9 @@ body {
 }
 
 .card-inner-frame {
-  --line: rgba(58, 46, 36, 0.45);
+  /* CARD_FACE_INK(#1A1F24)의 45% — 밝은 카드면 위 글자와 같은 색 계열이어야
+     테두리가 글자와 따로 놀지 않는다. */
+  --line: rgba(26, 31, 36, 0.45);
   background:
     linear-gradient(var(--line), var(--line)) 0 0 / 100% 2px no-repeat,
     linear-gradient(var(--line), var(--line)) 0 100% / 100% 2px no-repeat,
@@ -360,9 +448,10 @@ body {
 
      예전에는 vw/vh만 봐서 컨테이너 폭을 한 번도 확인하지 않았다. 카드는
      max-w-sm 패널 안에 들어가는데, 그 안쪽 폭(패딩 제외)보다 vw 쪽이 커지면
-     카드가 좌우로 넘치고 pixel-frame의 clip-path에 양옆이 잘려나갔다.
-     넓은 화면만의 문제가 아니다 — 390px 폰에서도 패널 안쪽은 약 298px인데
-     80vw는 312px이라 이미 넘쳤다. 그래서 100%를 상한에 넣는다.
+     카드가 좌우로 넘쳤다(당시 pixel-frame에 걸려 있던 clip-path가 양옆을
+     잘라내서 드러났다 — 그 clip-path는 이제 없지만 넘치는 것 자체는 그대로
+     문제다). 넓은 화면만의 문제가 아니다 — 390px 폰에서도 패널 안쪽은 약
+     298px인데 80vw는 312px이라 이미 넘쳤다. 그래서 100%를 상한에 넣는다.
 
      vh 항은 세로로 짧은 화면에서 카드가 화면을 넘지 않게 하는 몫인데,
      높이를 직접 지정할 수 없으므로 비율로 나눠 폭으로 환산해서 건다. */

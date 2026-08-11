@@ -6,6 +6,9 @@ export const ko: Dictionary = {
 
   "common.retry": "다시 시도",
 
+  // 창 제목 표시줄(90s 데스크톱 컨셉)에 쓰는 브랜드명. 화면 제목과 별개다.
+  "window.brand": "1953 형제돼지국밥",
+
   "start.title": "다른그림찾기",
   "start.welcome": "{nickname} 님 환영합니다",
   "start.regenerateNicknameAria": "닉네임 다시 생성",

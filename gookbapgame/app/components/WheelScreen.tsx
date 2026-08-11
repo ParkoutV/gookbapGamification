@@ -65,7 +65,7 @@ export default function WheelScreen({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
-      <PixelPanel size="card" className="max-w-sm w-full text-center">
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("wheel.title")}</h1>
 
         {/* 응답 전에도 뒷면을 먼저 보여준다. 카드가 늦게 나타나면 화면이 한 번

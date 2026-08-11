@@ -6,6 +6,9 @@ export const en: Partial<Dictionary> = {
 
   "common.retry": "Retry",
 
+  // Brand name shown in the window title bar (90s desktop concept), not the screen heading.
+  "window.brand": "1953 Brother Pork Gookbap",
+
   "start.title": "Spot the Difference",
   "start.welcome": "Welcome, {nickname}",
   "start.regenerateNicknameAria": "Regenerate nickname",

@@ -43,16 +43,14 @@ export default function TutorialScreen({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
-      <PixelPanel size="card" className="max-w-md w-full relative">
-        <button
-          type="button"
-          onClick={onExit}
-          aria-label={t("tutorial.exitAria")}
-          className="absolute top-2 left-2 text-xl text-muted bg-transparent border-0 p-2 leading-none"
-        >
-          ✕
-        </button>
-
+      {/* 닫기는 타이틀바의 ✕가 맡는다 — 본문 좌상단에 두면 타이틀바와 겹친다. */}
+      <PixelPanel
+        size="card"
+        title={t("window.brand")}
+        onClose={onExit}
+        closeAriaLabel={t("tutorial.exitAria")}
+        className="max-w-md w-full relative"
+      >
         <p className="text-xs text-muted text-center mb-2">
           {t("tutorial.progress", { current: pageIndex + 1, total: PAGE_KEYS.length })}
         </p>
