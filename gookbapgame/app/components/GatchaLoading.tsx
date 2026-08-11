@@ -20,9 +20,13 @@ export default function GatchaLoading() {
   return (
     <div className="gatcha-loading" role="status" aria-live="polite">
       {/*
-        애니메이션 WebP 한 장. <img>라 재생 제어가 없고 그래서 코드도 없다.
+        애니메이션 WebP 한 장(250x250, 30ms x 14프레임, 무한 반복).
+        <img>라 재생 제어가 없고 그래서 코드도 없다.
+
         prefers-reduced-motion에서는 CSS가 이걸 감추고 정지 이미지로 바꾼다 —
         애니메이션 WebP는 CSS로 멈출 수 없어서 파일을 갈아끼우는 수밖에 없다.
+        정지본은 애니메이션의 첫 프레임이며, 원본을 다시 만들면 이것도 같이
+        뽑아야 한다(원본: 기획 폴더 gfx/assets/icon_card/animation/).
       */}
       <img
         src="/icons/card-shuffle.webp"

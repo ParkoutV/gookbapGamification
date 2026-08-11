@@ -232,30 +232,30 @@ body {
   width: min(100%, calc(55vh * 1000 / 1371));
   margin: 0 auto;
 }
-.gatcha-loading > * {
-  position: absolute;
-}
-.gatcha-loading__label {
-  left: 0;
-  right: 0;
-  bottom: 12%;
-  text-align: center;
-}
+/* 아이콘. 절대 배치로 가운데에 놓는다 — 바깥이 비율만 담당하므로 여기서
+   좌표를 직접 잡아야 한다. 픽셀 아이콘이라 확대 보간이 걸리면 흐려진다. */
 .gatcha-loading__anim,
 .gatcha-loading__static {
+  position: absolute;
   width: 45%;
   height: auto;
-  /* 중앙 배치. 픽셀 아이콘이라 보간이 걸리면 흐려지므로 pixelated를 함께 건다. */
   left: 50%;
-  top: 45%;
+  top: 50%;
   transform: translate(-50%, -50%);
   image-rendering: pixelated;
 }
-/* 기본은 애니메이션. 정지본은 감춰둔다. */
+/* 기본은 애니메이션. 정지본은 아래 reduced-motion에서만 드러난다. */
 .gatcha-loading__static {
   display: none;
 }
+/* 문구는 아이콘 바로 아래. 아이콘이 폭의 45%라 정사각이면 높이의 약 33%를
+   차지하고, 그 아래 끝이 대략 66% 지점이다 — 70%에 두면 붙어 보인다. */
 .gatcha-loading__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 70%;
+  text-align: center;
   color: var(--muted);
   font-size: 0.85rem;
 }
