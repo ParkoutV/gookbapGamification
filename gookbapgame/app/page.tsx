@@ -20,7 +20,8 @@ import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
-import { playSfx, unlockSfx, SFX } from "./lib/sfx";
+import { unlockSfx } from "./lib/sfx";
+import { useButtonClickSfx } from "./hooks/useButtonClickSfx";
 import {
   hasAcknowledgedTerm,
   markTermAcknowledged,
@@ -40,6 +41,10 @@ export default function Home({ searchParams }: PageProps) {
   const game = useGameProgress(trackId);
   const coupon = useCouponFlow();
   const { t } = useLocale();
+
+  // 화면의 모든 버튼에 클릭 소리를 붙인다. 이 컴포넌트가 모든 화면의 루트라
+  // 여기 한 번만 걸면 된다 — 버튼마다 심으면 반드시 빠뜨리는 곳이 생긴다.
+  useButtonClickSfx();
 
   // 두 훅 모두 매 렌더마다 새 객체를 반환하므로, 객체를 그대로 의존성에 넣으면
   // 아래 콜백들이 매 렌더 재생성된다. 개별 함수는 useCallback([])로 안정적이니
@@ -78,7 +83,7 @@ export default function Home({ searchParams }: PageProps) {
     // 게임 안에서 정답 소리가 처음 나는 순간에는 이미 풀려 있어야 한다.
     // 시작 버튼은 반드시 거치는 확실한 제스처 지점이다.
     unlockSfx();
-    playSfx(SFX.touch);
+    // 클릭 소리는 useButtonClickSfx가 문서 전체에서 잡으므로 여기서 부르지 않는다.
 
     const withTutorial = !hasSeenTutorial();
     setTutorialMode("onboarding");

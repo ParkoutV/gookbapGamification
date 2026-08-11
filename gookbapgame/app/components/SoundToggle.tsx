@@ -25,7 +25,11 @@ export default function SoundToggle() {
     setMuted(next);
     setSfxMuted(next);
     // 켜는 쪽으로 바꿨을 때만 소리를 낸다 — 끄면서 소리가 나면 앞뒤가 안 맞는다.
-    if (!next) playSfx(SFX.touch);
+    //
+    // useButtonClickSfx가 있는데도 여기서 따로 부르는 이유: 그쪽은 pointerdown에
+    // 반응하는데 그 시점에는 아직 음소거가 풀리기 전이라 재생이 막힌다. 소리를 켠
+    // 직후 아무 소리도 안 나면 켜졌는지 알 수 없으므로, 이 한 번은 직접 낸다.
+    if (!next) playSfx(SFX.click);
   };
 
   return (

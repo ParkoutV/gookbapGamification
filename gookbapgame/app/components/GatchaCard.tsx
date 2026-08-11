@@ -45,9 +45,10 @@ export default function GatchaCard({
   // 이모지는 코너에만 두고 상품명은 텍스트만 남긴다(CouponQR의 onLightFace).
   const faceEmoji = coupon ? resolveCouponEmoji(coupon.couponType) : MISS_EMOJI;
 
-  // 뒤집는 동작 자체의 소리. 결과 소리는 아래 effect가 한 박자 늦게 낸다.
+  // 뒤집는 동작 자체의 소리는 여기서 내지 않는다 — 카드가 role="button"이라
+  // useButtonClickSfx가 이미 클릭음을 낸다. 여기서 또 부르면 두 번 겹친다.
+  // 결과 소리(당첨/꽝)는 아래 effect가 한 박자 늦게 낸다.
   const handleFlip = () => {
-    playSfx(SFX.touch);
     onFlip();
   };
 

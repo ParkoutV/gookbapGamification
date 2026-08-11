@@ -16,8 +16,17 @@ export const SFX = {
   pencilSuccess: "pencil_success",
   /** 오답을 짚었을 때 */
   pencilFailed: "pencil_failed",
-  /** 일반 버튼 */
-  touch: "touch",
+  /**
+   * 일반 버튼. 90s 데스크톱 컨셉에 맞춘 마우스 클릭음이다.
+   *
+   * 자동으로 붙는다 — `useButtonClickSfx`가 문서 전체의 버튼 눌림을 잡아
+   * 이 소리를 낸다. 버튼마다 호출부를 심을 필요가 없다.
+   *
+   * 예전에는 `touch`(0.31s)가 이 자리였는데 실제로는 세 곳에서만 불려서
+   * 대부분의 버튼이 소리가 없었다. click(0.15s)이 그 역할을 대신한다
+   * (2026-08-11, 이란토).
+   */
+  click: "click",
   /** 게임이 끝나고 결과표가 뜰 때. 점수와 무관하게 항상 재생한다. */
   coindrop: "coindrop",
 } as const;
