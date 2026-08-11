@@ -72,7 +72,7 @@ export const ja: Partial<Dictionary> = {
 
   "countdown.start": "START",
   "gameEnd.gameOver": "GAME OVER",
-  "gameEnd.clear": "CLEAR",
+  "gameEnd.clear": "CLEAR!",
   "gameEnd.nextButton": "結果を見る",
 
   "dailyResult.title": "今日の結果",

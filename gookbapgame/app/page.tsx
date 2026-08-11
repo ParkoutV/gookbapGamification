@@ -35,6 +35,12 @@ type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
+/** gameEnd에서 GameScreen의 콜백을 끊는 데 쓴다(아래 렌더 조건의 주석 참고).
+ *  **모듈 스코프에 두는 것이 요점이다** — 인라인 `() => {}`로 넘기면 렌더마다
+ *  참조가 바뀌어, GameScreen의 onStageClear 의존 이펙트가 매번 다시 돌면서
+ *  끊으려던 타이머를 오히려 계속 새로 건다. */
+const noop = () => {};
+
 export default function Home({ searchParams }: PageProps) {
   const resolvedSearchParams = use(searchParams);
   const rawTrackId = resolvedSearchParams.q;
@@ -269,20 +275,42 @@ export default function Home({ searchParams }: PageProps) {
           뒤에 게임판이 보여야 하는데, 바깥에 두면 렌더 조건이 갈려 언젠가
           빈 화면 위에 숫자만 뜨는 상태가 생긴다.
           pointer-events-none은 카운트다운 중 클릭이 게임판에 닿아 오답으로
-          처리되는 것을 막는다(오버레이 자신이 입력을 삼키는 것과 이중 안전장치). */}
-      {game.phase === "playing" && game.session && (
+          처리되는 것을 막는다(오버레이 자신이 입력을 삼키는 것과 이중 안전장치).
+
+          **gameEnd에서도 게임판을 계속 렌더한다**(2026-08-11 실기 확인, 이란토).
+          GAME OVER / CLEAR!는 화면을 덮는 게 아니라 게임판 위에 뜨는 팝업 창이라
+          뒤에 판이 남아 있어야 한다. 예전에는 phase가 갈리는 순간 GameScreen이
+          언마운트돼서, 종료 화면이 bg-bg로 덮지 않으면 빈 배경 위에 창만 뜬다.
+
+          phase 자체는 그대로 playing을 벗어난다 — 300초 타이머 가드
+          (useGameProgress의 `phase !== "playing"`)가 그 전제로 멈추므로
+          이 조건만 넓히고 훅은 건드리지 않는다.
+
+          다만 **콜백은 gameEnd에서 끊어야 한다.** GameScreen에는 "정답을 다 맞히면
+          FORCE_ADVANCE_DELAY_MS 뒤 onStageClear"를 거는 이펙트가 있는데(GameScreen.tsx
+          의 foundSlots 이펙트), 마운트를 유지하면 그 조건이 계속 참이라 타이머가 다시
+          걸린다. 그러면 advanceStage가 한 번 더 돌아 LevelResult가 중복 append되고
+          finishGame이 재실행돼 **점수가 조용히 바뀐다.** noop으로 갈아끼우면 판은
+          보이면서 진행만 멈춘다. */}
+      {(game.phase === "playing" || game.phase === "gameEnd") && game.session && (
         <>
-          <div className={game.isCountingDown ? "pointer-events-none" : undefined}>
+          <div
+            className={
+              game.isCountingDown || game.phase === "gameEnd"
+                ? "pointer-events-none"
+                : undefined
+            }
+          >
             <GameScreen
               key={`${game.stageNumber}-${game.loadNonce}`}
               session={game.session}
               stageNumber={game.stageNumber}
               totalStages={game.totalStages}
               remainingTimeSec={game.remainingTimeSec}
-              onStageClear={game.handleStageClear}
-              onForceAdvance={game.handleForceAdvance}
-              onWrongTouch={game.recordWrongTouch}
-              onCorrectFind={game.recordCorrectFind}
+              onStageClear={game.phase === "gameEnd" ? noop : game.handleStageClear}
+              onForceAdvance={game.phase === "gameEnd" ? noop : game.handleForceAdvance}
+              onWrongTouch={game.phase === "gameEnd" ? noop : game.recordWrongTouch}
+              onCorrectFind={game.phase === "gameEnd" ? noop : game.recordCorrectFind}
             />
           </div>
           {game.isCountingDown && <CountdownOverlay onDone={game.endCountdown} />}

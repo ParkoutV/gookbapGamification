@@ -806,25 +806,54 @@ body {
    글리프 커버리지는 확인했다(20,965자, 라틴 대문자·숫자 포함).
 
    그림자는 blur 없는 오프셋 한 장이다. 90s 데스크톱 컨셉에서 흐린 그림자는 이질적이고,
-   픽셀 폰트의 계단이 뭉개진다. 색은 --accent(바다 남색)라 게임판 위 어디에 얹혀도
-   글자가 뜬다.
+   픽셀 폰트의 계단이 뭉개진다.
 
-   폰트 크기는 vw로 화면에 비례시키되 clamp로 상하한을 건다 — 좁은 폰에서 START가
-   줄바꿈되지 않아야 하고, 넓은 데스크톱에서 화면을 다 덮어도 안 된다. */
+   **둘 다 팝업 창(PixelPanel) 안에 든다**(2026-08-11 실기 확인, 이란토). 예전에는
+   종료 화면이 bg-bg로 화면을 통째로 덮어 게임판이 사라졌고, 카운트다운은 배경이
+   아예 없어 글자만 떠 있었다 — 반투명도 창도 아닌 어중간한 상태였다. 지금은 둘 다
+   투명한 오버레이 + 불투명한 창이라 뒤 게임판이 계속 보인다.
+
+   **크기 기준은 뷰포트가 아니라 팝업 창의 폭이다.** 예전에는 화면을 통째로 덮는
+   오버레이라 18vw였는데, 지금은 PixelPanel(max-w-sm = 384px) 안에 들어간다 —
+   vw로 두면 넓은 화면에서 9rem까지 커져 9글자짜리 GAME OVER가 창 밖으로 넘친다.
+   GatchaCard가 밟았던 것과 같은 함정이라(AGENTS.md), 카드와 같은 해법을 쓴다:
+   .game-cue-window가 container-type: inline-size로 기준을 열고 여기서 cqw를 쓴다.
+   19cqw면 GAME OVER 9글자가 창 안쪽(약 340px)에 들어간다 — Galmuri11은 라틴
+   대문자가 약 0.5em 폭이라 9 x 0.5 x 19cqw ≈ 86cqw다. */
+.game-cue-window {
+  container-type: inline-size;
+  /* 폭을 내용에 맡기면 카운트다운의 `1` → `START`에서 창 크기가 눈에 띄게 튄다.
+     GatchaLoading이 1·2단계에 같은 창을 쓰는 것과 같은 이유다. */
+  width: 100%;
+  text-align: center;
+}
+
 .game-cue {
-  font-size: clamp(3.5rem, 18vw, 9rem);
+  display: inline-block;
+  font-size: clamp(2.5rem, 19cqw, 5rem);
   font-weight: 700;
   line-height: 1;
-  /* **글자가 --accent(남색), 그림자가 --bevel-light(흰색)다 — 뒤집지 말 것.**
+  white-space: nowrap;
+  /* **글자가 --accent(남색)다 — 뒤집지 말 것.**
      게임판 배경은 --bg(#C3C7CB, 밝은 회색)라 흰 글자를 얹으면 대비가 1.70:1로
      떨어져 그림자 테두리만 겨우 보이는 상태가 된다(실측). 남색 글자는 같은
      배경에서 5.09:1이다. 밝은 테마에서 밝은 요소를 쓰면 사라진다는, 이 저장소가
-     반복해서 밟아온 함정과 같은 건이다. */
+     반복해서 밟아온 함정과 같은 건이다.
+
+     **그림자는 흰색(--bevel-light)에서 --bevel-dark로 바꿨다.** 팝업 창 안으로
+     들어가면서 뒷배경이 --bg(#C3C7CB)에서 --surface(#F2F4F6)로 밝아졌는데,
+     흰 그림자는 그 위에서 1.10:1이라 아예 안 보인다(실측). --bevel-dark(#6E7880)는
+     같은 배경에서 4.09:1이고 남색 글자와도 1.92:1로 갈린다. 글자 자체는
+     --surface 위에서 7.85:1로 오히려 게임판 위보다 좋아졌다. */
   color: var(--accent);
-  text-shadow: 4px 4px 0 var(--bevel-light);
+  text-shadow: 4px 4px 0 var(--bevel-dark);
   /* 기울임은 폰트가 아니라 transform으로 준다. 픽셀 폰트에 italic 자족이 없어서
      font-style: italic을 걸면 브라우저가 합성 기울임을 만들어 글리프가 뭉개진다. */
   transform: skewX(-8deg);
+}
+
+/* 카운트다운(3-2-1-START): 통째로 확대되며 등장. 한 칸당 한 번만 돈다. */
+.game-cue--pop {
   animation: game-cue-pop 300ms ease-out;
 }
 
@@ -839,16 +868,96 @@ body {
   }
 }
 
-/* 모션을 줄이는 설정에서는 **등장 애니메이션만** 끈다. 숫자·문구와 그 타이밍은
+/* GAME OVER: 글자 단위가 아니라 통째로 페이드인한 뒤, y축 5px로 천천히 떠다닌다.
+   두 애니메이션을 콤마로 잇는다 — 등장은 1회, 그다음이 무한 반복이라 delay로
+   순서를 잡는다. transform을 건드리는 쪽이 둘 다라 한 요소에 얹혀야 한다. */
+.game-cue--fade {
+  animation:
+    game-cue-fade 500ms ease-out both,
+    game-cue-float 3s ease-in-out 500ms infinite;
+}
+
+@keyframes game-cue-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes game-cue-float {
+  0%,
+  100% {
+    transform: skewX(-8deg) translateY(0);
+  }
+  50% {
+    transform: skewX(-8deg) translateY(-5px);
+  }
+}
+
+/* CLEAR!: 글자 단위. 오른쪽에서 왼쪽으로 하나씩 들어온 뒤, 1초 쉬고 letter당
+   10%씩 어긋난 들썩임을 무한 반복한다.
+
+   --i는 컴포넌트가 인라인 style로 넣는 **역순** 인덱스다(마지막 글자가 0).
+   등장이 오른쪽에서 시작해야 하므로 역순이어야 한다 — 정순으로 넣으면 방향이
+   조용히 뒤집히는데 코드만 봐서는 잘 안 보인다.
+   --n은 글자 수. 등장 총 길이(n x 0.1s)를 알아야 loop 시작 시점을 잡는다.
+
+   loop 주기는 1s로 잡았다. "letter당 10%씩 지연 + 글자당 0.1s"를 한 주기 안에서
+   동시에 만족시키는 값이다(10% x 1s = 0.1s 간격, hop 자체도 0.1s).
+   loop delay = 등장 총 길이 + 1초 대기 + 이 글자의 순서 몫이다. */
+.game-cue--letters {
+  /* 글자를 인라인 요소로 쪼개면 skew가 글자마다 따로 걸려 사이가 벌어진다.
+     기울임은 부모(.game-cue)가 한 번만 갖고, 자식은 y축 이동만 한다. */
+  display: inline-block;
+}
+
+.game-cue__letter {
+  display: inline-block;
+  /* **기본 상태가 "다 보임"이어야 한다.** opacity: 0을 여기 쓰면
+     prefers-reduced-motion에서 animation이 꺼지는 순간 글자가 영영 안 나타난다.
+     숨김은 keyframe의 from에만 있고, 등장 전 대기는 fill-mode: both가 맡는다
+     (animation: none이면 fill-mode도 같이 사라져 이 규칙이 이긴다). */
+  opacity: 1;
+  animation:
+    game-cue-letter-in 100ms linear calc(var(--i) * 0.1s) both,
+    game-cue-letter-hop 1s ease-in-out calc(var(--n) * 0.1s + 1s + var(--i) * 0.1s)
+      infinite;
+}
+
+@keyframes game-cue-letter-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.5em);
+  }
+}
+
+/* hop은 주기의 첫 10%(=0.1s) 안에서만 일어나고 나머지는 제자리다.
+   그래야 "글자당 0.1s"와 "10%씩 지연"이 같은 주기 안에서 성립한다. */
+@keyframes game-cue-letter-hop {
+  0%,
+  10%,
+  100% {
+    transform: translateY(0);
+  }
+  5% {
+    transform: translateY(-0.15em);
+  }
+}
+
+/* 모션을 줄이는 설정에서는 **애니메이션만** 끈다. 숫자·문구와 그 타이밍은
    그대로 간다 — 카운트다운은 장식이 아니라 게임을 열어주는 타이밍 게이트라서,
    Confetti처럼 아무것도 그리지 않으면 게이트가 통째로 사라진다.
    진행 자체는 어차피 CSS가 아니라 setTimeout이 몰고 간다(CountdownOverlay).
    .gatcha-loading__bar::before가 animation만 끊는 것과 같은 처리다.
 
-   transform은 남겨야 한다 — 애니메이션이 지정하는 최종 상태이기도 해서 여기서
-   지우면 기울임까지 사라진다. */
+   **새 클래스를 추가하면 여기 목록에도 넣어야 한다.** 하나라도 빠지면 그 요소만
+   계속 움직이고, 글자 쪼개기 쪽은 아예 안 보이게 될 수도 있다.
+
+   .game-cue의 transform은 남겨야 한다 — 애니메이션이 지정하는 최종 상태이기도
+   해서 여기서 지우면 기울임까지 사라진다. */
 @media (prefers-reduced-motion: reduce) {
-  .game-cue {
+  .game-cue--pop,
+  .game-cue--fade,
+  .game-cue__letter {
     animation: none;
   }
 }

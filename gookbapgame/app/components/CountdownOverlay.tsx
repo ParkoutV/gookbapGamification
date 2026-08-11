@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 
 interface CountdownOverlayProps {
@@ -13,7 +14,15 @@ const STEP_MS = 800;
 const LAST_STEP = 3;
 
 /**
- * 게임 시작 카운트다운. GameScreen 위에 덮이는 오버레이라 뒤로 게임판이 비쳐 보인다.
+ * 게임 시작 카운트다운. GameScreen 위에 뜨는 **불투명한 팝업 창**이다
+ * (2026-08-11 실기 확인, 이란토). 예전에는 배경 없이 글자만 게임판 위에 겹쳐
+ * 있었는데, 반투명도 창도 아닌 어중간한 상태라 완성도가 없었다. 오버레이 자체는
+ * 투명하게 두고 창(PixelPanel)만 불투명하게 해서 **뒤 게임판은 계속 보인다** —
+ * 게임판이 보여야 하는 이유는 KPI에 있다(AGENTS.md: 오버레이가 뜬 시점이
+ * 이미 "게임 시작"이다).
+ *
+ * 타이틀바는 붙이지 않는다(PixelPanel의 title은 옵셔널). 3초 동안 스쳐가는
+ * 연출이라 브랜드명 한 줄은 읽히지도 않고 시선만 뺏는다. 종료 화면도 같다.
  *
  * **진행은 반드시 setTimeout이 몰고 간다.** CSS 애니메이션의 onAnimationEnd로
  * 다음 칸으로 넘기면 prefers-reduced-motion에서 `animation: none`이 걸리는 순간
@@ -55,10 +64,18 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
       aria-live="assertive"
       aria-atomic="true"
     >
-      {/* key로 칸마다 요소를 갈아치워야 애니메이션이 매번 다시 돈다. */}
-      <span key={step} className="game-cue" style={{ fontFamily: "var(--font-pixel)" }}>
-        {label}
-      </span>
+      <PixelPanel size="card" className="max-w-sm w-full mx-4">
+        <div className="game-cue-window">
+          {/* key로 칸마다 요소를 갈아치워야 애니메이션이 매번 다시 돈다. */}
+          <span
+            key={step}
+            className="game-cue game-cue--pop"
+            style={{ fontFamily: "var(--font-pixel)" }}
+          >
+            {label}
+          </span>
+        </div>
+      </PixelPanel>
     </div>
   );
 }
