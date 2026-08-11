@@ -251,23 +251,25 @@ export function useGameProgress(trackId: string | null) {
   // 피하고 있으니 판별을 새로 만들지 않고 얹는다(이미 playing이면 React가 setPhase를
   // bail out해서 이 이펙트가 재실행되지도 않는다).
   //
-  // KPI(game_start)는 카운트다운이 **끝난 뒤**로 옮겼다(endCountdown). 카운트다운
-  // 중에 이탈한 사람은 시작자로 잡히지 않는다 — 더 정확해지는 쪽이지만 KPI 수치가
-  // 바뀌는 변경이다.
+  // KPI(game_start)는 카운트다운이 **끝난 뒤**가 아니라 이 전이에서 센다.
+  // 카운트다운 오버레이가 뜬 시점에 이미 게임 화면에 진입했으므로(게임판이 뒤에
+  // 보인다) 여기가 "게임 시작"이다. 종료 시점으로 미루면 3.2초 안에 이탈한 사람이
+  // 빠져 **다른 것을 세게 된다** — 그건 시작자가 아니라 완주 의향자에 가깝다.
+  // 코드가 KPI 정의를 조용히 바꾸면 대시보드 수치가 이유 없이 떨어지고 나중에
+  // 원인을 추적할 수 없다(2026-08-11, 이란토).
   const wasPlayingRef = useRef(false);
   useEffect(() => {
     const isPlaying = phase === "playing";
     if (isPlaying && !wasPlayingRef.current) {
       setIsCountingDown(true);
+      void recordGameStart();
     }
     wasPlayingRef.current = isPlaying;
   }, [phase]);
 
-  // 카운트다운 종료. 게이트가 열리는 이 순간이 "게임이 실제로 시작된 순간"이라
-  // game_start KPI도 여기서 센다 — 전이 감지가 위 한 곳에 남는다는 성질은 그대로다.
+  // 카운트다운 종료. 게이트만 연다 — KPI는 위에서 이미 셌다.
   const endCountdown = useCallback(() => {
     setIsCountingDown(false);
-    void recordGameStart();
   }, []);
 
   // withTutorial이면 튜토리얼로 진입하고, 프리로드는 그 뒤에서 병렬로 돈다.
