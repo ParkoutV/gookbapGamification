@@ -32,7 +32,8 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
 
   // 칸마다 타이머를 하나씩 건다. 마지막 칸(START)이 끝나면 게이트를 열고
   // **거기서 멈춘다** — step을 더 올리지 않는 것이 요점이다. 올리면 이 이펙트가
-  // 한 번 더 돌아 onDone이 두 번 불리고, game_start KPI가 중복으로 기록된다.
+  // 한 번 더 돌아 onDone이 두 번 불린다. 지금은 onDone이 게이트만 열어서 두 번
+  // 불려도 티가 안 나지만, 여기에 부수효과를 붙이는 순간 조용히 두 번 실행된다.
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (step >= LAST_STEP) {
