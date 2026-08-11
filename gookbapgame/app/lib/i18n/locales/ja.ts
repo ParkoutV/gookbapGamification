@@ -55,7 +55,7 @@ export const ja: Partial<Dictionary> = {
     "連続で正解するとコンボボーナスが加算されます。\n" +
     "ゲーム終了後はクッパ力ランクが出て、クーポン抽選に進みます。",
 
-  "preload.preparing": "クッパを準備中...",
+  "preload.preparing": "ゲームを起動中...",
   "preload.sessionError": "ゲームデータの読み込みに失敗しました。ネットワーク状況をご確認ください。",
   "preload.levelSessionError": "ステージ{level}のゲームデータを読み込めませんでした。",
   "preload.imageError": "画像の読み込みに失敗しました。ネットワーク状況をご確認ください。",
