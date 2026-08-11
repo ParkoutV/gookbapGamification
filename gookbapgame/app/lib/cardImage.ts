@@ -141,33 +141,36 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const centerX = CARD_W / 2;
   ctx.textAlign = "center";
 
-  // QR. 흰 배경과 quiet zone은 **SVG가 자체적으로 들고 있다**(CouponQR의 marginSize) —
-  // 여기서 흰 사각형을 따로 깔지 않는다. 예전에는 canvas가 깔았는데, 그러면 화면과
-  // 저장본이 여백을 서로 다른 방식으로 만들게 되어 크기가 조용히 어긋난다.
-  // 테두리만 화면(border border-black/25)과 같은 색으로 두른다.
-  let cursorY = CARD_H * 0.3;
-  if (input.qrSvg) {
-    const qrImage = await svgToImage(input.qrSvg);
-    const qrSize = CARD_W * 0.44;
-    const qrX = centerX - qrSize / 2;
-    ctx.drawImage(qrImage, qrX, cursorY, qrSize, qrSize);
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(qrX, cursorY, qrSize, qrSize);
-    cursorY += qrSize + CARD_H * 0.04;
-  }
+  /*
+   * 본문은 화면과 **같은 방식으로 중앙 정렬**한다.
+   *
+   * 예전에는 `CARD_H * 0.3`에서 시작해 아래로 쌓았는데, 화면 쪽은 flex
+   * `justify-center`라 배치 원리가 서로 달랐다 — 내용이 짧으면 화면은 전체가
+   * 가운데 유지되는 반면 canvas는 위가 고정이라 아래로만 밀렸다. 실측하니
+   * QR 상단이 26.6%(화면) vs 30%(저장본)로 어긋나 있었다(2026-08-11).
+   *
+   * 그래서 전체 높이를 먼저 재고 프레임 세로 중앙에 앉힌다. 화면 구조는
+   *   프레임(justify-center, gap G)
+   *     ├ [QR, 상품명] 블록 (gap G)
+   *     └ 만료 문구
+   * 이고, 아래 GAP과 블록 순서가 그것을 그대로 옮긴 것이다.
+   * **GatchaCard의 gap-3(12px)을 바꾸면 여기 GAP도 같이 바꿔야 한다.**
+   */
+  const GAP = CARD_W * 0.0354; // 화면 gap-3(12px) ÷ 카드 폭 339px
+  const qrSize = CARD_W * 0.44;
+  const textMaxWidth = right - left - 60;
 
   ctx.fillStyle = INK;
-  ctx.textBaseline = "top";
 
   // 상품명은 대시보드 자유 입력이라 길이가 정해져 있지 않다. 화면에서는
   // overflow-hidden이 잘라주지만 캔버스에는 그런 게 없어서, 긴 이름이 들어오면
   // 만료 문구가 테두리 밖으로 밀려난다. 프레임 안에 들어갈 때까지 글자를 줄인다.
-  const textMaxWidth = right - left - 60;
-  const expiryHeight = input.expiryText ? 38 + 24 : 0;
-  const availableHeight = bottom - cursorY - expiryHeight - 24;
+  const expiryFontSize = CARD_W * 0.041; // 화면 text-sm(14px) 기준
+  const expiryHeight = input.expiryText ? expiryFontSize * 1.4 + GAP : 0;
+  const availableHeight =
+    bottom - top - (input.qrSvg ? qrSize + GAP : 0) - expiryHeight;
 
-  let nameFontSize = 52;
+  let nameFontSize = CARD_W * 0.0531; // 화면 text-lg(18px) 기준
   let nameLines = [] as string[];
   while (true) {
     ctx.font = `bold ${nameFontSize}px sans-serif`;
@@ -179,13 +182,37 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
 
   const nameLineHeight = nameFontSize * 1.23;
   const maxLines = Math.max(1, Math.floor(availableHeight / nameLineHeight));
-  nameLines.slice(0, maxLines).forEach((line, i) => {
+  const drawnLines = nameLines.slice(0, maxLines);
+  const nameHeight = drawnLines.length * nameLineHeight;
+
+  // 전체 높이를 재서 프레임 세로 중앙에 앉힌다.
+  const contentHeight =
+    (input.qrSvg ? qrSize + GAP : 0) + nameHeight + expiryHeight;
+  let cursorY = top + (bottom - top - contentHeight) / 2;
+
+  // QR. 흰 배경과 quiet zone은 **SVG가 자체적으로 들고 있다**(CouponQR의 marginSize) —
+  // 여기서 흰 사각형을 따로 깔지 않는다. 예전에는 canvas가 깔았는데, 그러면 화면과
+  // 저장본이 여백을 서로 다른 방식으로 만들게 되어 크기가 조용히 어긋난다.
+  // 테두리만 화면(border border-black/25)과 같은 색으로 두른다.
+  if (input.qrSvg) {
+    const qrImage = await svgToImage(input.qrSvg);
+    const qrX = centerX - qrSize / 2;
+    ctx.drawImage(qrImage, qrX, cursorY, qrSize, qrSize);
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(qrX, cursorY, qrSize, qrSize);
+    cursorY += qrSize + GAP;
+  }
+
+  ctx.textBaseline = "top";
+  ctx.font = `bold ${nameFontSize}px sans-serif`;
+  drawnLines.forEach((line, i) => {
     ctx.fillText(line, centerX, cursorY + i * nameLineHeight);
   });
-  cursorY += Math.min(nameLines.length, maxLines) * nameLineHeight + 24;
+  cursorY += nameHeight + GAP;
 
   if (input.expiryText) {
-    ctx.font = "38px sans-serif";
+    ctx.font = `${expiryFontSize}px sans-serif`;
     ctx.globalAlpha = 0.7;
     ctx.fillText(input.expiryText, centerX, cursorY);
     ctx.globalAlpha = 1;

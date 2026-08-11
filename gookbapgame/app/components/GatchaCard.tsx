@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import CouponQR from "./CouponQR";
 import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
@@ -54,9 +54,15 @@ export default function GatchaCard({
   /**
    * 결과 소리는 카드가 실제로 돌아간 뒤에 낸다. 탭하자마자 내면 앞면이 보이기도
    * 전에 당첨/꽝이 소리로 새어나간다. 지연은 뒤집기 트랜지션(700ms)의 후반부다.
+   *
+   * **최초 1회만 낸다.** 카드는 몇 번이든 다시 뒤집을 수 있는데(2026-08-11),
+   * 앞면으로 돌 때마다 당첨 소리가 울리면 시끄럽고 "또 당첨됐나" 하는 오해도 준다.
+   * 결과를 알리는 소리는 결과가 처음 드러나는 순간에만 의미가 있다.
    */
+  const resultSoundPlayedRef = useRef(false);
   useEffect(() => {
-    if (!flipped) return;
+    if (!flipped || resultSoundPlayedRef.current) return;
+    resultSoundPlayedRef.current = true;
     const timer = setTimeout(() => {
       playSfx(coupon ? SFX.coupon : SFX.couponLose);
     }, 450);
@@ -69,11 +75,13 @@ export default function GatchaCard({
        100%가 기준을 잃고 카드가 패널 밖으로 넘친다. */
     <div className="flex flex-col items-center gap-4 w-full">
       {/* 원본 애셋 비율 1000x1350. aspect-ratio로 고정해야 뒷면 픽셀이 찌그러지지 않는다. */}
-      {/* 뒤집은 뒤에는 role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면
-          스크린리더가 정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
+      {/* 뒤집은 뒤에도 계속 눌러 앞뒤를 오갈 수 있다(2026-08-11, 이란토) — 그래서
+          예전과 달리 flipped를 조건에서 뺐다. 아직 뒤집을 수 없는 동안(canFlip=false)에만
+          role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면 스크린리더가
+          정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
       <div
-        className={`gatcha-card${canFlip && !flipped ? " gatcha-card--interactive" : ""}`}
-        {...(canFlip && !flipped
+        className={`gatcha-card${canFlip ? " gatcha-card--interactive" : ""}`}
+        {...(canFlip
           ? {
               role: "button" as const,
               tabIndex: 0,

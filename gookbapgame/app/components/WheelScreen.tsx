@@ -119,7 +119,11 @@ export default function WheelScreen({
               coupon={coupon}
               flipped={flipped}
               canFlip={canFlip}
-              onFlip={() => setFlipped(true)}
+              /* 한 번 뒤집은 뒤에도 다시 눌러 앞뒤를 오갈 수 있다(2026-08-11, 이란토).
+                 저장 기능은 영향을 받지 않는다 — useCardImageSave는 flipped가 true가
+                 되는 시점에 이미지를 구워 ref에 들고 있으므로, 뒷면으로 돌려놔도
+                 저장할 것은 남아 있다. */
+              onFlip={() => setFlipped((v) => !v)}
               faceRef={faceRef}
               expiryText={expiryText}
             />
