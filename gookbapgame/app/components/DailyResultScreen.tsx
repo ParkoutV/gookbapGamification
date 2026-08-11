@@ -28,23 +28,23 @@ export default function DailyResultScreen({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
-      <PixelPanel size="card" className="max-w-sm w-full text-center">
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("dailyResult.title")}</h1>
         <p className="text-muted mb-1">{t("dailyResult.nicknameLabel")}</p>
         <p className="text-xl text-ink font-bold mb-4">{nickname}</p>
         <p className="text-muted mb-1">{t("dailyResult.gukbapPowerLabel")}</p>
-        <p className="text-xl text-amber font-bold mb-4" style={{ fontFamily: "var(--font-pixel)" }}>
+        <p className="text-xl text-accent font-bold mb-4" style={{ fontFamily: "var(--font-pixel)" }}>
           {t(gukbapTierKey(gukbapTier))}
         </p>
         <p className="text-muted mb-1">{t("dailyResult.finalScoreLabel")}</p>
-        <p className="text-xl text-amber font-bold mb-6" style={{ fontFamily: "var(--font-pixel)" }}>
+        <p className="text-xl text-accent font-bold mb-6" style={{ fontFamily: "var(--font-pixel)" }}>
           {totalScore} / {DISPLAY_MAX_SCORE}
         </p>
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {stubAchievements.map((label) => (
             <span
               key={label}
-              className="px-3 py-1 rounded-full bg-amber/20 text-amber text-sm border border-amber/40"
+              className="px-3 py-1 rounded-full bg-accent/15 text-accent text-sm border border-accent/40"
             >
               {label}
             </span>

@@ -6,6 +6,9 @@ export const en: Partial<Dictionary> = {
 
   "common.retry": "Retry",
 
+  // Brand name shown in the window title bar (90s desktop concept), not the screen heading.
+  "window.brand": "1953 Brother Pork Gookbap",
+
   "start.title": "Spot the Difference",
   "start.welcome": "Welcome, {nickname}",
   "start.regenerateNicknameAria": "Regenerate nickname",
@@ -91,7 +94,7 @@ export const en: Partial<Dictionary> = {
   "survey.optional": "(optional)",
 
   "wheel.title": "Card of Fortune",
-  "wheel.spinning": "Drawing your card...",
+  "wheel.spinning": "Shuffling the deck",
   "wheel.flipHint": "Tap the card to flip it",
   "card.saveButton": "Save as image",
   "card.saving": "Saving...",

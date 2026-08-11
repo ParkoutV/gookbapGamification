@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import CouponQR from "./CouponQR";
 import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
 import { playSfx, SFX } from "../lib/sfx";
 import type { IssuedCoupon } from "../actions";
 
-/** 밝은 카드면 위의 글자색. 테마의 --ink는 어두운 배경용 밝은 색이라 여기서는 안 보인다. */
-const CARD_FACE_INK = "#3A2E24";
+/**
+ * 밝은 카드면 위의 글자색. 현재 테마의 --ink와 같은 값이지만 **상수로 남긴다** —
+ * cardImage.ts가 canvas에 같은 글자를 그릴 때 리터럴이 필요하고(CSS 변수를 못 읽는다),
+ * 두 곳이 반드시 같은 값이어야 화면과 저장본이 어긋나지 않기 때문이다.
+ * 테마가 다시 어두워지면 --ink는 밝아져도 이 값은 어두운 채로 남아야 한다.
+ */
+const CARD_FACE_INK = "#1A1F24";
 
 interface GatchaCardProps {
   /** null이면 꽝 앞면. 뒷면만 보이는 동안에도 null일 수 있다. */
@@ -40,18 +45,35 @@ export default function GatchaCard({
   // 이모지는 코너에만 두고 상품명은 텍스트만 남긴다(CouponQR의 onLightFace).
   const faceEmoji = coupon ? resolveCouponEmoji(coupon.couponType) : MISS_EMOJI;
 
-  // 뒤집는 동작 자체의 소리. 결과 소리는 아래 effect가 한 박자 늦게 낸다.
+  // 뒤집는 동작 자체의 소리는 여기서 내지 않는다 — 카드가 role="button"이라
+  // useButtonClickSfx가 이미 클릭음을 낸다. 여기서 또 부르면 두 번 겹친다.
+  // 결과 소리(당첨/꽝)는 아래 effect가 한 박자 늦게 낸다.
   const handleFlip = () => {
-    playSfx(SFX.touch);
     onFlip();
   };
 
   /**
+   * 한 번이라도 뒤집었는지. 카드는 몇 번이든 다시 뒤집을 수 있으므로(2026-08-11)
+   * `flipped`만으로는 "아직 열어보지 않았다"를 판별할 수 없다 — 뒷면으로 되돌리면
+   * 다시 false가 되기 때문이다. 처음 한 번에만 일어나야 하는 것들이 이 값을 본다.
+   */
+  const [hasOpened, setHasOpened] = useState(false);
+  useEffect(() => {
+    if (flipped) setHasOpened(true);
+  }, [flipped]);
+
+  /**
    * 결과 소리는 카드가 실제로 돌아간 뒤에 낸다. 탭하자마자 내면 앞면이 보이기도
    * 전에 당첨/꽝이 소리로 새어나간다. 지연은 뒤집기 트랜지션(700ms)의 후반부다.
+   *
+   * **최초 1회만 낸다.** 앞면으로 돌 때마다 당첨 소리가 울리면 시끄럽고
+   * "또 당첨됐나" 하는 오해도 준다. 결과를 알리는 소리는 결과가 처음 드러나는
+   * 순간에만 의미가 있다.
    */
+  const resultSoundPlayedRef = useRef(false);
   useEffect(() => {
-    if (!flipped) return;
+    if (!flipped || resultSoundPlayedRef.current) return;
+    resultSoundPlayedRef.current = true;
     const timer = setTimeout(() => {
       playSfx(coupon ? SFX.coupon : SFX.couponLose);
     }, 450);
@@ -64,11 +86,13 @@ export default function GatchaCard({
        100%가 기준을 잃고 카드가 패널 밖으로 넘친다. */
     <div className="flex flex-col items-center gap-4 w-full">
       {/* 원본 애셋 비율 1000x1350. aspect-ratio로 고정해야 뒷면 픽셀이 찌그러지지 않는다. */}
-      {/* 뒤집은 뒤에는 role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면
-          스크린리더가 정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
+      {/* 뒤집은 뒤에도 계속 눌러 앞뒤를 오갈 수 있다(2026-08-11, 이란토) — 그래서
+          예전과 달리 flipped를 조건에서 뺐다. 아직 뒤집을 수 없는 동안(canFlip=false)에만
+          role/tabIndex를 통째로 뗀다. 이름 없는 button으로 남겨두면 스크린리더가
+          정체불명의 버튼으로 읽고, tabIndex={-1}은 포커스를 빼앗는다. */}
       <div
-        className={`gatcha-card${canFlip && !flipped ? " gatcha-card--interactive" : ""}`}
-        {...(canFlip && !flipped
+        className={`gatcha-card${canFlip ? " gatcha-card--interactive" : ""}`}
+        {...(canFlip
           ? {
               role: "button" as const,
               tabIndex: 0,
@@ -118,7 +142,9 @@ export default function GatchaCard({
               style={{ color: CARD_FACE_INK }}
             >
               {/* 트럼프 카드처럼 안쪽 테두리를 하나 두고 내용을 그 안에 담는다.
-                  좌상/우하 모서리는 정사각으로 파여 있고, 그 자리에 코너 마크가 앉는다. */}
+                  좌상/우하 모서리는 정사각으로 파여 있고, 그 자리에 코너 마크가 앉는다.
+                  **테두리 선 자체는 애셋(card-front.webp)에 인쇄돼 있다** — 이 요소는
+                  내용물을 그 안쪽에 가두는 자리 잡기만 한다(2026-08-11). */}
               <div className="card-inner-frame absolute inset-x-[13%] inset-y-[11%]">
                 <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-3 overflow-hidden">
                   {coupon ? (
@@ -135,9 +161,11 @@ export default function GatchaCard({
                 </div>
               </div>
 
-              {/* 코너 마크는 테두리의 clip-path 바깥(파인 자리)에 앉아야 하므로
-                  card-inner-frame의 자식이 아니라 형제 레이어로 둔다 — 안에 넣으면
-                  같은 clip에 잘려 사라진다. inset은 테두리와 같은 값이어야 위치가 맞는다.
+              {/* 코너 마크는 애셋에 파인 자리에 앉는다. card-inner-frame의 자식이
+                  아니라 형제 레이어인 것은 예전에 그쪽 clip-path에 잘렸기 때문인데,
+                  clip-path가 사라진 지금도 형제로 둔다 — 안에 넣으면 본문 flex 흐름에
+                  끼어 중앙 정렬을 흐트러뜨린다.
+                  inset은 테두리와 같은 값이어야 위치가 맞는다.
                   실제 트럼프 카드는 우하단을 180° 돌리지만, 이모지를 뒤집으면
                   거꾸로 선 그림이 될 뿐이라 회전은 하지 않는다. */}
               <div className="absolute inset-x-[13%] inset-y-[11%] pointer-events-none card-corner-layer">
@@ -151,10 +179,25 @@ export default function GatchaCard({
             </div>
           </div>
         </div>
+
+        {/* 눌러보라는 손 커서. **한 번도 안 열어봤을 때만** 띄운다 — flipped가
+            아니라 hasOpened를 보는 이유는, 열어본 뒤 뒷면으로 되돌리면 flipped가
+            다시 false가 되어 이미 뽑기를 확인한 사람에게 힌트가 또 나오기
+            때문이다(2026-08-11, 이란토).
+
+            **__inner 안에 넣으면 안 된다** — 그쪽은 preserve-3d 컨텍스트라
+            카드와 함께 회전해서 뒤집는 순간 커서도 뒤집힌다. 카드 루트의 직속
+            자식으로 두어 3D 변환 바깥에 남긴다. */}
+        {canFlip && !hasOpened && (
+          /* eslint-disable-next-line @next/next/no-img-element -- static local pixel-art asset,
+             next/image would resample it and defeat image-rendering: pixelated */
+          <img src="/icons/cursor-hint.webp" alt="" aria-hidden="true" className="cursor-hint" />
+        )}
       </div>
 
-      {/* 뒤집기 전에만 안내. 뒤집은 뒤에도 남아 있으면 또 누르라는 뜻으로 읽힌다. */}
-      {!flipped && (
+      {/* 열어보기 전에만 안내. 커서 힌트와 같은 기준(hasOpened)을 쓴다 —
+          한쪽만 flipped를 보면 되돌렸을 때 문구는 나오는데 커서는 없는 식으로 어긋난다. */}
+      {!hasOpened && (
         <p className="text-muted text-sm">{canFlip ? t("wheel.flipHint") : t("wheel.spinning")}</p>
       )}
 

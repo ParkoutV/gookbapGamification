@@ -21,7 +21,7 @@ export default function LanguageToggle() {
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label="Language"
-        className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg"
+        className="icon-round-btn w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg"
       >
         🌐
       </button>

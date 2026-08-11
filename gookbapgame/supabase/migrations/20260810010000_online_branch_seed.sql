@@ -1,11 +1,15 @@
 -- LOCAL DEV ONLY — 프로덕션에 db push 하지 말 것.
--- 프로덕션에 이미 만들어져 있는 '온라인' 지점의 공유 트랙(ujYmSz33)을 로컬에서도
--- 재현한다. FALLBACK_SHARED_TRACK_ID를 프로덕션과 같은 값으로 두고 테스트할 수 있게
--- 하려는 것뿐이다.
+-- '온라인' 지점(특정 매장이 아닌 광고·입소문 유입을 담는 지점)의 공유 트랙을
+-- 로컬에서도 재현해서, FALLBACK_SHARED_TRACK_ID 폴백 경로를 테스트할 수 있게 한다.
 --
--- 이 트랙은 특정 매장이 아니라 온라인 광고·입소문 유입을 담는 임시 조치다.
--- 온라인 유입의 KPI 수집은 저쪽에서 아직 설계된 바 없어서(2026-08-10 담당자 확인),
--- 정식 방침이 나오면 이 시드와 FALLBACK_SHARED_TRACK_ID 처리도 함께 재검토할 것.
+-- **트랙 id는 로컬 전용 더미다.** 프로덕션의 실제 온라인 트랙 코드를 여기 박지 말 것 —
+-- 그 코드는 저쪽에서 바뀔 수 있고(2026-08-10에 실제로 한 번 교체됐다), 죽은 코드가
+-- 시드에 남으면 "프로덕션에 있는 트랙"으로 오해하게 된다. 실제 값은 Vercel 환경변수와
+-- 각자의 .env.local에만 둔다.
+--
+-- 로컬에서 이 경로를 테스트하려면 .env.local에
+--   FALLBACK_SHARED_TRACK_ID=local-online-shared
+-- 를 넣으면 된다.
 insert into public.tracks (track_id, branch_id, is_shared)
-values ('ujYmSz33', '00000000-0000-0000-0000-00000000000e', true)
+values ('local-online-shared', '00000000-0000-0000-0000-00000000000e', true)
 on conflict (track_id) do nothing;

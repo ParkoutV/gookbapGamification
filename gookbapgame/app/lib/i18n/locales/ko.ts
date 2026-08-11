@@ -6,6 +6,9 @@ export const ko: Dictionary = {
 
   "common.retry": "다시 시도",
 
+  // 창 제목 표시줄(90s 데스크톱 컨셉)에 쓰는 브랜드명. 화면 제목과 별개다.
+  "window.brand": "1953 형제돼지국밥",
+
   "start.title": "다른그림찾기",
   "start.welcome": "{nickname} 님 환영합니다",
   "start.regenerateNicknameAria": "닉네임 다시 생성",
@@ -91,7 +94,7 @@ export const ko: Dictionary = {
   "survey.optional": "(선택)",
 
   "wheel.title": "행운의 카드",
-  "wheel.spinning": "카드를 뽑는 중...",
+  "wheel.spinning": "카드를 섞고 있어요",
   "wheel.flipHint": "카드를 눌러서 뒤집어보세요",
   "card.saveButton": "이미지로 저장",
   "card.saving": "저장하는 중...",

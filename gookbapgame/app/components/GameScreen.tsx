@@ -300,8 +300,12 @@ export default function GameScreen({
         />
       ));
 
+  // 바탕은 다른 화면과 같은 --bg다. 예전엔 이 화면만 더 어두운 --bg-deep을 썼는데,
+  // 밝은 테마로 바꾼 뒤로는 (1) 이 화면만 눈에 띄게 어두워 패널 화면들과 톤이 갈리고,
+  // (2) 시간 임박 경고(text-error)의 대비가 1.55까지 떨어져 정작 가장 중요한 경고가
+  // 안 보였다(2026-08-11 실측). 그래서 --bg로 합치고 --bg-deep 자체를 없앴다.
   return (
-    <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
+    <div className={`flex flex-col min-h-screen bg-bg text-ink ${isShaking ? "animate-shake" : ""}`}>
       <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
         {/* Lv 표시 + 진행 칩. 칩은 시각 정보라 스크린리더에는 기존 문장을 남긴다. */}
         <div
@@ -362,7 +366,11 @@ export default function GameScreen({
 
           {/* 문항 인디케이터. 세로 배치에서는 그림 위(order -1)에 가운데 정렬,
               가로 배치에서는 그림 아래 왼쪽 정렬로 돌아간다.
-              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다. */}
+              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다.
+
+              오답 카운터와 같은 방식으로 마커 이미지를 그대로 쓴다(2026-08-10, 이란토) —
+              한쪽만 원형 도트면 같은 줄에 놓인 두 지표가 다른 체계로 보인다.
+              찾은 칸은 불투명, 남은 칸은 opacity-20으로 흐리게 (오답 쪽과 동일). */}
           <div
             className="flex items-center gap-1 order-first md:order-none md:self-start"
             role="img"
@@ -372,12 +380,17 @@ export default function GameScreen({
             })}
           >
             {indicatorCells.map((cell, i) => (
-              <span
+              <img
                 key={i}
+                src="/icons/check-success.svg"
+                alt=""
                 aria-hidden="true"
-                className={`w-4 h-4 rounded-full border-2 border-wood ${
-                  cell === "filled" ? "bg-accent" : "bg-transparent"
-                } ${cell === "hidden" ? "opacity-0" : "opacity-100"}`}
+                /* 미발견 칸의 opacity는 배경 밝기에 종속된다. 어두운 테마 시절엔
+                   0.2로도 윤곽이 보였지만, 밝은 데스크톱 배경에서는 마커의 흰 halo가
+                   배경과 밝기가 비슷해 통째로 사라진다(2026-08-11). */
+                className={`w-5 h-5 ${
+                  cell === "hidden" ? "opacity-0" : cell === "filled" ? "opacity-100" : "opacity-35"
+                }`}
               />
             ))}
           </div>
@@ -395,7 +408,7 @@ export default function GameScreen({
               클러스터가 합쳐지지 않고 시스템 컬러 이모지로 넘어간다. */}
           <button
             type="button"
-            className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0"
+            className="icon-round-btn w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0"
             onClick={() => setIsHintOpen((prev) => !prev)}
             aria-expanded={isHintOpen}
             aria-label={t("game.hintButton")}
@@ -412,9 +425,11 @@ export default function GameScreen({
             <div className={`time-gauge__fill ${timeCritical ? "bg-error" : "bg-amber"}`} />
           </div>
 
+          {/* 남은 시간 숫자. --amber는 게이지 채움(면)용이라 글자에 쓰면 밝은 바탕에서
+              대비가 모자란다 — 평상시엔 --ink, 임박했을 때만 --error로 경고한다. */}
           <span
             className={`text-lg md:text-xl font-extrabold shrink-0 ${
-              timeCritical ? "text-error animate-pulse" : "text-amber"
+              timeCritical ? "text-error animate-pulse" : "text-ink"
             }`}
           >
             {t("game.secondsUnit", { seconds: remainingTimeSec })}

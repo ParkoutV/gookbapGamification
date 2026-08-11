@@ -27,9 +27,15 @@ fi
 mkdir -p "$DEST"
 
 # 실제로 쓰는 것만 변환한다. 원본 폴더에는 아직 붙일 자리를 정하지 않은 것도 있다.
-NAMES=(coupon coupon_lose pencil_success pencil_failed touch coindrop)
+NAMES=(coupon coupon_lose pencil_success pencil_failed coindrop click)
 
 for name in "${NAMES[@]}"; do
+  # 원본이 이미 m4a면 그대로 복사한다. 재인코딩하면 손실만 한 번 더 얹힌다.
+  if [ -f "$SRC/$name.m4a" ]; then
+    cp "$SRC/$name.m4a" "$DEST/$name.m4a"
+    echo "  OK $name.m4a (원본이 m4a — 복사)"
+    continue
+  fi
   if [ ! -f "$SRC/$name.opus" ]; then
     echo "  건너뜀 (원본 없음): $name.opus" >&2
     continue

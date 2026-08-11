@@ -8,6 +8,9 @@ export const ja: Partial<Dictionary> = {
 
   "common.retry": "再試行",
 
+  // ウィンドウのタイトルバー（90s デスクトップ風）に表示するブランド名。画面見出しとは別。
+  "window.brand": "1953 兄弟豚クッパ",
+
   "start.title": "間違い探し",
   "start.welcome": "{nickname} さん、ようこそ",
   "start.regenerateNicknameAria": "ニックネームを再生成",
@@ -93,7 +96,7 @@ export const ja: Partial<Dictionary> = {
   "survey.optional": "（任意）",
 
   "wheel.title": "幸運のカード",
-  "wheel.spinning": "カードを抽選中...",
+  "wheel.spinning": "カードをシャッフルしています",
   "wheel.flipHint": "カードをタップしてめくってください",
   "card.saveButton": "画像として保存",
   "card.saving": "保存中...",

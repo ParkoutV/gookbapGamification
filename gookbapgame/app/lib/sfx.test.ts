@@ -62,7 +62,7 @@ test("window가 없으면(서버 렌더링) 예외를 던지지 않는다", () =
 // Audio가 없는 환경에서도 재생 시도가 게임을 멈추면 안 된다.
 // 소리는 진행에 필수가 아니므로 어떤 실패도 조용히 삼켜야 한다.
 test("playSfx: Audio가 없는 환경에서도 던지지 않는다", () => {
-  assert.doesNotThrow(() => playSfx(SFX.touch));
+  assert.doesNotThrow(() => playSfx(SFX.click));
 });
 
 test("playSfx: 음소거 상태면 Audio를 만들지도 않는다", () => {

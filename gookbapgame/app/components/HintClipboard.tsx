@@ -14,15 +14,16 @@ interface HintClipboardProps {
 // 래퍼 높이의 약 20% 위치이므로 22%가 사실상 상한이다 — 더 올리면 글자가 집게에 가린다.
 const PAPER_INSET = { left: "13%", right: "18%", top: "22%", bottom: "14%" };
 
-// 감열지 인쇄 느낌의 잉크색. 테마의 --ink는 어두운 배경용 밝은 색이라 흰 종이에서 안 보인다.
-const PAPER_INK = "#3A2E24";
+// 감열지 인쇄 느낌의 잉크색. 흰 종이 위 글자라 테마와 무관하게 어두워야 한다.
+const PAPER_INK = "#1A1F24";
 
 export default function HintClipboard({ names, onClose }: HintClipboardProps) {
   const { t } = useLocale();
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-deep/70"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "var(--scrim)" }}
       onClick={onClose}
       role="button"
       tabIndex={0}

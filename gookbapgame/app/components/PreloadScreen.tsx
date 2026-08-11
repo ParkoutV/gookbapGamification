@@ -14,7 +14,7 @@ export default function PreloadScreen({ loadError, onRetry }: PreloadScreenProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg">
-      <PixelPanel size="card" className="max-w-sm w-full mx-4 text-center">
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full mx-4 text-center">
         {loadError ? (
           <>
             <p className="text-error mb-6 text-lg">{t(loadError.key, loadError.params)}</p>

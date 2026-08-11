@@ -50,7 +50,7 @@ export default function GameResultScreen({
           coindrop이 이미 울린다. */}
       {gukbapTier === "1953 Master" && <Confetti />}
 
-      <PixelPanel size="card" className="max-w-sm w-full text-center">
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("gameResult.title")}</h1>
         <dl className="space-y-2 mb-6 text-left">
           {rows.map((row) => (
@@ -66,12 +66,12 @@ export default function GameResultScreen({
         <div className="border-t border-wood pt-4 mb-2">
           <div className="flex justify-between text-xl font-extrabold">
             <span className="text-ink">{t("gameResult.totalLabel")}</span>
-            <span className="text-amber" style={{ fontFamily: "var(--font-pixel)" }}>
+            <span className="text-accent" style={{ fontFamily: "var(--font-pixel)" }}>
               {scoreBreakdown.total} / {DISPLAY_MAX_SCORE}
             </span>
           </div>
         </div>
-        <p className="text-amber font-bold mb-8" style={{ fontFamily: "var(--font-pixel)" }}>
+        <p className="text-accent font-bold mb-8" style={{ fontFamily: "var(--font-pixel)" }}>
           {t("gameResult.gukbapPowerLabel", { tier: t(gukbapTierKey(gukbapTier)) })}
         </p>
         <button

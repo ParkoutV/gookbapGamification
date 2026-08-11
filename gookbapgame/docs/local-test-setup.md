@@ -73,18 +73,23 @@ docker inspect supabase_storage_gookbapgame \
 
 ### 4. 서버 기동
 
+포트는 **게임 1953, 대시보드 1954**로 고정한다(2026-08-11, 이란토). 3000번대는
+다른 서비스(open-webui, immich 등)와 자주 부딪히고, 밀린 포트를 모르고 붙으면
+"게임 데이터를 불러올 수 없습니다"로만 보여 원인을 못 찾는다. 1953은 브랜드
+연도라 기억하기도 쉽다.
+
 ```bash
 # gookbapanalyze
-cd gookbapanalyze && npm run dev -- --port 3002
+cd gookbapanalyze && npm run dev -- --port 1954
 
 # gookbapgame
-cd gookbapgame && npm run dev
+cd gookbapgame && npm run dev -- --port 1953
 ```
 
 `gookbapgame/.env.local`에 다음을 추가한다:
 
 ```
-GENERATE_UNIFIED_API_URL=http://localhost:3002/api/generate-unified
+GENERATE_UNIFIED_API_URL=http://localhost:1954/api/generate-unified
 ```
 
 Next.js dev는 `.env.local` 변경을 감지해 `Reload env: .env.local`을 찍고 자동 반영한다.
@@ -100,7 +105,7 @@ Next.js dev는 `.env.local` 변경을 감지해 `Reload env: .env.local`을 찍�
 ```bash
 curl -s -X POST -H 'Content-Type: application/json' \
   -d '{"baseImageId":1,"imageSlots":{"1":"1"}}' \
-  http://localhost:3002/api/generate-unified
+  http://localhost:1954/api/generate-unified
 ```
 
 `{"success":true,"url":"...webp"}` 가 나와야 한다.
@@ -115,7 +120,7 @@ curl -s -X POST -H 'Content-Type: application/json' \
 | `Failed to upload generated image` | `game_assets` 버킷 없음. 2번 재실행 |
 | `Base image not found` (합성 API) | `service_role`이 `base_images`를 못 읽음. 2번 재실행 |
 | 다국어 문자열이 전부 `—` 로 표시됨 | `name`/`title`이 아직 text. 2번 재실행 |
-| 포트가 3001로 밀림 | 3000을 다른 게 쓰는 중. 로그의 실제 포트를 볼 것 |
+| 포트가 밀림(1953/1954가 아닌 번호) | 그 포트를 다른 게 쓰는 중. 로그의 실제 포트를 볼 것 |
 
 ## 프로덕션과의 차이 — 반드시 알아둘 것
 
