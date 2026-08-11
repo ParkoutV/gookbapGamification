@@ -216,12 +216,12 @@ body {
 
 /* 카드를 눌러보라는 손 커서 힌트. 뒤집기 전에만 카드 위에 겹쳐 반복 재생한다.
  *
- * 타임라인(2.7s 루프, 2026-08-11 이란토 지정):
- *   0~2s    카드 **바깥** 오른쪽에서 중앙으로 ease-out 이동
+ * 타임라인(2.2s 루프, 2026-08-11 이란토 지정):
+ *   0~1.5s  카드 **바깥** 오른쪽에서 중앙으로 ease-out 이동
  *   0~1s    fade-in (이동과 겹친다 — 그래서 애니메이션을 둘로 나눴다)
- *   2~2.1s  scale(0.8)  — 누르는 동작
- *   2.1~2.2 scale(1.0)  — 복귀
- *   2.2~2.7 대기
+ *   1.5~1.6 scale(0.8)  — 누르는 동작
+ *   1.6~1.7 scale(1.0)  — 복귀
+ *   1.7~2.2 대기
  * fade-out은 하지 않는다. 다음 루프의 fade-in이 0에서 시작하므로 툭 끊기는데,
  * 그게 "손이 다시 들어온다"는 인상이라 의도된 것이다.
  *
@@ -244,30 +244,30 @@ body {
   z-index: 2;
   image-rendering: pixelated;
   animation:
-    cursor-hint-move 2.7s ease-out infinite,
-    cursor-hint-fade 2.7s linear infinite;
+    cursor-hint-move 2.2s ease-out infinite,
+    cursor-hint-fade 2.2s linear infinite;
 }
 
 @keyframes cursor-hint-move {
-  /* 0~2s: 카드 바깥에서 중앙으로. 74.1% = 2s / 2.7s.
+  /* 0~1.5s: 카드 바깥에서 중앙으로. 68.2% = 1.5s / 2.2s.
      left: 50%가 이미 걸려 있으므로 translate는 그 지점 기준이다. 커서 폭이
      카드의 22%이니 280%면 왼쪽 끝이 카드 오른쪽 변 바깥(중앙+61.6%)에 선다 —
      "카드 밖에서 손이 들어온다"는 인상을 위해 필요한 여유다. */
   0% {
     transform: translate(280%, 0) scale(1);
   }
-  74.1% {
+  68.2% {
     transform: translate(-50%, 0) scale(1);
   }
-  /* 2~2.1s: 누른다. 77.8% = 2.1s / 2.7s */
-  77.8% {
+  /* 1.5~1.6s: 누른다. 72.7% = 1.6s / 2.2s */
+  72.7% {
     transform: translate(-50%, 0) scale(0.8);
   }
-  /* 2.1~2.2s: 복귀. 81.5% = 2.2s / 2.7s */
-  81.5% {
+  /* 1.6~1.7s: 복귀. 77.3% = 1.7s / 2.2s */
+  77.3% {
     transform: translate(-50%, 0) scale(1);
   }
-  /* 2.2~2.7s: 그대로 대기 */
+  /* 1.7~2.2s: 그대로 대기 */
   100% {
     transform: translate(-50%, 0) scale(1);
   }
@@ -277,8 +277,8 @@ body {
   0% {
     opacity: 0;
   }
-  /* 37% = 1s / 2.7s */
-  37% {
+  /* 45.5% = 1s / 2.2s */
+  45.5% {
     opacity: 1;
   }
   100% {

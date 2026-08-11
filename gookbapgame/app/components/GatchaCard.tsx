@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import CouponQR from "./CouponQR";
 import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
@@ -52,12 +52,22 @@ export default function GatchaCard({
   };
 
   /**
+   * 한 번이라도 뒤집었는지. 카드는 몇 번이든 다시 뒤집을 수 있으므로(2026-08-11)
+   * `flipped`만으로는 "아직 열어보지 않았다"를 판별할 수 없다 — 뒷면으로 되돌리면
+   * 다시 false가 되기 때문이다. 처음 한 번에만 일어나야 하는 것들이 이 값을 본다.
+   */
+  const [hasOpened, setHasOpened] = useState(false);
+  useEffect(() => {
+    if (flipped) setHasOpened(true);
+  }, [flipped]);
+
+  /**
    * 결과 소리는 카드가 실제로 돌아간 뒤에 낸다. 탭하자마자 내면 앞면이 보이기도
    * 전에 당첨/꽝이 소리로 새어나간다. 지연은 뒤집기 트랜지션(700ms)의 후반부다.
    *
-   * **최초 1회만 낸다.** 카드는 몇 번이든 다시 뒤집을 수 있는데(2026-08-11),
-   * 앞면으로 돌 때마다 당첨 소리가 울리면 시끄럽고 "또 당첨됐나" 하는 오해도 준다.
-   * 결과를 알리는 소리는 결과가 처음 드러나는 순간에만 의미가 있다.
+   * **최초 1회만 낸다.** 앞면으로 돌 때마다 당첨 소리가 울리면 시끄럽고
+   * "또 당첨됐나" 하는 오해도 준다. 결과를 알리는 소리는 결과가 처음 드러나는
+   * 순간에만 의미가 있다.
    */
   const resultSoundPlayedRef = useRef(false);
   useEffect(() => {
@@ -169,19 +179,24 @@ export default function GatchaCard({
           </div>
         </div>
 
-        {/* 눌러보라는 손 커서. 아직 안 뒤집었을 때만 띄운다.
+        {/* 눌러보라는 손 커서. **한 번도 안 열어봤을 때만** 띄운다 — flipped가
+            아니라 hasOpened를 보는 이유는, 열어본 뒤 뒷면으로 되돌리면 flipped가
+            다시 false가 되어 이미 뽑기를 확인한 사람에게 힌트가 또 나오기
+            때문이다(2026-08-11, 이란토).
+
             **__inner 안에 넣으면 안 된다** — 그쪽은 preserve-3d 컨텍스트라
             카드와 함께 회전해서 뒤집는 순간 커서도 뒤집힌다. 카드 루트의 직속
             자식으로 두어 3D 변환 바깥에 남긴다. */}
-        {canFlip && !flipped && (
+        {canFlip && !hasOpened && (
           /* eslint-disable-next-line @next/next/no-img-element -- static local pixel-art asset,
              next/image would resample it and defeat image-rendering: pixelated */
           <img src="/icons/cursor-hint.webp" alt="" aria-hidden="true" className="cursor-hint" />
         )}
       </div>
 
-      {/* 뒤집기 전에만 안내. 뒤집은 뒤에도 남아 있으면 또 누르라는 뜻으로 읽힌다. */}
-      {!flipped && (
+      {/* 열어보기 전에만 안내. 커서 힌트와 같은 기준(hasOpened)을 쓴다 —
+          한쪽만 flipped를 보면 되돌렸을 때 문구는 나오는데 커서는 없는 식으로 어긋난다. */}
+      {!hasOpened && (
         <p className="text-muted text-sm">{canFlip ? t("wheel.flipHint") : t("wheel.spinning")}</p>
       )}
 
