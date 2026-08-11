@@ -99,6 +99,30 @@ body {
     inset 2px 2px 0 0 var(--bevel-light),
     inset -2px -2px 0 0 var(--bevel-dark);
 }
+
+/* PixelPanel size="btn"로 감싼 보조 버튼(내 결과·랭킹 등)의 눌림 피드백.
+ *
+ * 이 구조는 베벨이 바깥 .pixel-frame에 있고 실제 <button>은 그 안에 있어서,
+ * button:active만으로는 베벨이 반응하지 않는다 — 주요 버튼(.pixel-mask-btn-solid)은
+ * 버튼 자신이 베벨을 들고 있어 그냥 되지만 여기는 요소가 갈린다.
+ * :has()로 부모가 자식의 눌림을 보게 하면 마크업을 건드리지 않고 같은 피드백이 된다.
+ */
+.pixel-frame--btn:has(button:hover) {
+  background: var(--surface);
+}
+.pixel-frame--btn:has(button:active) {
+  box-shadow:
+    inset 2px 2px 0 0 var(--bevel-dark),
+    inset -2px -2px 0 0 var(--bevel-light);
+}
+/* 키보드 포커스도 보이게 한다 — 마우스 hover에만 반응하면 탭 이동이 깜깜해진다. */
+.pixel-frame--btn:has(button:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.pixel-frame--btn button:focus-visible {
+  outline: none;
+}
 .pixel-frame--card {
   padding: 2px;
 }
@@ -125,7 +149,14 @@ body {
     inset 2px 2px 0 0 color-mix(in srgb, var(--bevel-light) 70%, transparent),
     inset -2px -2px 0 0 color-mix(in srgb, var(--bevel-dark) 70%, transparent);
 }
+/* hover는 색을 바꾸지 않고 밝기만 올린다. 90s UI에는 hover 개념이 거의 없었지만
+   지금은 마우스도 쓰는 웹이라 피드백이 아예 없으면 밋밋하다 — 색조를 건드리면
+   시대감이 깨지므로 명도만 살짝 민다. 터치 기기에서는 :active만 걸린다. */
+.pixel-mask-btn-solid:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 .pixel-mask-btn-solid:active {
+  filter: none;
   box-shadow:
     inset 2px 2px 0 0 color-mix(in srgb, var(--bevel-dark) 70%, transparent),
     inset -2px -2px 0 0 color-mix(in srgb, var(--bevel-light) 70%, transparent);
@@ -175,6 +206,19 @@ body {
   font-size: 10px;
   line-height: 1;
   color: var(--ink);
+}
+.win-titlebar__box:hover {
+  background: var(--surface);
+}
+
+/* 원형 아이콘 버튼(언어·소리·힌트). 세 곳이 같은 모양이라 hover/active를
+   여기 한 번만 적어둔다 — 클래스 조합 자체는 각자 Tailwind로 들고 있다. */
+.icon-round-btn:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+.icon-round-btn:active {
+  transform: translateY(1px);
 }
 .win-titlebar__box:active {
   box-shadow:

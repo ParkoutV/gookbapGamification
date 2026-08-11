@@ -34,7 +34,7 @@ export default function SoundToggle() {
       onClick={toggle}
       aria-label={t(muted ? "sound.unmuteAria" : "sound.muteAria")}
       aria-pressed={muted}
-      className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg"
+      className="icon-round-btn w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg"
     >
       <span aria-hidden="true">{muted ? "🔇" : "🔊"}</span>
     </button>

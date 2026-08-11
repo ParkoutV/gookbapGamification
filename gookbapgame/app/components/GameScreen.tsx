@@ -404,7 +404,7 @@ export default function GameScreen({
               클러스터가 합쳐지지 않고 시스템 컬러 이모지로 넘어간다. */}
           <button
             type="button"
-            className="w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0"
+            className="icon-round-btn w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0"
             onClick={() => setIsHintOpen((prev) => !prev)}
             aria-expanded={isHintOpen}
             aria-label={t("game.hintButton")}
