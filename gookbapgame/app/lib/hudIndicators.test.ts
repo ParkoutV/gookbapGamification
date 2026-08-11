@@ -5,6 +5,9 @@ import {
   resolveGaugeRatio,
   isTimeCritical,
   TIME_CRITICAL_SEC,
+  resolveGaugeCells,
+  GAUGE_CELL_COUNT,
+  GAUGE_WARN_CELLS,
 } from "./hudIndicators.ts";
 import { INDICATOR_SLOT_CAP, GLOBAL_TIME_LIMIT_SEC } from "./stageConfig.ts";
 
@@ -69,4 +72,29 @@ test("경고 임계값은 30초 이하 포함", () => {
   assert.equal(isTimeCritical(31), false);
   assert.equal(isTimeCritical(30), true);
   assert.equal(isTimeCritical(0), true);
+});
+
+test("게이지 칸: 100%면 20칸, 0이면 0칸", () => {
+  assert.equal(resolveGaugeCells(GLOBAL_TIME_LIMIT_SEC, GLOBAL_TIME_LIMIT_SEC), GAUGE_CELL_COUNT);
+  assert.equal(resolveGaugeCells(0, GLOBAL_TIME_LIMIT_SEC), 0);
+});
+
+test("게이지 칸: 20%(60초)가 경고 시작 경계 — 4칸", () => {
+  assert.equal(resolveGaugeCells(60, GLOBAL_TIME_LIMIT_SEC), GAUGE_WARN_CELLS);
+  // 1초만 더 남아도 아직 경고가 아니다(5칸).
+  assert.equal(resolveGaugeCells(61, GLOBAL_TIME_LIMIT_SEC), 5);
+});
+
+test("게이지 칸: 5%(15초)가 breath 가속 경계 — 1칸", () => {
+  assert.equal(resolveGaugeCells(15, GLOBAL_TIME_LIMIT_SEC), 1);
+  assert.equal(resolveGaugeCells(16, GLOBAL_TIME_LIMIT_SEC), 2);
+});
+
+test("게이지 칸: 조금이라도 남으면 0칸이 되지 않는다(ceil)", () => {
+  // floor였다면 1초 남았는데 게이지가 통째로 비어 보인다.
+  assert.equal(resolveGaugeCells(1, GLOBAL_TIME_LIMIT_SEC), 1);
+});
+
+test("게이지 칸: limitSec이 0이면 0칸", () => {
+  assert.equal(resolveGaugeCells(10, 0), 0);
 });
