@@ -5,6 +5,8 @@ import StartScreen from "./components/StartScreen";
 import TutorialScreen from "./components/TutorialScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
+import CountdownOverlay from "./components/CountdownOverlay";
+import GameEndScreen from "./components/GameEndScreen";
 import GameResultScreen from "./components/GameResultScreen";
 import SurveyIntroScreen from "./components/SurveyIntroScreen";
 import SurveyScreen from "./components/SurveyScreen";
@@ -263,20 +265,32 @@ export default function Home({ searchParams }: PageProps) {
         <PreloadScreen loadError={game.loadError} onRetry={game.retryPreload} />
       )}
 
+      {/* 카운트다운 오버레이를 이 블록 **안**에 형제로 두는 것이 요점이다 —
+          뒤에 게임판이 보여야 하는데, 바깥에 두면 렌더 조건이 갈려 언젠가
+          빈 화면 위에 숫자만 뜨는 상태가 생긴다.
+          pointer-events-none은 카운트다운 중 클릭이 게임판에 닿아 오답으로
+          처리되는 것을 막는다(오버레이 자신이 입력을 삼키는 것과 이중 안전장치). */}
       {game.phase === "playing" && game.session && (
-        <div className={game.phase !== "playing" ? "blur-sm pointer-events-none" : undefined}>
-          <GameScreen
-            key={`${game.stageNumber}-${game.loadNonce}`}
-            session={game.session}
-            stageNumber={game.stageNumber}
-            totalStages={game.totalStages}
-            remainingTimeSec={game.remainingTimeSec}
-            onStageClear={game.handleStageClear}
-            onForceAdvance={game.handleForceAdvance}
-            onWrongTouch={game.recordWrongTouch}
-            onCorrectFind={game.recordCorrectFind}
-          />
-        </div>
+        <>
+          <div className={game.isCountingDown ? "pointer-events-none" : undefined}>
+            <GameScreen
+              key={`${game.stageNumber}-${game.loadNonce}`}
+              session={game.session}
+              stageNumber={game.stageNumber}
+              totalStages={game.totalStages}
+              remainingTimeSec={game.remainingTimeSec}
+              onStageClear={game.handleStageClear}
+              onForceAdvance={game.handleForceAdvance}
+              onWrongTouch={game.recordWrongTouch}
+              onCorrectFind={game.recordCorrectFind}
+            />
+          </div>
+          {game.isCountingDown && <CountdownOverlay onDone={game.endCountdown} />}
+        </>
+      )}
+
+      {game.phase === "gameEnd" && game.endReason && (
+        <GameEndScreen reason={game.endReason} onNext={() => goToPhase("gameResult")} />
       )}
 
       {game.phase === "gameResult" && game.scoreBreakdown && game.gukbapTier && (

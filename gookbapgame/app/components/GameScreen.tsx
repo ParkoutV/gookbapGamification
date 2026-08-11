@@ -419,7 +419,10 @@ export default function GameScreen({
           </button>
 
           <div
-            className={`time-gauge relative flex-1 md:flex-none h-3 w-full md:h-40 md:w-3 bg-wood/30 overflow-hidden ${
+            /* 두께(h-5/md:w-5)는 베벨 2px + padding 2px이 양쪽으로 8px을 먹기
+               때문이다. 예전 h-3(12px)이면 정작 칸이 4px만 남는다.
+               배경은 .time-gauge가 --bg로 칠하므로 bg-wood/30을 걷어냈다. */
+            className={`time-gauge relative flex-1 md:flex-none h-5 w-full md:h-40 md:w-5 overflow-hidden ${
               timeCritical ? "time-gauge--warn" : ""
             } ${gaugeCells <= 1 ? "time-gauge--last" : ""}`}
             style={{ ["--gauge-cells" as string]: gaugeCells }}

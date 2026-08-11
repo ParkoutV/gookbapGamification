@@ -359,23 +359,41 @@ body {
   content: "";
   display: block;
   height: 100%;
-  /* 블록 12px + 간격 6px. 트랙보다 넓게(200%) 잡아야 한 주기를 밀어내는 동안
-     오른쪽 끝이 비지 않는다. */
-  background-image: repeating-linear-gradient(
+  /* **블록 3개짜리 덩어리 하나**가 빈 트랙 위를 지나간다(2026-08-11, 이란토).
+     Win9x 마퀴 방식이며, 트랙을 가득 채운 채 패턴만 미끄러지던 것과는 다르다 —
+     그쪽은 진행률이 꽉 찬 것처럼 보여 "기다리는 중"으로 읽히지 않았다.
+
+     그래서 repeating-이 아닌 일반 gradient다. 반복시키면 덩어리가 하나로
+     보이지 않는다. 블록 12px + 간격 6px 세 벌 = 54px. */
+  width: 54px;
+  background-image: linear-gradient(
     90deg,
     var(--accent) 0 12px,
-    transparent 12px 18px
+    transparent 12px 18px,
+    var(--accent) 18px 30px,
+    transparent 30px 36px,
+    var(--accent) 36px 48px,
+    transparent 48px 54px
   );
-  background-size: 18px 100%;
-  animation: gatcha-loading-bar 0.6s steps(6) infinite;
+  animation: gatcha-loading-bar 1.4s steps(12) infinite;
 }
 
 @keyframes gatcha-loading-bar {
-  /* 한 주기(18px)만큼 왼쪽으로. 패턴이 반복이라 여기서 끊겨도 이어져 보인다.
-     steps()로 끊는 이유는 픽셀 그래픽과 같은 톤을 맞추기 위해서다 —
-     선형으로 흘리면 블록이 미끄러지는 현대적인 인상이 된다. */
+  /* 오른쪽 밖 → 왼쪽 밖. **margin-left를 움직인다** — transform의 %는 자기 폭
+     (54px) 기준이라 트랙을 가로지르지 못하고 54px만 움직인다. margin의 %는
+     부모(트랙) 폭 기준이라 폭이 얼마든 끝에서 끝까지 간다.
+
+     끝값이 -54px인 이유: 덩어리 폭만큼 더 빼야 왼쪽 가장자리에 걸친 채 멈추지
+     않고 완전히 빠져나간다.
+
+     steps()로 끊는 이유는 픽셀 그래픽과 톤을 맞추기 위해서다 — 선형으로 흘리면
+     블록이 미끄러지는 현대적인 인상이 된다. 12단계는 폭에 무관한 고정 분할이라
+     트랙이 넓을수록 한 걸음이 커진다. 너무 껑충 뛰면 이 값이 손잡이다. */
+  from {
+    margin-left: 100%;
+  }
   to {
-    background-position-x: -18px;
+    margin-left: -54px;
   }
 }
 
@@ -560,9 +578,20 @@ body {
    .gatcha-loading__bar는 px 정지점(0 12px)을 쓰지만 여기는 폭이 유동적이라
    %로 잡아야 20칸이 맞아떨어진다. */
 .time-gauge {
+  /* 로딩 바(.gatcha-loading__bar)와 같은 눌린 면이다 — 제목표시줄 없는 작은 창처럼
+     보이게 한다(2026-08-11, 이란토). 게이지도 "값이 담기는 홈"이라 창 안쪽
+     (.pixel-frame-inner)과 같은 방향의 베벨을 쓴다.
+     padding이 필수인 이유는 로딩 바 주석에 적어둔 것과 같다 — inset box-shadow는
+     자식보다 아래에 깔려서, 여백이 없으면 채움이 베벨을 덮어버린다. */
+  background: var(--bg);
+  box-shadow:
+    inset 2px 2px 0 0 var(--bevel-dark),
+    inset -2px -2px 0 0 var(--bevel-light);
+  padding: 2px;
   --gauge-color: var(--accent);
-  /* 칸 사이 간격. **조정 손잡이다** — 세로 배치는 h-40(160px)에 20칸이라
-     칸 피치가 8px이고, 이 값을 빼면 실제로 칠해지는 칸은 6px이다.
+  /* 칸 사이 간격. **조정 손잡이다** — 세로 배치는 h-40(160px)에서 베벨·padding
+     8px을 뺀 152px에 20칸이 들어가므로 칸 피치가 약 7.6px이고, 이 값을 빼면
+     실제로 칠해지는 칸은 5.6px이다.
      실기에서 칸이 구분되지 않으면 여기를 먼저 만질 것(1.5px~3px 범위). */
   --gauge-gap: 2px;
 }
@@ -570,8 +599,10 @@ body {
   --gauge-color: var(--warning);
 }
 .time-gauge__fill {
-  position: absolute;
-  inset: 0;
+  /* absolute + inset: 0이면 부모의 padding을 무시하고 베벨 위에 올라탄다.
+     정적 배치로 두고 부모의 padding 안쪽을 100%로 채운다. */
+  width: 100%;
+  height: 100%;
   background-image: repeating-linear-gradient(
     90deg,
     var(--gauge-color) 0 calc(5% - var(--gauge-gap)),
@@ -763,5 +794,61 @@ body {
 @media (width >= theme(--breakpoint-md)) {
   .hint-clipboard {
     height: min(40vh, calc(69vw * 2624 / 1626));
+  }
+}
+
+/* 게임 시작 카운트다운(3 → 2 → 1 → START)과 종료 문구(GAME OVER / CLEAR)가
+   공유하는 큰 글씨. 두 연출이 같은 서체·같은 무게로 읽혀야 "맺고 끊는" 한 쌍으로
+   보인다.
+
+   **새 그래픽 애셋을 만들지 않는다**(2026-08-11, 이란토). 이미 임베드된 픽셀 폰트
+   Galmuri11(--font-pixel)에 그림자를 넣고 살짝 기울이는 것으로 충분하다 —
+   글리프 커버리지는 확인했다(20,965자, 라틴 대문자·숫자 포함).
+
+   그림자는 blur 없는 오프셋 한 장이다. 90s 데스크톱 컨셉에서 흐린 그림자는 이질적이고,
+   픽셀 폰트의 계단이 뭉개진다. 색은 --accent(바다 남색)라 게임판 위 어디에 얹혀도
+   글자가 뜬다.
+
+   폰트 크기는 vw로 화면에 비례시키되 clamp로 상하한을 건다 — 좁은 폰에서 START가
+   줄바꿈되지 않아야 하고, 넓은 데스크톱에서 화면을 다 덮어도 안 된다. */
+.game-cue {
+  font-size: clamp(3.5rem, 18vw, 9rem);
+  font-weight: 700;
+  line-height: 1;
+  /* **글자가 --accent(남색), 그림자가 --bevel-light(흰색)다 — 뒤집지 말 것.**
+     게임판 배경은 --bg(#C3C7CB, 밝은 회색)라 흰 글자를 얹으면 대비가 1.70:1로
+     떨어져 그림자 테두리만 겨우 보이는 상태가 된다(실측). 남색 글자는 같은
+     배경에서 5.09:1이다. 밝은 테마에서 밝은 요소를 쓰면 사라진다는, 이 저장소가
+     반복해서 밟아온 함정과 같은 건이다. */
+  color: var(--accent);
+  text-shadow: 4px 4px 0 var(--bevel-light);
+  /* 기울임은 폰트가 아니라 transform으로 준다. 픽셀 폰트에 italic 자족이 없어서
+     font-style: italic을 걸면 브라우저가 합성 기울임을 만들어 글리프가 뭉개진다. */
+  transform: skewX(-8deg);
+  animation: game-cue-pop 300ms ease-out;
+}
+
+@keyframes game-cue-pop {
+  from {
+    opacity: 0;
+    transform: skewX(-8deg) scale(1.6);
+  }
+  to {
+    opacity: 1;
+    transform: skewX(-8deg) scale(1);
+  }
+}
+
+/* 모션을 줄이는 설정에서는 **등장 애니메이션만** 끈다. 숫자·문구와 그 타이밍은
+   그대로 간다 — 카운트다운은 장식이 아니라 게임을 열어주는 타이밍 게이트라서,
+   Confetti처럼 아무것도 그리지 않으면 게이트가 통째로 사라진다.
+   진행 자체는 어차피 CSS가 아니라 setTimeout이 몰고 간다(CountdownOverlay).
+   .gatcha-loading__bar::before가 animation만 끊는 것과 같은 처리다.
+
+   transform은 남겨야 한다 — 애니메이션이 지정하는 최종 상태이기도 해서 여기서
+   지우면 기울임까지 사라진다. */
+@media (prefers-reduced-motion: reduce) {
+  .game-cue {
+    animation: none;
   }
 }
