@@ -96,7 +96,7 @@ export const ja: Partial<Dictionary> = {
   "survey.optional": "（任意）",
 
   "wheel.title": "幸運のカード",
-  "wheel.spinning": "カードを抽選中...",
+  "wheel.spinning": "カードをシャッフルしています",
   "wheel.flipHint": "カードをタップしてめくってください",
   "card.saveButton": "画像として保存",
   "card.saving": "保存中...",

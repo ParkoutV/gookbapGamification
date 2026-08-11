@@ -94,7 +94,7 @@ export const ko: Dictionary = {
   "survey.optional": "(선택)",
 
   "wheel.title": "행운의 카드",
-  "wheel.spinning": "카드를 뽑는 중...",
+  "wheel.spinning": "카드를 섞고 있어요",
   "wheel.flipHint": "카드를 눌러서 뒤집어보세요",
   "card.saveButton": "이미지로 저장",
   "card.saving": "저장하는 중...",
