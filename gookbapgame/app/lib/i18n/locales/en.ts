@@ -94,6 +94,7 @@ export const en: Partial<Dictionary> = {
   "survey.optional": "(optional)",
 
   "wheel.title": "Card of Fortune",
+  "wheel.waiting": "Please wait a moment",
   "wheel.spinning": "Shuffling the deck",
   "wheel.flipHint": "Tap the card to flip it",
   "card.saveButton": "Save as image",
