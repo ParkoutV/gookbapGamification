@@ -15,12 +15,22 @@ import {
   LevelResult,
 } from "../lib/stageConfig";
 import { ensureParticipant, reassignNickname as reassignNicknameAction, recordGameStart, submitGameScore } from "../actions";
+import type { GameEndReason } from "../lib/gameEnd";
 
 export type GamePhase =
   | "start"
   | "tutorial"
   | "loading"
   | "playing"
+  // 게임이 끝난 직후 GAME OVER / CLEAR를 보여주는 구간. 자동으로 넘어가지 않고
+  // 사용자가 '결과 확인'을 눌러야 gameResult로 간다.
+  //
+  // 카운트다운(isCountingDown)은 playing 안의 불리언인데 이쪽만 별도 phase인
+  // 이유는 각자 얻는 불변식이 다르기 때문이다. 카운트다운은 뒤에 GameScreen이
+  // 보여야 해서 playing을 유지해야 하고(별도 phase면 렌더 조건이 무너진다),
+  // 종료는 반대로 300초 타이머가 멈춰야 해서 playing을 벗어나는 편이 공짜다
+  // (타이머 이펙트의 `phase !== "playing"` 가드가 그대로 처리한다).
+  | "gameEnd"
   | "gameResult"
   | "surveyIntro"
   | "survey"
@@ -79,6 +89,18 @@ export function useGameProgress(trackId: string | null) {
 
   const [scoreBreakdown, setScoreBreakdown] = useState<ScoreBreakdown | null>(null);
   const [gukbapTier, setGukbapTier] = useState<GukbapTier | null>(null);
+  const [endReason, setEndReason] = useState<GameEndReason | null>(null);
+
+  /**
+   * 3 → 2 → 1 → START 카운트다운 중인가. **playing 안의 불리언이다.**
+   *
+   * 별도 phase로 만들면 page.tsx의 `phase === "playing" && session` 렌더 조건에
+   * 걸려 뒤에 GameScreen이 보이지 않는다(오버레이 방식이 요구사항).
+   *
+   * 대신 300초 타이머가 이 구간에 흐르지 않도록 타이머 이펙트의 가드를 이 값까지
+   * 넓혔다 — 그게 playing을 유지하는 대가로 치르는 유일한 추가 가드다.
+   */
+  const [isCountingDown, setIsCountingDown] = useState(false);
 
   const session = sessions[stageIndex] ?? null;
 
@@ -116,8 +138,10 @@ export function useGameProgress(trackId: string | null) {
   // totalWrongTouches와 최대 1틱 밀린 remainingTimeSec을 읽어 마지막 레벨 강제진행 시
   // wrongTouchPenalty가 10점 부족하게 계산되는 문제가 있었다. ref는 객체 identity가 바뀌지
   // 않으므로 아무리 오래된(stale) 클로저에서 .current를 읽어도 항상 최신값이 나온다.
+  //
+  // reason은 추론하지 않고 호출부에서 받는다(app/lib/gameEnd.ts 주석 참고).
   const finishGame = useCallback(
-    (levelsReached: number, finalLevelResults: LevelResult[]) => {
+    (levelsReached: number, finalLevelResults: LevelResult[], reason: GameEndReason) => {
       const breakdown = calcFinalScore({
         levelResults: finalLevelResults,
         elapsedSec: GLOBAL_TIME_LIMIT_SEC - remainingTimeSecRef.current,
@@ -132,7 +156,10 @@ export function useGameProgress(trackId: string | null) {
       // 점수 기록은 결과 화면을 막지 않는다(await하지 않는다). 다만 쿠폰 뽑기가
       // 이 기록을 근거로 확률 구간을 고르므로, 룰렛 진입 전에는 들어가 있어야 한다.
       void submitGameScore(breakdown.total);
-      setPhase("gameResult");
+      // 결과표로 바로 가지 않는다 — GAME OVER / CLEAR를 먼저 보여주고,
+      // 사용자가 '결과 확인'을 누르면 그때 gameResult로 넘어간다.
+      setEndReason(reason);
+      setPhase("gameEnd");
     },
     []
   );
@@ -141,10 +168,17 @@ export function useGameProgress(trackId: string | null) {
   // 타임아웃되면 그 순간 진행 중이던 레벨에서 찾은 정답(currentLevelFoundCountRef)을 합성한
   // LevelResult를 만들어 반드시 점수에 포함시킨다 — 그렇지 않으면 "그때까지 찾은 정답은
   // 인정한다"는 스펙을 어기고 그 레벨이 0점 처리된다.
+  //
+  // 카운트다운(3 → 2 → 1 → START) 중에는 흐르지 않는다. 이 가드가 없으면
+  // 시작 연출을 보는 동안 제한시간이 깎여 나간다.
   useEffect(() => {
-    if (phase !== "playing") return;
+    if (phase !== "playing" || isCountingDown) return;
     if (remainingTimeSec <= 0) {
-      finishGame(stageIndex + 1, [...levelResults, buildLevelResult(currentLevelFoundCountRef.current)]);
+      finishGame(
+        stageIndex + 1,
+        [...levelResults, buildLevelResult(currentLevelFoundCountRef.current)],
+        "timeout"
+      );
       return;
     }
     const timer = setInterval(() => {
@@ -155,7 +189,7 @@ export function useGameProgress(trackId: string | null) {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [phase, remainingTimeSec, stageIndex, levelResults, buildLevelResult, finishGame]);
+  }, [phase, isCountingDown, remainingTimeSec, stageIndex, levelResults, buildLevelResult, finishGame]);
 
   // 리셋(setPreloadStatus("loading"))을 startGame이 아니라 여기 첫 문장에 두는 이유:
   // 호출자마다 리셋을 기억해야 하는 구조면 언젠가 빠진다. retryPreload를 포함한
@@ -209,14 +243,32 @@ export function useGameProgress(trackId: string | null) {
   //
   // 진입 경로가 여럿이라(프리로드 완료, 튜토리얼 완주, 재시작) 각 호출부에 흩어
   // 배선하면 언젠가 하나가 빠진다. phase 전이 자체를 한 곳에서 감지한다.
+  //
+  // **카운트다운도 같은 전이에 건다.** "playing이 되는 순간"이 아니라 "playing으로
+  // 새로 들어오는 순간"이어야 한다 — handleForceAdvance가 다음 단계로 갈 때마다
+  // setPhase("playing")을 부르므로 단순히 phase === "playing"에 걸면 단계마다
+  // 카운트다운이 재발동해서 한 판에 여러 번 뜬다. wasPlayingRef가 이미 그 함정을
+  // 피하고 있으니 판별을 새로 만들지 않고 얹는다(이미 playing이면 React가 setPhase를
+  // bail out해서 이 이펙트가 재실행되지도 않는다).
+  //
+  // KPI(game_start)는 카운트다운이 **끝난 뒤**로 옮겼다(endCountdown). 카운트다운
+  // 중에 이탈한 사람은 시작자로 잡히지 않는다 — 더 정확해지는 쪽이지만 KPI 수치가
+  // 바뀌는 변경이다.
   const wasPlayingRef = useRef(false);
   useEffect(() => {
     const isPlaying = phase === "playing";
     if (isPlaying && !wasPlayingRef.current) {
-      void recordGameStart();
+      setIsCountingDown(true);
     }
     wasPlayingRef.current = isPlaying;
   }, [phase]);
+
+  // 카운트다운 종료. 게이트가 열리는 이 순간이 "게임이 실제로 시작된 순간"이라
+  // game_start KPI도 여기서 센다 — 전이 감지가 위 한 곳에 남는다는 성질은 그대로다.
+  const endCountdown = useCallback(() => {
+    setIsCountingDown(false);
+    void recordGameStart();
+  }, []);
 
   // withTutorial이면 튜토리얼로 진입하고, 프리로드는 그 뒤에서 병렬로 돈다.
   // 아니면 기존과 동일하게 로딩 화면으로 간다(재방문자 경로).
@@ -239,6 +291,7 @@ export function useGameProgress(trackId: string | null) {
       currentLevelFoundCountRef.current = 0;
       setScoreBreakdown(null);
       setGukbapTier(null);
+      setEndReason(null);
 
       if (!nicknameSyncedRef.current) {
         void reassignNicknameAction().then((result) => {
@@ -292,8 +345,8 @@ export function useGameProgress(trackId: string | null) {
 
   // 마지막 레벨에서 강제진행되는 경우, 방금 조립한 updatedLevelResults를 finishGame에
   // "직접" 넘긴다 — setLevelResults(state) 갱신을 기다렸다가 다시 읽지 않는다(그게 문제 1의 원인이었다).
-  const handleForceAdvance = useCallback(
-    (foundCount: number) => {
+  const advanceStage = useCallback(
+    (foundCount: number, reason: GameEndReason) => {
       const updatedLevelResults = [...levelResults, buildLevelResult(foundCount)];
       setLevelResults(updatedLevelResults);
       currentLevelFoundCountRef.current = 0;
@@ -304,16 +357,30 @@ export function useGameProgress(trackId: string | null) {
         setPhase("playing");
         return;
       }
-      finishGame(STAGE_CONFIG.length, updatedLevelResults);
+      // 중간 단계의 이유는 의미가 없다 — 마지막 단계에서 끝날 때만 화면에 쓰인다.
+      finishGame(STAGE_CONFIG.length, updatedLevelResults, reason);
     },
     [stageIndex, levelResults, buildLevelResult, finishGame]
   );
 
-  // 정답을 다 맞힌 경우와 오답 기회를 다 쓴 경우의 처리가 같다 — 둘 다 축하 모달 없이
-  // 그 자리에서 다음 레벨로 넘어간다. 예전에는 다 맞히면 "stageClear" phase로 가서
-  // StageTransitionModal의 "다음" 버튼을 눌러야 했는데, 제한시간이 레벨당 60초에서
-  // 전체 300초로 바뀌면서 진행을 멈춰 세울 이유가 없어져 그 단계를 걷어냈다.
-  const handleStageClear = handleForceAdvance;
+  // 정답을 다 맞힌 경우와 오답 기회를 다 쓴 경우의 **처리는 여전히 같다** — 둘 다
+  // 축하 모달 없이 그 자리에서 다음 레벨로 넘어간다(advanceStage 하나가 처리한다).
+  // 예전에는 다 맞히면 "stageClear" phase로 가서 StageTransitionModal의 "다음"
+  // 버튼을 눌러야 했는데, 제한시간이 레벨당 60초에서 전체 300초로 바뀌면서 진행을
+  // 멈춰 세울 이유가 없어져 그 단계를 걷어냈다.
+  //
+  // 다만 예전처럼 `const handleStageClear = handleForceAdvance`로 **별칭을 두지는
+  // 않는다.** 별칭이면 종료 사유가 소실되어 GAME OVER / CLEAR를 고를 근거가 사라진다
+  // — page.tsx가 두 경로를 별개 prop으로 넘겨 이미 사실을 알고 있으므로, 그 사실을
+  // 여기서 버리지 말고 흘려보낸다. 갈리는 것은 라벨뿐이다.
+  const handleStageClear = useCallback(
+    (foundCount: number) => advanceStage(foundCount, "cleared"),
+    [advanceStage]
+  );
+  const handleForceAdvance = useCallback(
+    (foundCount: number) => advanceStage(foundCount, "wrongTouchExhausted"),
+    [advanceStage]
+  );
 
   const proceedToDailyResult = useCallback(() => setPhase("dailyResult"), []);
   const goToPhase = useCallback((next: GamePhase) => setPhase(next), []);
@@ -342,6 +409,10 @@ export function useGameProgress(trackId: string | null) {
     currentLevelFoundCountRef.current = 0;
     setScoreBreakdown(null);
     setGukbapTier(null);
+    setEndReason(null);
+    // 시작 화면으로 되돌아갔다면 다음 판은 카운트다운부터 다시 시작한다.
+    // (wasPlayingRef는 phase가 "start"가 되면서 이 뒤 이펙트에서 false로 내려간다.)
+    setIsCountingDown(false);
   }, []);
 
   return {
@@ -358,6 +429,9 @@ export function useGameProgress(trackId: string | null) {
     preloadStatus,
     scoreBreakdown,
     gukbapTier,
+    endReason,
+    isCountingDown,
+    endCountdown,
     startGame,
     retryPreload,
     recordCorrectFind,

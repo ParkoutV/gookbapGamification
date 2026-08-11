@@ -68,6 +68,11 @@ export const en: Partial<Dictionary> = {
   "gameResult.gukbapPowerLabel": "Gukbap Power: {tier}",
   "gameResult.nextButton": "Next",
 
+  "countdown.start": "START",
+  "gameEnd.gameOver": "GAME OVER",
+  "gameEnd.clear": "CLEAR",
+  "gameEnd.nextButton": "See Result",
+
   "dailyResult.title": "Today's Result",
   "dailyResult.nicknameLabel": "Today's Nickname",
   "dailyResult.gukbapPowerLabel": "Gukbap Power",
