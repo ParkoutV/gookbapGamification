@@ -168,6 +168,16 @@ export default function GatchaCard({
             </div>
           </div>
         </div>
+
+        {/* 눌러보라는 손 커서. 아직 안 뒤집었을 때만 띄운다.
+            **__inner 안에 넣으면 안 된다** — 그쪽은 preserve-3d 컨텍스트라
+            카드와 함께 회전해서 뒤집는 순간 커서도 뒤집힌다. 카드 루트의 직속
+            자식으로 두어 3D 변환 바깥에 남긴다. */}
+        {canFlip && !flipped && (
+          /* eslint-disable-next-line @next/next/no-img-element -- static local pixel-art asset,
+             next/image would resample it and defeat image-rendering: pixelated */
+          <img src="/icons/cursor-hint.webp" alt="" aria-hidden="true" className="cursor-hint" />
+        )}
       </div>
 
       {/* 뒤집기 전에만 안내. 뒤집은 뒤에도 남아 있으면 또 누르라는 뜻으로 읽힌다. */}

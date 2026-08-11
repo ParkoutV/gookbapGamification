@@ -214,6 +214,84 @@ body {
   background: var(--surface);
 }
 
+/* 카드를 눌러보라는 손 커서 힌트. 뒤집기 전에만 카드 위에 겹쳐 반복 재생한다.
+ *
+ * 타임라인(3.7s 루프, 2026-08-11 이란토 지정):
+ *   0~3s    오른쪽에서 중앙으로 ease-out 이동
+ *   0~1s    fade-in (이동과 겹친다 — 그래서 애니메이션을 둘로 나눴다)
+ *   3~3.1s  scale(0.8)  — 누르는 동작
+ *   3.1~3.2 scale(1.0)  — 복귀
+ *   3.2~3.7 대기
+ * fade-out은 하지 않는다. 다음 루프의 fade-in이 0에서 시작하므로 툭 끊기는데,
+ * 그게 "손이 다시 들어온다"는 인상이라 의도된 것이다.
+ *
+ * 이동·누름은 transform 한 축에 얹혀야 해서 애니메이션 하나(cursor-hint-move)로
+ * 합치고, opacity만 별도(cursor-hint-fade)로 돌린다. 두 애니메이션의 duration이
+ * 달라도 같은 요소에서 병렬로 재생된다.
+ *
+ * pointer-events: none이 필수다 — 이 힌트가 카드 클릭을 가로채면 정작 눌러도
+ * 뒤집히지 않는다.
+ */
+.cursor-hint {
+  position: absolute;
+  /* 카드 중앙보다 살짝 아래. 손끝이 중앙을 가리키게 하려면 이미지 자체는
+     조금 내려와야 한다(손끝이 이미지 상단에 있다). */
+  left: 50%;
+  top: 45%;
+  width: 22%;
+  height: auto;
+  pointer-events: none;
+  z-index: 2;
+  image-rendering: pixelated;
+  animation:
+    cursor-hint-move 3.7s ease-out infinite,
+    cursor-hint-fade 3.7s linear infinite;
+}
+
+@keyframes cursor-hint-move {
+  /* 0~3s: 오른쪽 바깥에서 중앙으로. 81%는 3s / 3.7s다. */
+  0% {
+    transform: translate(90%, 0) scale(1);
+  }
+  81% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  /* 3~3.1s: 누른다. 84.3% = 3.1s / 3.7s */
+  84.3% {
+    transform: translate(-50%, 0) scale(0.8);
+  }
+  /* 3.1~3.2s: 복귀. 86.5% = 3.2s / 3.7s */
+  86.5% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  /* 3.2~3.7s: 그대로 대기 */
+  100% {
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes cursor-hint-fade {
+  0% {
+    opacity: 0;
+  }
+  /* 27% = 1s / 3.7s */
+  27% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 모션을 줄이는 설정에서는 움직이지 않고 자리만 지킨다 — 힌트 자체는 필요하다. */
+@media (prefers-reduced-motion: reduce) {
+  .cursor-hint {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* 쿠폰 발급 대기 아이콘(GatchaLoading). PreloadScreen의 🍚와 같은 자리·같은 역할이라
    크기도 그쪽 text-6xl(≈60px)에 맞춘다. 픽셀 아트라 보간이 걸리면 흐려진다. */
 .gatcha-loading__anim,
@@ -486,6 +564,8 @@ body {
    object-contain이 여백을 만들어 앞뒤 면의 크기가 달라 보인다.
    높이 기준으로 잡고 너비를 vw로 제한해, 좁은 화면에서도 카드가 잘리지 않는다. */
 .gatcha-card {
+  /* 손 커서 힌트(.cursor-hint)가 이 박스를 기준으로 절대 배치된다. */
+  position: relative;
   aspect-ratio: 1000 / 1371;
   /* 폭을 정하고 높이는 aspect-ratio에 맡긴다 — 두 축을 다 지정하면 비율이 깨져
      object-contain이 레터박스를 만들고 앞뒤 면 크기가 달라 보인다.
