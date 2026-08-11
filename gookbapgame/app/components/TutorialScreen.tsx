@@ -120,16 +120,14 @@ export default function TutorialScreen({
               type="button"
               onClick={onFinish}
               disabled={preloadStatus !== "ready"}
-              className="pixel-mask-btn-solid flex-1 py-3 px-4 bg-accent text-accent-ink font-bold active:scale-95 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              className="pixel-mask-btn-solid flex-1 py-3 px-4 bg-accent text-accent-ink font-bold active:scale-95 disabled:opacity-50"
             >
-              {preloadStatus === "ready" ? (
-                t("tutorial.startButton")
-              ) : (
-                <>
-                  <span className="animate-spin">🍚</span>
-                  {t("tutorial.waiting")}
-                </>
-              )}
+              {/* 아직 준비 중이면 문구만 바뀐다. 예전엔 회전하는 🍚를 앞에 뒀는데,
+                  밥그릇 스피너를 걷어내면서 같이 뺐다(2026-08-11, 이란토).
+                  여기에 로딩 바를 대신 넣지는 않는다 — .gatcha-loading__bar는 가로
+                  전체 폭이라 버튼 안에서는 문구를 밀어낸다. 이 버튼은 disabled가
+                  이미 "아직 못 누른다"를 말하고 있어 별도 표시가 없어도 된다. */}
+              {preloadStatus === "ready" ? t("tutorial.startButton") : t("tutorial.waiting")}
             </button>
           )}
         </div>

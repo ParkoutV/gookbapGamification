@@ -1,14 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { DATE_LOCALES } from "../lib/i18n/dateLocales";
 import { useCardImageSave } from "../hooks/useCardImageSave";
 import PixelPanel from "./PixelPanel";
 import GatchaCard from "./GatchaCard";
 import GatchaLoading from "./GatchaLoading";
-import { remainingLoadingMs } from "../lib/minimumDelay";
 import type { DrawCouponResult } from "../actions";
+
+/**
+ * 카드 섞기 연출(2단계)의 고정 길이. 스킵 없음(2026-08-11, 이란토).
+ *
+ * **꽝도 똑같이 이 시간을 거친다.** 결과에 따라 섞는 시간이 달라지면 카드를
+ * 뒤집기 전에 결과를 알아챈다.
+ *
+ * 서버가 이미 결과를 정한 뒤에 연출을 재생하는 구조이며, 가챠의 표준이고
+ * 의도한 것이다. 이 값은 여기 한 곳에만 둔다.
+ *
+ * `GatchaCard`의 450ms 결과음 지연과는 **별개 타이머다.** 그쪽은 이 3초가 끝나
+ * 카드가 나온 뒤 사용자가 탭해야 비로소 시작한다 — 합산하거나 통합하지 말 것.
+ */
+const SHUFFLE_MS = 3000;
 
 interface WheelScreenProps {
   drawResult: DrawCouponResult | null;
@@ -58,42 +71,49 @@ export default function WheelScreen({
   }, [onSpin]);
 
   /**
-   * 로딩 연출을 최소 시간만큼은 보여준다.
-   *
-   * `isDrawing`이 false가 되는 즉시 카드로 바꾸면, 응답이 빠를 때 로딩 아이콘이
-   * 한 번 깜빡이고 사라져 연출이 아니라 결함처럼 보인다. 그래서 화면 전환은
-   * `showLoading`이 담당하고, 이 값은 응답과 최소 시간을 **둘 다** 만족해야 내려간다.
-   *
-   * 마운트 시각을 기준으로 삼는 이유: onSpin()이 이 컴포넌트 마운트와 함께 불리므로
-   * 마운트 = 요청 시작이다. isDrawing이 true로 바뀌는 것을 기다리면 첫 렌더 한 프레임을
-   * 놓친다.
-   */
-  const startedAtRef = useRef<number>(Date.now());
-  const [minElapsed, setMinElapsed] = useState(false);
-
-  useEffect(() => {
-    const wait = remainingLoadingMs(startedAtRef.current, Date.now());
-    if (wait === 0) {
-      setMinElapsed(true);
-      return;
-    }
-    const timer = setTimeout(() => setMinElapsed(true), wait);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const showLoading = isDrawing || !drawResult || !minElapsed;
-
-  /**
    * 카드를 쓰는 건 실제로 뽑기가 성립한 두 결과뿐이다.
    * - wonButHidden: 앞면에 올릴 payload가 아예 없다(couponType도 couponId도 없음).
    * - rejected/error: 뽑기가 소진되지 않은 상태다. 카드를 뒤집으면 소비한 것처럼 보인다.
+   *
+   * 이 값이 1단계의 출구를 가른다: true면 섞기 연출로, false면 곧장 텍스트 분기로.
    */
   const usesCard = drawResult?.status === "won" || drawResult?.status === "miss";
-  // 카드는 showLoading이 내려간 뒤에만 렌더되고, 그 조건이 이미 !isDrawing과
-  // drawResult 존재를 포함한다 — 즉 카드가 보이는 시점은 언제나 뒤집을 수 있는
-  // 시점이다. 그래도 조건을 남겨두는 이유는 GatchaCard가 canFlip=false일 때
-  // 커서·스케일 피드백을 죽이기 때문이다. 렌더 조건이 나중에 느슨해져도
-  // "못 누르는 카드"가 눌리는 것처럼 보이지는 않는다.
+
+  /**
+   * 1단계 — 통신 중. 서버 응답을 기다리는 구간이다.
+   *
+   * **최소 노출 시간을 두지 않는다.** 결과를 아직 모르는 구간이라 늘려봐야
+   * 얻을 게 없고, 거절당할 사람을 그만큼 더 붙잡아두는 것뿐이다. 연출의
+   * "깜빡임"을 막는 역할은 이제 뒤따르는 3초짜리 2단계가 대신 맡는다.
+   */
+  const waiting = isDrawing || !drawResult;
+
+  /**
+   * 2단계 — 카드 섞기. 쿠폰이 실제로 발급된(usesCard) 뒤에만 재생한다.
+   *
+   * 타이머를 **마운트가 아니라 `usesCard`가 켜지는 시점에 건다.** 마운트 기준으로
+   * 재면 응답이 3초보다 늦게 왔을 때 섞기 시간이 0이 되어 카드가 대뜸 튀어나온다 —
+   * 1단계에는 최소 시간이 없으므로 두 구간의 시계는 반드시 분리돼야 한다.
+   * usesCard는 응답이 도착할 때 false→true로 딱 한 번 바뀌므로 그 자체가 기점이다.
+   *
+   * rejected/error/wonButHidden은 usesCard가 false라 이 단계를 통째로 건너뛰고
+   * 아래 텍스트 분기로 간다.
+   */
+  const [shuffleDone, setShuffleDone] = useState(false);
+
+  useEffect(() => {
+    if (!usesCard) return;
+    const timer = setTimeout(() => setShuffleDone(true), SHUFFLE_MS);
+    return () => clearTimeout(timer);
+  }, [usesCard]);
+
+  const shuffling = usesCard && !shuffleDone;
+
+  // 카드는 usesCard && !shuffling일 때만 렌더되고, usesCard가 이미 drawResult
+  // 존재를 포함한다 — 즉 카드가 보이는 시점은 언제나 뒤집을 수 있는 시점이다.
+  // 그래도 조건을 남겨두는 이유는 GatchaCard가 canFlip=false일 때 커서·스케일
+  // 피드백을 죽이기 때문이다. 렌더 조건이 나중에 느슨해져도 "못 누르는 카드"가
+  // 눌리는 것처럼 보이지는 않는다.
   const canFlip = !isDrawing && usesCard;
 
   return (
@@ -105,15 +125,19 @@ export default function WheelScreen({
             카드 뒷면을 미리 띄웠는데, 응답 전에도 카드가 나와 있어서 "눌러도 안
             뒤집히는 카드"가 됐다(2026-08-11, 이란토).
 
+            두 단계가 같은 컴포넌트를 쓰는 이유는 창 껍데기를 공유해 전환에서
+            창이 튀지 않게 하려는 것이다 — GatchaLoading의 주석 참고.
+
             GatchaLoading은 이 패널 안이 아니라 화면 전체를 덮는 **별도 레이어**다
             (PreloadScreen과 같은 구조). 그래서 여기서 자리를 비워둘 필요가 없고,
             로딩 박스를 카드 크기에 맞추는 제약도 없다. */}
-        {showLoading && <GatchaLoading />}
+        {waiting && <GatchaLoading variant="waiting" />}
+        {shuffling && <GatchaLoading variant="shuffle" />}
 
         {/* 주의: 카드 앞면(card-front.webp) 안쪽 색이 패널 배경(--surface)과 가깝다.
             지금은 앞면 테두리 덕에 형체가 유지되지만, 배경을 더 밝게 바꾸면 카드가
             묻힌다. 이 화면은 뽑기 연출용으로 따로 꾸밀 예정이라 그때 같이 볼 것. */}
-        {!showLoading && usesCard && (
+        {usesCard && !shuffling && (
           <div className="mb-6 w-full">
             <GatchaCard
               coupon={coupon}
@@ -183,11 +207,11 @@ export default function WheelScreen({
         ) : (
           /* 카드가 있는데 아직 안 뒤집었으면 '다음'을 막는다. 열어보지도 않고
              넘어가면 뽑기를 한 기억이 남지 않는다.
-             로딩 조건은 showLoading을 그대로 쓴다 — isDrawing만 보면 응답이 온 뒤
-             최소 노출 시간이 남은 구간에서 버튼만 먼저 살아난다. */
+             섞기(2단계)는 따로 볼 필요가 없다 — 그 구간은 usesCard가 true이면서
+             아직 flipped가 아니므로 뒤 조건에 이미 걸린다. */
           <button
             onClick={onNext}
-            disabled={showLoading || (usesCard && !flipped)}
+            disabled={waiting || (usesCard && !flipped)}
             className="pixel-mask-btn-solid w-full py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95 disabled:opacity-50"
           >
             {t("wheel.nextButton")}
