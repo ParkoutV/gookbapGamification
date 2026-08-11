@@ -66,6 +66,26 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    // 3.4 Check Overall Play Count vs Gatcha Count
+    const [totalGatcha, totalGame] = await Promise.all([
+      supabase.from('gatcha_logs').select('log_id', { count: 'exact', head: true }).eq('participant_id', participant_id),
+      supabase.from('game_score_logs').select('log_id', { count: 'exact', head: true }).eq('participant_id', participant_id)
+    ]);
+
+    if (totalGatcha.error || totalGame.error) {
+      return NextResponse.json({ error: 'Failed to check play limits' }, { status: 500 })
+    }
+
+    const gatchaCountTotal = totalGatcha.count || 0;
+    const gameCountTotal = totalGame.count || 0;
+
+    if (gatchaCountTotal >= gameCountTotal) {
+      return NextResponse.json({ 
+        error: `게임을 플레이한 횟수만큼만 가챠를 돌릴 수 있습니다. (플레이 ${gameCountTotal}회 / 가챠 참여 ${gatchaCountTotal}회)`, 
+        code: 'PLAY_LIMIT_EXCEEDED' 
+      }, { status: 400 })
+    }
+
     // 3.5 Check Survey Phase 1 Completion (All required questions)
     const { data: p1RequiredQuestions } = await supabase
       .from('survey_questions')
