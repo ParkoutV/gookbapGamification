@@ -70,8 +70,11 @@ export default function WheelScreen({
 
         {/* 응답 전에도 뒷면을 먼저 보여준다. 카드가 늦게 나타나면 화면이 한 번
             덜컥이고, 어차피 뒤집기는 canFlip이 막는다. */}
+        {/* .gatcha-well: 카드 자리만 한 톤 낮춘다. card-front.webp 안쪽이 #F2F2F2라
+            패널 배경(--surface #F2F4F6)과 사실상 같은 색이어서, 그대로 두면 카드
+            앞면이 배경에 녹아 테두리만 남는다(2026-08-11 실측). */}
         {(isDrawing || !drawResult || usesCard) && (
-          <div className="mb-6 w-full">
+          <div className="mb-6 w-full gatcha-well">
             <GatchaCard
               coupon={coupon}
               flipped={flipped}

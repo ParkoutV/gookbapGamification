@@ -300,8 +300,12 @@ export default function GameScreen({
         />
       ));
 
+  // 바탕은 다른 화면과 같은 --bg다. 예전엔 이 화면만 더 어두운 --bg-deep을 썼는데,
+  // 밝은 테마로 바꾼 뒤로는 (1) 이 화면만 눈에 띄게 어두워 패널 화면들과 톤이 갈리고,
+  // (2) 시간 임박 경고(text-error)의 대비가 1.55까지 떨어져 정작 가장 중요한 경고가
+  // 안 보였다(2026-08-11 실측). 그래서 --bg로 합치고 --bg-deep 자체를 없앴다.
   return (
-    <div className={`flex flex-col min-h-screen bg-bg-deep text-ink ${isShaking ? "animate-shake" : ""}`}>
+    <div className={`flex flex-col min-h-screen bg-bg text-ink ${isShaking ? "animate-shake" : ""}`}>
       <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
         {/* Lv 표시 + 진행 칩. 칩은 시각 정보라 스크린리더에는 기존 문장을 남긴다. */}
         <div
