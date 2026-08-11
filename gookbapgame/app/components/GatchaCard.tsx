@@ -123,7 +123,9 @@ export default function GatchaCard({
               style={{ color: CARD_FACE_INK }}
             >
               {/* 트럼프 카드처럼 안쪽 테두리를 하나 두고 내용을 그 안에 담는다.
-                  좌상/우하 모서리는 정사각으로 파여 있고, 그 자리에 코너 마크가 앉는다. */}
+                  좌상/우하 모서리는 정사각으로 파여 있고, 그 자리에 코너 마크가 앉는다.
+                  **테두리 선 자체는 애셋(card-front.webp)에 인쇄돼 있다** — 이 요소는
+                  내용물을 그 안쪽에 가두는 자리 잡기만 한다(2026-08-11). */}
               <div className="card-inner-frame absolute inset-x-[13%] inset-y-[11%]">
                 <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-3 overflow-hidden">
                   {coupon ? (
@@ -140,9 +142,11 @@ export default function GatchaCard({
                 </div>
               </div>
 
-              {/* 코너 마크는 테두리의 clip-path 바깥(파인 자리)에 앉아야 하므로
-                  card-inner-frame의 자식이 아니라 형제 레이어로 둔다 — 안에 넣으면
-                  같은 clip에 잘려 사라진다. inset은 테두리와 같은 값이어야 위치가 맞는다.
+              {/* 코너 마크는 애셋에 파인 자리에 앉는다. card-inner-frame의 자식이
+                  아니라 형제 레이어인 것은 예전에 그쪽 clip-path에 잘렸기 때문인데,
+                  clip-path가 사라진 지금도 형제로 둔다 — 안에 넣으면 본문 flex 흐름에
+                  끼어 중앙 정렬을 흐트러뜨린다.
+                  inset은 테두리와 같은 값이어야 위치가 맞는다.
                   실제 트럼프 카드는 우하단을 180° 돌리지만, 이모지를 뒤집으면
                   거꾸로 선 그림이 될 뿐이라 회전은 하지 않는다. */}
               <div className="absolute inset-x-[13%] inset-y-[11%] pointer-events-none card-corner-layer">

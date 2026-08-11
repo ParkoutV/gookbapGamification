@@ -426,51 +426,23 @@ body {
   }
 }
 
-/* 카드 앞면 안쪽 테두리. 좌상/우하 모서리를 계단식으로 파내 이모지 자리를 만든다
-   (트럼프 카드의 코너 마크 위치). 테두리가 그 자리를 비켜 가므로 이모지를 키워도
-   선과 겹치지 않는다.
-   계단이 3단인 것은 .pixel-frame의 3px 격자와 같은 리듬을 쓰기 위한 것이다 —
-   여기서는 요소가 커서 px 대신 %로 잡는다. */
-/* 카드 앞면 안쪽 테두리. 좌상/우하 모서리를 계단식으로 파내 이모지 자리를 만든다
-   (트럼프 카드의 코너 마크 위치). 테두리가 그 자리를 비켜 가므로 이모지를 키워도
-   선과 겹치지 않는다.
-   테두리를 border가 아니라 배경 그라디언트 4줄로 그리는 이유: border를 쓰면
-   clip-path가 노치 구간의 선을 통째로 지워 끊긴 선처럼 보인다. 배경으로 그리면
-   잘린 모서리를 따라 선이 이어져 계단 모양이 실제로 드러난다. */
-/* 앞 4줄이 바깥 사각형, 뒤 4줄이 노치의 꺾인 변이다.
-   노치는 --notch 한 변짜리 정사각이다. %로 잡으면 요소가 세로로 길어서
-   가로/세로 길이가 달라지므로 px로 고정한다. */
-/* 노치 한 변. 테두리와 코너 마크가 같은 값을 봐야 자리가 어긋나지 않는다. */
+/* 카드 앞면 안쪽 테두리는 **CSS가 그리지 않는다** — 애셋(card-front.webp)에
+ * 이미 인쇄돼 있다(2026-08-11, 이란토). 예전에는 배경 그라디언트 8줄 + clip-path로
+ * 직접 그렸는데, 애셋에 넣으면 카드가 커져도 선 굵기와 노치가 그림과 함께 비례하고
+ * 화면·저장본이 갈릴 여지도 줄어든다.
+ *
+ * .card-inner-frame 요소 자체는 남는다 — 내용물(QR·상품명)을 프레임 **안쪽**에
+ * 가두는 자리 잡기 용도다. 그리는 일만 없어졌다.
+ *
+ * 노치 한 변. 코너 마크가 파인 자리에 정확히 앉으려면 애셋의 노치와 같은 크기여야
+ * 한다. 애셋 실측(원본 1000x1371 기준)으로 프레임 폭 732px 중 약 128px이므로
+ * 17.5%다. **px 고정으로 되돌리지 말 것** — 애셋 쪽 노치는 카드 크기에 비례하는데
+ * CSS만 고정이면 카드가 커질수록 어긋난다(예전 44px 고정값은 기본 카드 폭에서만
+ * 우연히 맞았다). 세로로 긴 요소라 %는 가로 기준으로만 쓰고, 높이는 aspect-ratio로
+ * 정사각을 만든다. */
 .card-inner-frame,
 .card-corner-layer {
-  --notch: 44px;
-}
-
-.card-inner-frame {
-  /* CARD_FACE_INK(#1A1F24)의 45% — 밝은 카드면 위 글자와 같은 색 계열이어야
-     테두리가 글자와 따로 놀지 않는다. */
-  --line: rgba(26, 31, 36, 0.45);
-  background:
-    linear-gradient(var(--line), var(--line)) 0 0 / 100% 2px no-repeat,
-    linear-gradient(var(--line), var(--line)) 0 100% / 100% 2px no-repeat,
-    linear-gradient(var(--line), var(--line)) 0 0 / 2px 100% no-repeat,
-    linear-gradient(var(--line), var(--line)) 100% 0 / 2px 100% no-repeat,
-    linear-gradient(var(--line), var(--line)) 0 var(--notch) / var(--notch) 2px no-repeat,
-    linear-gradient(var(--line), var(--line)) var(--notch) 0 / 2px var(--notch) no-repeat,
-    linear-gradient(var(--line), var(--line)) 100% calc(100% - var(--notch)) / var(--notch) 2px
-      no-repeat,
-    linear-gradient(var(--line), var(--line)) calc(100% - var(--notch)) 100% / 2px var(--notch)
-      no-repeat;
-  clip-path: polygon(
-    var(--notch) 0,
-    100% 0,
-    100% calc(100% - var(--notch)),
-    calc(100% - var(--notch)) calc(100% - var(--notch)),
-    calc(100% - var(--notch)) 100%,
-    0 100%,
-    0 var(--notch),
-    var(--notch) var(--notch)
-  );
+  --notch: 17.5%;
 }
 
 /* 카드 앞면은 **밝은** 픽셀 애셋(card-front.webp) 위에 어두운 글자를 올리는 구조라,
@@ -487,13 +459,15 @@ body {
   forced-color-adjust: none;
 }
 
-/* 코너 마크. 파인 정사각 안에 중앙 정렬한다 — 노치와 같은 --notch를 써야
+/* 코너 마크. 애셋에 파인 정사각 안에 중앙 정렬한다 — 같은 --notch를 봐야
    한쪽만 어긋나는 일이 없다. 위치까지 여기서 정하는 것은 Tailwind의 top-0/left-0가
-   이 파일의 규칙에 밀려 무시되기 때문이다. */
+   이 파일의 규칙에 밀려 무시되기 때문이다.
+   --notch가 %(가로 기준)라 height에 그대로 쓰면 세로로 길어진다. aspect-ratio로
+   정사각을 강제한다. */
 .card-corner-mark {
   position: absolute;
-  width: var(--notch, 44px);
-  height: var(--notch, 44px);
+  width: var(--notch, 17.5%);
+  aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;

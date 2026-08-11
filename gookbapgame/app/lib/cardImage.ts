@@ -110,29 +110,21 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const background = await loadImage("/icons/card-front.webp");
   ctx.drawImage(background, 0, 0, CARD_W, CARD_H);
 
-  // 안쪽 테두리 — 화면의 inset-x-[13%] / inset-y-[11%]와 같은 비율.
-  // 좌상/우하 모서리는 정사각으로 파고(화면의 --notch), 그 자리에 코너 마크가 들어간다.
+  // 안쪽 테두리는 **그리지 않는다** — 애셋(card-front.webp)에 이미 인쇄돼 있다
+  // (2026-08-11). 화면 쪽 .card-inner-frame도 같은 이유로 선 그리기를 걷어냈다.
+  // 여기서 또 그리면 애셋 위에 두 겹이 겹쳐 굵어진다.
+  //
+  // 좌표는 여전히 필요하다 — 코너 마크와 본문을 프레임 안쪽에 앉혀야 하기 때문이다.
+  // 화면의 inset-x-[13%] / inset-y-[11%]와 같은 비율이고, 애셋 실측(프레임 bbox
+  // x 136~868, y 152~1216)과도 일치한다.
   const left = CARD_W * 0.13;
   const top = CARD_H * 0.11;
   const right = CARD_W - left;
   const bottom = CARD_H - top;
-  // 화면의 --notch(44px)를 카드 폭 기준 비율로 환산한 값. 화면에서 테두리 폭이
-  // 대략 카드의 74%이므로 그 안에서 차지하던 비중을 유지한다.
-  const notch = CARD_W * 0.115;
-
-  ctx.strokeStyle = `${INK}73`;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(left + notch, top);
-  ctx.lineTo(right, top);
-  ctx.lineTo(right, bottom - notch);
-  ctx.lineTo(right - notch, bottom - notch);
-  ctx.lineTo(right - notch, bottom);
-  ctx.lineTo(left, bottom);
-  ctx.lineTo(left, top + notch);
-  ctx.lineTo(left + notch, top + notch);
-  ctx.closePath();
-  ctx.stroke();
+  // 애셋에 파인 노치 한 변. 실측 약 128px(원본 1000px 기준)이라 12.8%다.
+  // 화면의 --notch(프레임 폭의 17.5%)와 같은 자리를 가리킨다 — 기준이 프레임 폭이냐
+  // 카드 폭이냐만 다르다(732 * 0.175 ≈ 128 = 1000 * 0.128).
+  const notch = CARD_W * 0.128;
 
   // 코너 마크는 파인 정사각의 중앙에 놓는다.
   //
