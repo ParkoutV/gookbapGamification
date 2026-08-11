@@ -214,6 +214,61 @@ body {
   background: var(--surface);
 }
 
+/* 쿠폰 발급 대기 연출(GatchaLoading).
+ *
+ * **크기 규칙은 .gatcha-card와 같아야 한다** — aspect-ratio도 width 계산식도.
+ * 로딩이 끝나면 이 자리에 카드가 들어오는데, 둘의 크기가 다르면 그 순간 화면이
+ * 덜컥인다. 아래 두 값을 바꿀 때는 .gatcha-card 쪽도 같이 볼 것.
+ */
+/* 바깥은 **비율만** 담당하고 내용은 안쪽에 절대 배치한다.
+ *
+ * 한 요소가 aspect-ratio와 flex 정렬을 겸하면, 내용이 비거나 작을 때 비율이
+ * 무시되고 내용 높이로 줄어든다 — 애셋이 없던 시점에 실측했더니 464px이어야 할
+ * 박스가 24px이 됐다. 그러면 카드가 들어올 때 레이아웃이 밀려서 이 컴포넌트를
+ * 만든 이유 자체가 사라진다. 층을 나누면 내용과 무관하게 크기가 고정된다. */
+.gatcha-loading {
+  position: relative;
+  aspect-ratio: 1000 / 1371;
+  width: min(100%, calc(55vh * 1000 / 1371));
+  margin: 0 auto;
+}
+.gatcha-loading > * {
+  position: absolute;
+}
+.gatcha-loading__label {
+  left: 0;
+  right: 0;
+  bottom: 12%;
+  text-align: center;
+}
+.gatcha-loading__anim,
+.gatcha-loading__static {
+  width: 45%;
+  height: auto;
+  /* 중앙 배치. 픽셀 아이콘이라 보간이 걸리면 흐려지므로 pixelated를 함께 건다. */
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+}
+/* 기본은 애니메이션. 정지본은 감춰둔다. */
+.gatcha-loading__static {
+  display: none;
+}
+.gatcha-loading__label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+/* 애니메이션 WebP는 CSS로 멈출 수 없다 — 재생을 끄는 대신 정지 이미지로 바꿔 끼운다. */
+@media (prefers-reduced-motion: reduce) {
+  .gatcha-loading__anim {
+    display: none;
+  }
+  .gatcha-loading__static {
+    display: block;
+  }
+}
+
 /* 원형 아이콘 버튼(언어·소리·힌트). 세 곳이 같은 모양이라 hover/active를
    여기 한 번만 적어둔다 — 클래스 조합 자체는 각자 Tailwind로 들고 있다. */
 .icon-round-btn:hover {
