@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { WRONG_TOUCH_LIMIT_PER_LEVEL, GLOBAL_TIME_LIMIT_SEC } from "../lib/stageConfig";
-import { resolveIndicatorCells, resolveGaugeRatio, isTimeCritical } from "../lib/hudIndicators";
+import { resolveIndicatorCells, resolveGaugeCells, GAUGE_WARN_CELLS } from "../lib/hudIndicators";
 import HintClipboard from "./HintClipboard";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
@@ -70,8 +70,10 @@ export default function GameScreen({
   const hintNames = differenceSlots.map((slot) => resolveLocalizedName(slot.categoryName, locale));
 
   const indicatorCells = resolveIndicatorCells(totalDifferences, foundSlots.size);
-  const gaugeRatio = resolveGaugeRatio(remainingTimeSec, GLOBAL_TIME_LIMIT_SEC);
-  const timeCritical = isTimeCritical(remainingTimeSec);
+  /* 게이지 칸 수 하나가 색 전환·breath·가속을 **전부** 판정한다. 초로 따로 비교하면
+     경고 시점이 둘로 갈린다 — 남은 시간 숫자도 같은 값을 본다. */
+  const gaugeCells = resolveGaugeCells(remainingTimeSec, GLOBAL_TIME_LIMIT_SEC);
+  const timeCritical = gaugeCells <= GAUGE_WARN_CELLS;
 
   const updateScale = () => {
     if (containerRef.current) {
@@ -417,16 +419,19 @@ export default function GameScreen({
           </button>
 
           <div
-            className="time-gauge relative flex-1 md:flex-none h-3 w-full md:h-40 md:w-3 bg-wood/30 overflow-hidden"
-            style={{ ["--gauge-ratio" as string]: gaugeRatio }}
+            className={`time-gauge relative flex-1 md:flex-none h-3 w-full md:h-40 md:w-3 bg-wood/30 overflow-hidden ${
+              timeCritical ? "time-gauge--warn" : ""
+            } ${gaugeCells <= 1 ? "time-gauge--last" : ""}`}
+            style={{ ["--gauge-cells" as string]: gaugeCells }}
             role="img"
             aria-label={`${t("game.timeRemainingLabel")} ${t("game.secondsUnit", { seconds: remainingTimeSec })}`}
           >
-            <div className={`time-gauge__fill ${timeCritical ? "bg-error" : "bg-amber"}`} />
+            <div className="time-gauge__fill" />
           </div>
 
-          {/* 남은 시간 숫자. --amber는 게이지 채움(면)용이라 글자에 쓰면 밝은 바탕에서
-              대비가 모자란다 — 평상시엔 --ink, 임박했을 때만 --error로 경고한다. */}
+          {/* 남은 시간 숫자. 경고 색은 --warning이 아니라 --error다 — 주황 계열은
+              밝은 바탕에서 글자 대비가 모자란다(면에만 쓸 색). 전환 시점은
+              게이지와 같은 gaugeCells 판정을 공유한다. */}
           <span
             className={`text-lg md:text-xl font-extrabold shrink-0 ${
               timeCritical ? "text-error animate-pulse" : "text-ink"
