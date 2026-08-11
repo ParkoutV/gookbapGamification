@@ -13,6 +13,7 @@ import type { SurveyAnswerMap, SurveyQuestion } from "../lib/surveyAnswers";
 import { clearPendingDraw, markPendingDraw } from "../lib/pendingDraw";
 import { hasSurveySubmitted, markSurveySubmitted } from "../lib/surveySubmitted";
 import { isCouponUnusable } from "../lib/couponUsability";
+import { isFreshlyIssued } from "../lib/issuedCoupons";
 
 export type CouponFlowState =
   | "idle"
@@ -89,15 +90,24 @@ export function useCouponFlow() {
     setState("drawing");
     const result = await drawCoupon();
 
-    // 쿨타임 403은 대부분 "룰렛 도중 새로고침"이다. 에러를 띄우는 대신
+    // 거절(4xx)은 대부분 "룰렛 도중 새로고침"이다. 에러를 띄우는 대신
     // 이미 가지고 있는 최신 쿠폰을 보여주는 것이 올바른 복구 동작이다 —
     // draw는 일회성 이벤트이고, 쿠폰 목록이 영속적 진실이다.
+    //
+    // 다만 **"방금 발급된 것"일 때만이다.** 예전엔 쓸 수 있는 쿠폰 아무거나 골라
+    // won으로 띄웠는데, 서버 제한이 1일 3회로 늘면서 며칠 전 쿠폰이 매번 새로
+    // 당첨된 것처럼 나오는 버그가 됐다(카드 뒤집기 연출·당첨 효과음까지).
+    // 대상은 언제나 existing[0]이다 — fetchMyCoupons가 sortByIssuedAt으로
+    // 최신순을 보장한다. find로 훑으면 그 보장을 버리고 남의 쿠폰을 집는다.
     if (result.status === "rejected") {
       clearPendingDraw();
       const existing = await fetchMyCoupons();
       setCoupons(existing);
-      const usable = existing.find((c) => !isCouponUnusable(c));
-      setDrawResult(usable ? { status: "won", coupon: usable } : result);
+      const latest = existing[0];
+      // isUsed는 발급 직후에도 뒤집힐 수 있다(매장에서 바로 스캔한 경우).
+      const recovered =
+        latest && isFreshlyIssued(latest, Date.now()) && !isCouponUnusable(latest);
+      setDrawResult(recovered ? { status: "won", coupon: latest } : result);
       setState("done");
       return;
     }
