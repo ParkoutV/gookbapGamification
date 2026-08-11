@@ -318,6 +318,65 @@ body {
   }
 }
 
+/* 서버 응답 대기(GatchaLoading variant="waiting")의 가로 로딩 바.
+   90년대 데스크톱의 그 블록 게이지다 — 홈이 파인 트랙(안쪽 베벨) 안을 블록이
+   오른쪽에서 왼쪽으로 흘러간다.
+
+   **진행률이 아니라 무한 반복이다.** 응답이 언제 올지 모르므로 채워지는 게이지를
+   흉내내면 거짓말이 된다.
+
+   블록은 DOM이 아니라 repeating-linear-gradient 한 장이다. 개수를 세는 자바스크립트도,
+   블록마다 <span>을 찍는 마크업도 필요 없다 — 배경을 왼쪽으로 밀기만 하면 된다.
+   위쪽 아이콘 자리와 높이·여백을 맞춰(96px 아이콘 + 1rem) 1→2단계 전환에서 창이
+   덜컹이지 않게 한다. */
+.gatcha-loading__bar {
+  width: 100%;
+  height: 20px;
+  margin: 0 auto 1rem;
+  background: var(--bg);
+  /* 트랙은 눌린 면. PixelPanel 안쪽(.pixel-frame-inner)과 같은 방향의 베벨이다. */
+  box-shadow:
+    inset 2px 2px 0 0 var(--bevel-dark),
+    inset -2px -2px 0 0 var(--bevel-light);
+  /* **베벨 두께만큼의 padding이 필수다.** inset box-shadow는 제 배경 위에는 그려지지만
+     자식보다는 아래에 깔린다 — padding이 없으면 블록(::before)이 상자를 가득 채워
+     베벨 2px을 덮어버리고, 홈이 파인 트랙이 아니라 민무늬 막대가 된다.
+     preflight의 box-sizing: border-box 덕에 height 20px은 그대로 유지된다. */
+  padding: 2px;
+  overflow: hidden;
+}
+.gatcha-loading__bar::before {
+  content: "";
+  display: block;
+  height: 100%;
+  /* 블록 12px + 간격 6px. 트랙보다 넓게(200%) 잡아야 한 주기를 밀어내는 동안
+     오른쪽 끝이 비지 않는다. */
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--accent) 0 12px,
+    transparent 12px 18px
+  );
+  background-size: 18px 100%;
+  animation: gatcha-loading-bar 0.6s steps(6) infinite;
+}
+
+@keyframes gatcha-loading-bar {
+  /* 한 주기(18px)만큼 왼쪽으로. 패턴이 반복이라 여기서 끊겨도 이어져 보인다.
+     steps()로 끊는 이유는 픽셀 그래픽과 같은 톤을 맞추기 위해서다 —
+     선형으로 흘리면 블록이 미끄러지는 현대적인 인상이 된다. */
+  to {
+    background-position-x: -18px;
+  }
+}
+
+/* 모션을 줄이는 설정에서는 멈추되 **감추지 않는다** — 이 바가 "뭔가 진행 중"이라는
+   유일한 신호라서, 없애면 문구만 남아 멈춘 화면이 된다(cursor-hint와 같은 처리). */
+@media (prefers-reduced-motion: reduce) {
+  .gatcha-loading__bar::before {
+    animation: none;
+  }
+}
+
 /* 원형 아이콘 버튼(언어·소리·힌트). 세 곳이 같은 모양이라 hover/active를
    여기 한 번만 적어둔다 — 클래스 조합 자체는 각자 Tailwind로 들고 있다. */
 .icon-round-btn:hover {

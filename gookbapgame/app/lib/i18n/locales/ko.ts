@@ -94,6 +94,10 @@ export const ko: Dictionary = {
   "survey.optional": "(선택)",
 
   "wheel.title": "행운의 카드",
+  // 서버 응답을 기다리는 1단계. 결과를 아직 모르므로 중립적이어야 한다 —
+  // 거절당할 사람에게 "카드를 섞고 있어요"가 뜨면 괜히 기대하게 된다.
+  "wheel.waiting": "잠시만 기다려 주세요",
+  // 쿠폰이 실제로 발급된 뒤에만 뜨는 2단계.
   "wheel.spinning": "카드를 섞고 있어요",
   "wheel.flipHint": "카드를 눌러서 뒤집어보세요",
   "card.saveButton": "이미지로 저장",
