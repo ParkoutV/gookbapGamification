@@ -70,6 +70,11 @@ export const ja: Partial<Dictionary> = {
   "gameResult.gukbapPowerLabel": "クッパワー: {tier}",
   "gameResult.nextButton": "次へ",
 
+  "countdown.start": "START",
+  "gameEnd.gameOver": "GAME OVER",
+  "gameEnd.clear": "CLEAR",
+  "gameEnd.nextButton": "結果を見る",
+
   "dailyResult.title": "今日の結果",
   "dailyResult.nicknameLabel": "今日のニックネーム",
   "dailyResult.gukbapPowerLabel": "クッパワー",
