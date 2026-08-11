@@ -214,18 +214,6 @@ body {
   background: var(--surface);
 }
 
-/* 가챠 카드를 놓는 자리. 베벨을 안쪽으로 뒤집어(어두운 면이 좌상단) 창 안에
-   파인 홈처럼 보이게 한다 — 버튼의 눌린 상태와 같은 방향이다.
-   배경을 --bg로 낮추는 것이 핵심이다: 카드 앞면 애셋이 #F2F2F2라 --surface
-   위에서는 형체가 사라진다. */
-.gatcha-well {
-  background: var(--bg);
-  padding: 0.75rem;
-  box-shadow:
-    inset 2px 2px 0 0 var(--bevel-dark),
-    inset -2px -2px 0 0 var(--bevel-light);
-}
-
 /* 원형 아이콘 버튼(언어·소리·힌트). 세 곳이 같은 모양이라 hover/active를
    여기 한 번만 적어둔다 — 클래스 조합 자체는 각자 Tailwind로 들고 있다. */
 .icon-round-btn:hover {
