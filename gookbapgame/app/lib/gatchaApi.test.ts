@@ -51,6 +51,27 @@ test("requestGatchaDraw: 403이면 rejected:true와 서버 메시지를 담는�
   }
 });
 
+test("requestGatchaDraw: 서버가 code를 보내면 그대로 싣는다", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({ error: "게임을 플레이한 횟수만큼만 가챠를 돌릴 수 있습니다.", code: "PLAY_LIMIT_EXCEEDED" }),
+      { status: 400 }
+    )) as typeof fetch;
+
+  try {
+    const result = await requestGatchaDraw(API_URL, "participant-1");
+    assert.deepEqual(result, {
+      ok: false,
+      rejected: true,
+      error: "게임을 플레이한 횟수만큼만 가챠를 돌릴 수 있습니다.",
+      code: "PLAY_LIMIT_EXCEEDED",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("requestGatchaDraw: 500이면 rejected:false로 분류한다", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>

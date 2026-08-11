@@ -559,8 +559,11 @@ export type DrawCouponResult =
   /** 발급은 됐는데 get_my_coupons로 읽지 못한 상태. 설계 문서 미해결 항목 1번. */
   | { status: "wonButHidden" }
   | { status: "miss" }
-  /** 서버가 조건을 보고 거절(쿨타임 등). 재시도 무의미. */
-  | { status: "rejected"; message: string }
+  /**
+   * 서버가 조건을 보고 거절(기간 제한·플레이 부족·설문 미완료). 재시도 무의미.
+   * `code`는 사유이며 지금은 소비처가 없다 — 배선만 깔아둔 것이다(gatchaApi.ts).
+   */
+  | { status: "rejected"; message: string; code?: string }
   /** 네트워크·설정 오류. 재시도 버튼을 보여줄 상황. */
   | { status: "error"; message: string };
 
@@ -645,8 +648,9 @@ export async function drawCoupon(): Promise<DrawCouponResult> {
     const result = await requestGatchaDraw(apiUrl, participantId);
 
     if (!result.ok) {
+      // code는 있을 때만 싣는다 — undefined를 넣으면 값 없는 키가 생긴다(gatchaApi.ts).
       return result.rejected
-        ? { status: "rejected", message: result.error }
+        ? { status: "rejected", message: result.error, ...(result.code && { code: result.code }) }
         : { status: "error", message: result.error };
     }
 
