@@ -132,6 +132,26 @@ export default function Home({ searchParams }: PageProps) {
     proceedToDailyResult();
   }, [fromStartScreen, scoreBreakdown, goToPhase, proceedToDailyResult]);
 
+  /**
+   * "이 판에서 설문 안내를 거절했는가". 오늘의 결과의 '설문하고 쿠폰 받기' 재진입
+   * 버튼을 이 사람에게만 보여준다 — 설계 문서상 그 버튼은 **거절한 사람을 위한
+   * 구제책**이다(docs/superpowers/specs/2026-08-04-coupon-qr-design.md).
+   * 조건 없이 항상 넘기던 탓에 설문·뽑기를 이미 마친 사람에게도 버튼이 떴고,
+   * 누르면 hasSurveySubmitted()로 설문을 건너뛰고 뽑기를 한 번 더 태웠다.
+   * 서버 제한이 1일 3회로 늘면서 실제로 더 뽑히는 상태가 됐다.
+   *
+   * localStorage에 남기지 않는다 — 거절은 그 판 안에서만 유효한 상태다.
+   * 이 값은 UI 힌트일 뿐이며 발급 자격은 언제나 서버가 판정한다.
+   */
+  const [declinedSurvey, setDeclinedSurvey] = useState(false);
+
+  // 거절 지점에서만 켠다. leaveDrawFlow는 WheelScreen의 '다음'과도 공유하므로
+  // 그 안에서 켜면 뽑기를 끝낸 사람에게도 버튼이 살아나 고치려던 증상이 그대로 난다.
+  const declineSurvey = useCallback(() => {
+    setDeclinedSurvey(true);
+    leaveDrawFlow();
+  }, [leaveDrawFlow]);
+
   // 현재 phase를 async 콜백 재개 시점에도 읽을 수 있도록 ref로 미러링한다.
   // enterSurveyFlow의 클로저는 호출 시점의 phase만 알고 있어서, await 도중
   // 사용자가 다른 phase로 이동했는지는 이 ref로만 확인할 수 있다.
@@ -158,6 +178,13 @@ export default function Home({ searchParams }: PageProps) {
   // 호출과 같은 전제.
   const enterSurveyFlow = useCallback(async () => {
     resetCoupon();
+    // 흐름에 들어가는 순간 거절 상태를 끈다 — 버튼은 한 번 쓰면 소진된다.
+    // 여기서 끄지 않으면 거절 → 버튼 → 설문 → 뽑기 → 오늘의 결과로 돌아왔을 때
+    // 버튼이 또 떠서 뽑기를 계속 태울 수 있다(서버가 하루 3회를 허용한다).
+    // 끄는 지점이 여기 하나뿐이라 진입 경로(게임 결과·시작 화면·재진입 버튼)가
+    // 늘어도 빠뜨릴 곳이 없다. 다시 거절하면 그때 다시 켜지는 것이 맞다 —
+    // 그 사람은 여전히 뽑지 않았다.
+    setDeclinedSurvey(false);
     goToPhase("surveyIntro");
     if (hasSurveySubmitted()) {
       goToPhase("wheel");
@@ -263,7 +290,7 @@ export default function Home({ searchParams }: PageProps) {
       {game.phase === "surveyIntro" && (
         <SurveyIntroScreen
           onParticipate={() => goToPhase("survey")}
-          onDecline={leaveDrawFlow}
+          onDecline={declineSurvey}
         />
       )}
 
@@ -295,7 +322,9 @@ export default function Home({ searchParams }: PageProps) {
           gukbapTier={game.gukbapTier}
           totalScore={game.scoreBreakdown.total}
           onRestart={game.resetToStart}
-          onSurveyAgain={handleSurveyAgain}
+          /* 거절한 사람에게만 준다. DailyResultScreen은 이 prop이 없으면
+             버튼을 렌더하지 않는다(옵셔널 prop + 가드). */
+          onSurveyAgain={declinedSurvey ? handleSurveyAgain : undefined}
           onOpenMyCoupons={openMyCoupons}
         />
       )}

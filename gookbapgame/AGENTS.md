@@ -86,8 +86,30 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   발급 성공 후 `get_my_coupons` RPC로 최신 쿠폰을 다시 읽어 id를 얻는다.
 - **draw는 룰렛 진입당 1회.** `useCouponFlow`의 `drawStartedRef`가 중복 호출을 막는다.
   두 번 호출되면 두 번째는 쿨타임 403을 받아 사용자에게 없던 실패로 보인다.
-- **쿨타임 403은 에러가 아니라 복구 신호다.** 대부분 룰렛 도중 새로고침이며,
-  이때는 `fetchMyCoupons()`의 최신 쿠폰을 그대로 보여준다.
+- **거절(4xx)은 에러가 아니라 복구 신호다.** 대부분 룰렛 도중 새로고침이며,
+  이때는 `fetchMyCoupons()`의 최신 쿠폰(`[0]`)을 그대로 보여준다.
+  - **단, "방금 발급된 것"일 때만이다**(`isFreshlyIssued`, `issuedCoupons.ts`).
+    서버 제한이 1일 1회에서 **1일 3회**로 바뀌면서, 예전의 "쓸 수 있는 쿠폰 아무거나"
+    (`find(!isCouponUnusable)`)가 실제 버그로 드러났다 — 며칠 전 안 쓴 쿠폰이 매번
+    새로 당첨된 것처럼 나왔다(카드 뒤집기 연출·당첨 효과음까지, 실제 제보).
+    **이 분기를 통째로 지우지도, `find`로 되돌리지도 말 것.** 지우면 방금 발급받고
+    새로고침한 사람이 쿠폰 대신 거절 문구를 본다.
+  - `issued_at`이 없거나 파싱되지 않으면 **최근이 아닌 것으로 친다**(fail closed).
+    오래된 쿠폰을 새 당첨으로 보여주는 쪽이 훨씬 나쁘다.
+- **거절 사유 코드(`LIMIT_EXCEEDED`/`SURVEY_REQUIRED`)는 클라이언트가 구분하지 않는다.**
+  `WheelScreen`이 서버 `error` 문자열(한국어 하드코딩) 대신 `t("wheel.rejected")`를
+  렌더하므로 사유별로 갈릴 문구가 없고, 위 복구 판정도 `issuedAt`으로만 한다.
+  서버 메시지를 화면에 그대로 띄우지 말 것 — 영어·일본어 사용자에게 한글이 노출된다.
+- **오늘의 결과의 '설문하고 쿠폰 받기' 재진입 버튼은 설문 안내를 거절한 사람 전용이다**
+  (`page.tsx`의 `declinedSurvey`, 설계 문서 `2026-08-04-coupon-qr-design.md`).
+  조건 없이 항상 넘기면 설문·뽑기를 이미 마친 사람에게도 떠서, 누르면
+  `hasSurveySubmitted()`로 설문을 건너뛰고 뽑기를 한 번 더 태운다(3회 제한 안에서 실제로 더 뽑힌다).
+  - 플래그는 **거절 지점(`onDecline`)에서만 켜고 `enterSurveyFlow` 진입 시 끈다** —
+    버튼은 한 번 쓰면 소진된다. `leaveDrawFlow`는 `WheelScreen`의 '다음'과 공유하므로
+    그 안에서 켜면 뽑기를 끝낸 사람에게도 버튼이 살아난다.
+  - 세션 state다. **localStorage에 남기지 말 것** — 거절은 그 판 안에서만 유효하다.
+  - **접속 실패(`error`)한 사람의 복구 경로는 이 버튼이 아니다.** `markPendingDraw()`가
+    남긴 표시로 **시작 화면**에 뽑기 진입 버튼이 뜬다.
 - **QR 페이로드**: `` `<coupon_id>?<locale>` ``. 스캐너는 `?` 앞이 UUID 정규식을 통과하지
   못하면 **조용히 무시**한다(에러 표시 없음). `app/lib/couponPayload.ts`가 이 형식을 고정한다.
 - **QR의 흰 배경과 quiet zone은 SVG 안에서 만든다**(`marginSize={4}`, 2026-08-07).

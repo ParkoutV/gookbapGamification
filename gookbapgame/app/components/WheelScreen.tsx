@@ -142,8 +142,10 @@ export default function WheelScreen({
         )}
 
         {/* 요청이 서버에 닿지 못한 경우다. 발급도 쿨타임 갱신도 일어나지 않았으므로
-            나중에 다시 시도하면 된다 — 전용 재시도 버튼 대신 오늘의 결과의
-            '설문하고 쿠폰 받기' 재진입 경로를 쓴다. */}
+            나중에 다시 시도하면 된다 — 전용 재시도 버튼 대신 `markPendingDraw()`가
+            남긴 표시로 **시작 화면**에 뽑기 진입 버튼을 띄우는 경로를 쓴다.
+            오늘의 결과의 '설문하고 쿠폰 받기'를 여기 기대하지 말 것: 그 버튼은
+            설문 안내를 거절한 사람에게만 뜬다(page.tsx의 declinedSurvey). */}
         {drawResult?.status === "error" && (
           <p className="text-muted mb-8 text-sm">{t("wheel.error")}</p>
         )}

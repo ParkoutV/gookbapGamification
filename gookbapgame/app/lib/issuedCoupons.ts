@@ -24,6 +24,11 @@ export type IssuedCoupon = {
   isUsed: boolean;
   /** ISO 문자열. null이면 만료 없음. */
   expiredAt: string | null;
+  /**
+   * 발급 시각(ISO 문자열). RPC 응답에 없으면 undefined —
+   * `isFreshlyIssued`가 이 경우를 "최근 아님"으로 친다.
+   */
+  issuedAt?: string;
 };
 
 /**
@@ -50,5 +55,34 @@ export function toIssuedCoupon(
     couponType: names.get(row.coupon_effect_id),
     isUsed: row.is_used,
     expiredAt: row.expired_at,
+    issuedAt: row.issued_at,
   };
+}
+
+/**
+ * "방금 발급된 쿠폰인가". draw가 거절됐을 때 **가지고 있던 쿠폰을 당첨으로 띄워도
+ * 되는지**를 가른다.
+ *
+ * 서버 뽑기 제한이 1일 1회에서 **1일 3회**로 바뀌면서, 거절 복구가 "쓸 수 있는 쿠폰
+ * 아무거나"를 골라 `won`으로 띄우던 것이 실제 버그가 됐다 — 며칠 전 안 쓴 쿠폰이
+ * 매번 새로 당첨된 것처럼 카드 뒤집기 연출과 당첨 효과음까지 달고 나왔다.
+ * 복구가 노리는 것은 오직 "룰렛 도중 새로고침"이고, 그건 발급 직후 몇 분 안이다.
+ *
+ * `issuedAt`이 없거나 파싱되지 않으면 **최근이 아닌 것으로 친다**(fail closed).
+ * 오래된 쿠폰을 새 당첨으로 보여주는 쪽이, 드물게 새로고침한 사람에게 거절 문구를
+ * 보여주는 쪽보다 훨씬 나쁘다.
+ *
+ * ponytail: 임계값은 고정 상수다. 천장 — 창을 넓히면 같은 날 앞서 뽑은 쿠폰이
+ * 다시 새 당첨으로 새어 들어온다(서버가 하루 3회를 허용하므로 정당한 두 번의 뽑기가
+ * 몇 시간 떨어져 있을 수 있다). 업그레이드 경로 — 서버가 거절 응답에 방금 발급한
+ * 쿠폰 id를 실어주면 시각 비교 자체가 필요 없어진다.
+ */
+const FRESHLY_ISSUED_WINDOW_MS = 5 * 60 * 1000;
+
+export function isFreshlyIssued(coupon: IssuedCoupon, now: number): boolean {
+  if (coupon.issuedAt == null) return false;
+  const issued = new Date(coupon.issuedAt).getTime();
+  if (Number.isNaN(issued)) return false;
+  // 미래 시각(서버·기기 시계 어긋남)도 창 안으로 본다 — 방금 발급된 것이 맞다.
+  return now - issued < FRESHLY_ISSUED_WINDOW_MS;
 }
