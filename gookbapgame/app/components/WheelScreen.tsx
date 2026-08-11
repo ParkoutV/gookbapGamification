@@ -101,22 +101,18 @@ export default function WheelScreen({
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("wheel.title")}</h1>
 
-        {/* 발급을 기다리는 동안은 카드가 아니라 로딩 연출을 보여준다.
-            예전에는 이 자리에 카드 뒷면을 미리 띄웠는데(레이아웃 시프트 방지),
-            응답 전에도 카드가 나와 있어서 "눌러도 안 뒤집히는 카드"가 됐다.
-            GatchaLoading이 카드와 같은 크기 박스를 차지하므로 시프트는 그대로 막힌다
-            (2026-08-11, 이란토).
+        {/* 발급을 기다리는 동안은 카드가 아니라 로딩을 보여준다. 예전에는 이 자리에
+            카드 뒷면을 미리 띄웠는데, 응답 전에도 카드가 나와 있어서 "눌러도 안
+            뒤집히는 카드"가 됐다(2026-08-11, 이란토).
 
-            주의: 카드 앞면(card-front.webp) 안쪽이 #F2F2F2라 패널 배경
-            (--surface #F2F4F6)과 사실상 같은 색이다. 지금은 앞면 테두리(#848484)
-            덕에 형체가 유지되지만, 배경을 밝게 바꾸면 카드가 통째로 묻힌다.
-            이 화면은 뽑기 연출용으로 따로 꾸밀 예정이라 그때 같이 해결할 것. */}
-        {showLoading && (
-          <div className="mb-6 w-full">
-            <GatchaLoading />
-          </div>
-        )}
+            GatchaLoading은 이 패널 안이 아니라 화면 전체를 덮는 **별도 레이어**다
+            (PreloadScreen과 같은 구조). 그래서 여기서 자리를 비워둘 필요가 없고,
+            로딩 박스를 카드 크기에 맞추는 제약도 없다. */}
+        {showLoading && <GatchaLoading />}
 
+        {/* 주의: 카드 앞면(card-front.webp) 안쪽 색이 패널 배경(--surface)과 가깝다.
+            지금은 앞면 테두리 덕에 형체가 유지되지만, 배경을 더 밝게 바꾸면 카드가
+            묻힌다. 이 화면은 뽑기 연출용으로 따로 꾸밀 예정이라 그때 같이 볼 것. */}
         {!showLoading && usesCard && (
           <div className="mb-6 w-full">
             <GatchaCard
