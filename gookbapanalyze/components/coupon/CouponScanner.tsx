@@ -399,17 +399,36 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       }
       
       let couponNameKo = ''
+      let couponNameTranslated = ''
       try {
         const parsedTypes = JSON.parse(couponInfo.coupon_type)
         couponNameKo = parsedTypes['ko'] || ''
+        couponNameTranslated = parsedTypes[scannedData.langCode] || ''
       } catch (e) {
         couponNameKo = couponInfo.coupon_type
       }
 
+      let finalNickname = nickname.trim()
+      let finalCouponName = couponNameKo.trim()
+
+      if (scannedData.langCode !== 'ko') {
+        let translatedNick = ''
+        if (couponInfo.nickname_first && couponInfo.nickname_last) {
+          const first = couponInfo.nickname_first[scannedData.langCode]
+          const last = couponInfo.nickname_last[scannedData.langCode]
+          if (first || last) {
+            translatedNick = (first || '') + ' ' + (last || '')
+            translatedNick = translatedNick.trim()
+          }
+        }
+        if (finalNickname && translatedNick) finalNickname += ` (${translatedNick})`
+        if (finalCouponName && couponNameTranslated) finalCouponName += ` (${couponNameTranslated})`
+      }
+
       history.unshift({
         id: scannedData.couponId,
-        nickname: nickname.trim(),
-        couponName: couponNameKo,
+        nickname: finalNickname,
+        couponName: finalCouponName,
         usedAt: new Date().toISOString()
       })
       
