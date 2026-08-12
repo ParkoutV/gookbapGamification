@@ -6,6 +6,7 @@ import CouponQR from "./CouponQR";
 import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
 import { playSfx, SFX } from "../lib/sfx";
 import type { IssuedCoupon } from "../actions";
+import type { CouponDateLine } from "../lib/couponDates";
 
 /**
  * 밝은 카드면 위의 글자색. 현재 테마의 --ink와 같은 값이지만 **상수로 남긴다** —
@@ -27,8 +28,11 @@ interface GatchaCardProps {
    * 여기서 QR `<svg>`를 찾아간다 — 버튼은 부모에 있고 소재는 여기 있어서 필요하다.
    */
   faceRef?: React.Ref<HTMLDivElement>;
-  /** 이미 지역화된 만료 안내 문구. 저장 이미지와 같은 값을 써야 화면과 저장본이 맞는다. */
-  expiryText: string | null;
+  /**
+   * 이미 지역화된 날짜 줄들(발급일·시작일·사용기한). `couponDateLines`가 조립하며
+   * 저장 이미지와 **같은 배열**을 써야 화면과 저장본이 맞는다.
+   */
+  dateLines: CouponDateLine[];
 }
 
 export default function GatchaCard({
@@ -37,7 +41,7 @@ export default function GatchaCard({
   canFlip,
   onFlip,
   faceRef,
-  expiryText,
+  dateLines,
 }: GatchaCardProps) {
   const { t } = useLocale();
 
@@ -150,7 +154,17 @@ export default function GatchaCard({
                   {coupon ? (
                     <>
                       <CouponQR coupon={coupon} onLightFace />
-                      {expiryText && <p className="text-sm opacity-70">{expiryText}</p>}
+                      {/* 날짜 줄들은 **하나의 블록으로 묶는다.** 형제로 늘어놓으면
+                          바깥 gap-3가 줄 사이마다 들어가는데, cardImage.ts는 날짜
+                          블록을 통째로 GAP 하나로 계산한다 — 묶어두면 "블록 하나"라는
+                          전제가 양쪽에서 같아진다. 블록 안은 line-height만 쓴다. */}
+                      {dateLines.length > 0 && (
+                        <div className="flex flex-col items-center text-sm opacity-70">
+                          {dateLines.map((line) => (
+                            <p key={line.key}>{line.text}</p>
+                          ))}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>

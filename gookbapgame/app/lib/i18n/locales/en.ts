@@ -124,6 +124,8 @@ export const en: Partial<Dictionary> = {
   "coupon.usedBadge": "Used",
   "coupon.expiredBadge": "Expired",
   "coupon.expiresAt": "Valid until {date}",
+  "coupon.issuedAt": "Issued {date}",
+  "coupon.validFrom": "Valid from {date}",
   "coupon.showQrButton": "Show QR code",
   "coupon.closeButton": "Close",
   "coupon.qrUnavailable": "This coupon's QR code can't be displayed.",
