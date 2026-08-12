@@ -556,7 +556,16 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
   ```json
   {
     "success": true,
-    "nickname": "든든한 국밥 #0023",
+    "first_nickname": {
+      "ko": "든든한",
+      "en": "Hearty",
+      "ja": "頼もしい"
+    },
+    "last_nickname": {
+      "ko": "국밥",
+      "en": "Gookbap",
+      "ja": "クッパ"
+    },
     "first_id": "uuid-first",
     "last_id": "uuid-last",
     "number": "0023"
