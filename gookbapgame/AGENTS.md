@@ -36,7 +36,11 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     - **카운트다운(3-2-1-START)이 끼어 있어도 기록 시점은 그 전이 그대로다.** 오버레이가 뜬 시점에 이미 게임 화면에 진입했으므로(게임판이 뒤에 보인다) 거기가 "게임 시작"이다. 카운트다운이 **끝난 뒤**로 미루면 3.2초 안에 이탈한 사람이 빠져 시작자가 아니라 **완주 의향자를 세게 된다** — 코드가 KPI 정의를 조용히 바꾸면 대시보드 수치가 이유 없이 떨어지고 원인을 추적할 수 없다(2026-08-11, 이란토).
   - `share_click`은 시작 화면의 '친구 초대하기'가 부른다(아래 참고).
 - **재방문자에게는 닉네임을 재배정하지 않는다.** `assign_random_nickname` RPC는 **멱등하지 않다** — 이미 닉네임이 있는 participant_id로 호출해도 새로 뽑아서 덮어쓴다(2026-08-05 실제 배포에서 확인, 새로고침마다 닉네임이 바뀐다는 제보로 드러남). 그래서 `ensureParticipant`는 `isNewParticipant`가 false면 `lookupExistingNickname()`(→ `get_participant` RPC)으로 저장된 닉네임을 **읽기만** 한다. 조회가 실패하거나 아직 닉네임이 없을 때만 배정으로 넘어간다. `participants` 직접 SELECT는 RLS로 막혀 있어 RPC가 필수다.
-  - **재방문 경로도 `nickname_number`를 붙여야 한다.** `nicknameFromParticipantRows`가 `nickname_first`/`nickname_last`만 조합하고 번호를 빠뜨리면, 배정 직후에는 `든든한 국밥 #0023`인데 다시 접속하면 `든든한 국밥`으로 떠서 **같은 사람인데 이름이 달라 보인다**(2026-08-10 제보 — "닉네임 다시 뽑기가 안 먹는 것 같다"는 증상으로 드러났다). 배정 API는 DB가 조립한 문자열을 그대로 쓰므로 번호가 이미 들어 있고, 조회 경로만 직접 붙여야 한다. `#` 앞은 non-breaking space(`gookbapanalyze`의 CouponScanner와 같은 규칙), 단어 사이는 일반 공백이다. `nickname_number`는 nullable이라 없으면 붙이지 않는다.
+  - **번호(`nickname_number`)를 빠뜨리지 말 것.** 배정 직후에는 `든든한 국밥 #0023`인데 다시 접속하면 `든든한 국밥`으로 떠서 **같은 사람인데 이름이 달라 보인다**(2026-08-10 제보 — "닉네임 다시 뽑기가 안 먹는 것 같다"는 증상으로 드러났다). 조립은 `formatNickname` 한 곳에서만 하므로 두 경로가 갈릴 수 없다 — **거기로 모으는 구조를 흩지 말 것.** `#` 앞은 non-breaking space(`gookbapanalyze`의 CouponScanner와 같은 규칙), 단어 사이는 일반 공백이다. `nickname_number`는 nullable이라 없으면 붙이지 않으며, 빈 문자열·공백도 없는 것으로 치는 정규화(`normalizeNicknameNumber`)를 두 경로가 공유한다.
+- **배정 API도 2026-08-12부터 다국어 맵을 준다**(`d2f86e2`, 요청서 `docs/client/20260812-nickname-locale.md`). 이전에는 `"든든한 국밥 #0023"` 한국어 문자열 하나뿐이라 첫 방문자가 어떤 언어를 골랐든 한국어 닉네임을 받았다.
+  - **필드명이 조회 경로와 다르다.** 배정은 `first_nickname`/`last_nickname`, 조회(`get_participant`)는 `nickname_first`/`nickname_last`다. 요청서는 조회와 맞춰 달라고 했으나 실제 응답은 반대 순서로 왔다 — 한쪽 파서를 다른 쪽에 복사해 오지 말 것.
+  - **번역 폴백은 단어별이 아니라 닉네임 전체 단위다**(`formatNickname`). 앞말·뒷말이 각자 `resolveLocalizedName`을 타면 한쪽만 번역된 프리셋에서 `Hearty 국밥`처럼 한 이름 안에 두 언어가 섞인다 — "판교 사투리"로 놀림거리가 되는 그 형태라 어색하다. **두 단어 모두 해당 로케일 값이 있을 때만** 그 언어를 쓰고, 하나라도 비면 통째로 한국어로 떨어뜨린다(2026-08-12, 이란토). `nickname_presets.text`의 `en`·`ja`가 아직 부분적으로만 채워져 있어 실제로 자주 걸리는 경로이며, 번역이 채워지면 자동으로 해당 언어가 나온다. **단어별 폴백으로 되돌리지 말 것** — 그게 "번역된 건 최대한 보여준다"는 점에서 그럴듯해 보이지만, 사람 이름은 통째로 한 언어여야 한다.
+  - **하위 호환용 `nickname` 문자열은 사라졌다.** 요청서에서 유지를 부탁했지만 실제로는 빠졌다. 그래서 맵이 없는 응답은 폴백 없이 `ok: false`가 되고, 호출부는 `localFallback()`(`nicknameSynced: false`)으로 떨어져 방문할 때마다 닉네임이 바뀐다. 저쪽이 응답 형식을 되돌리면 이 증상으로 먼저 드러난다.
   - `reassignNickname()`은 예외다. 사용자가 "닉네임 다시 뽑기"를 눌렀거나 `nicknameSynced: false` 복구가 필요한 경우라 **의도적인** 재배정이며, 그대로 배정 API를 호출한다.
 - **`NICKNAME_ASSIGN_API_URL`**: `gookbapanalyze`의 `/api/nickname/assign`을 가리키는 환경변수. 미설정이거나 실패 시 `generateNickname()`으로 로컬 폴백(형용사+명사 조합)하며 `nicknameSynced: false`를 반환 — 이 상태에서는 방문할 때마다 닉네임이 랜덤하게 바뀜(서버에 저장되지 않으므로 정상 동작).
 
@@ -159,6 +163,33 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     DOM 캡처가 아니라 같은 구성을 canvas에 다시 그린 것이라, 두 곳이 같은 좌표(13%/11%
     inset, 노치 크기, 코너 마크 위치, QR 비율)를 각각 들고 있다. 한쪽만 고치면 화면과
     저장본이 조용히 달라진다(실제로 한 번 어긋났다 — 화면엔 노치, 저장본엔 민무늬 사각형).
+  - **카드 앞면의 날짜는 발급일·시작일·사용기한 3줄이다**(2026-08-12, 기획 요청).
+    조립은 `app/lib/couponDates.ts`의 `couponDateLines` **한 곳**에서 하고 화면과
+    저장 이미지가 같은 배열을 받는다 — 양쪽이 각자 날짜를 만들면 위와 같은 이유로
+    조용히 어긋난다. 줄을 추가·변경할 일이 있으면 그 헬퍼만 고칠 것.
+    - **날짜는 `Asia/Seoul` 고정이다.** `expired_at`이 KST 23:59:59.999로 저장되므로
+      (`couponUsability.ts`) 기기 시간대로 렌더하면 한국보다 서쪽 기기에서 만료일이
+      **하루 앞당겨** 보인다. 발급일도 매장에서 "카드에 찍힌 날짜"로 이야기하므로
+      기기마다 달라지면 안 된다. `toLocaleDateString`에서 `timeZone`을 빼지 말 것.
+      **`MyCouponsScreen`(내 쿠폰 목록)도 같은 헬퍼를 쓴다** — 한쪽만 KST로 두면 같은
+      쿠폰의 사용기한이 화면마다 하루 다르게 뜬다. 날짜를 새로 그리는 화면이 생기면
+      직접 `toLocaleDateString`을 부르지 말고 `couponDateLines`를 거칠 것.
+    - **`valid_from`(시작일)은 `get_my_coupons` 반환 컬럼에 없다 — 문서 기준**(2026-08-12,
+      `gookbapanalyze/AGENTS.md`의 반환 예시). 실제로 호출해 확인한 것은 아니지만 코드가
+      양쪽을 다 처리하므로 무해하다. 컬럼 자체는 `issued_coupons`에 있고 스캐너
+      (`get_coupon_info_for_scan`)와 draw 응답은 받는다(`95ef094`에서 확인). 다만
+      `issued_coupons` 직접 SELECT는 RLS로 막혀 우회로가 없다. 그래서 지금은
+      **발급일·사용기한 2줄만** 뜨고, 서버가 컬럼을 추가하면 코드 수정 없이 3줄이 된다
+      (값이 없는 줄은 생략하는 구조). **구자건에게 요청해야 할 남은 절반이다.**
+      - **draw 응답의 `valid_from`을 끌어다 쓰지 말 것.** 화면에 뜨는 쿠폰은 당첨
+        직후에도 `get_my_coupons`를 다시 읽은 결과다(draw 응답에 `coupon_id`가 없어서).
+        거절 복구 경로도 마찬가지라, draw에서만 받아오면 그 경로에서 줄이 사라져
+        같은 쿠폰이 화면마다 다르게 보인다 — `gatchaApi.ts`가 경고하는 "두 번째 진실"이다.
+    - 날짜 줄들은 화면에서 **하나의 블록**으로 묶여 있다(`GatchaCard`의 감싼 `div`).
+      형제로 늘어놓으면 바깥 `gap-3`가 줄 사이마다 들어가는데 `cardImage.ts`는 블록
+      앞에 `GAP`을 한 번만 붙이므로 저장본만 아래로 늘어진다. 묶음을 풀지 말 것.
+    - 날짜가 늘어난 만큼 상품명이 쓸 수 있는 높이가 줄어, 긴 이름은 자동 축소 루프의
+      30px 바닥에 더 빨리 닿는다. 잘림이 문제가 되면 날짜 폰트를 줄이는 쪽을 먼저 볼 것.
   - **카드 크기는 `vw`/`vh`가 아니라 컨테이너 폭(`100%`)을 상한으로 잡는다**(2026-08-07).
     카드는 `max-w-sm` 패널 안에 들어가는데 예전엔 뷰포트만 봐서, 390px 폰에서도
     패널 안쪽(283px)보다 카드(312px)가 커져 넘쳤다(당시엔 `pixel-frame`에 걸려 있던

@@ -85,8 +85,11 @@ export type CardImageInput = {
   /** qrcode.react가 렌더한 <svg>. 없으면 QR 없이 그린다. */
   qrSvg: SVGElement | null;
   couponName: string;
-  /** 이미 지역화된 만료 안내 문구. null이면 생략. */
-  expiryText: string | null;
+  /**
+   * 이미 지역화된 날짜 줄들(발급일·시작일·사용기한). 빈 배열이면 생략한다.
+   * 화면(`GatchaCard`)과 **같은 배열**을 받아야 한다 — `couponDateLines`가 조립한다.
+   */
+  dateTexts: string[];
   emoji: string;
 };
 
@@ -165,10 +168,19 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   // 상품명은 대시보드 자유 입력이라 길이가 정해져 있지 않다. 화면에서는
   // overflow-hidden이 잘라주지만 캔버스에는 그런 게 없어서, 긴 이름이 들어오면
   // 만료 문구가 테두리 밖으로 밀려난다. 프레임 안에 들어갈 때까지 글자를 줄인다.
-  const expiryFontSize = CARD_W * 0.041; // 화면 text-sm(14px) 기준
-  const expiryHeight = input.expiryText ? expiryFontSize * 1.4 + GAP : 0;
+  // 날짜 줄들은 화면에서 **하나의 블록**이다(GatchaCard에서 div로 묶었다). 그래서
+  // 바깥 GAP은 블록 앞에 한 번만 붙고, 줄 사이는 line-height(1.4)만으로 벌어진다.
+  // 줄마다 GAP을 더하면 화면보다 아래로 늘어져 저장본만 달라진다.
+  const dateFontSize = CARD_W * 0.041; // 화면 text-sm(14px) 기준
+  const dateLineHeight = dateFontSize * 1.4;
+  const dateBlockHeight =
+    input.dateTexts.length > 0 ? input.dateTexts.length * dateLineHeight + GAP : 0;
+
+  // 날짜가 3줄로 늘면서 상품명이 쓸 수 있는 높이가 그만큼 줄었다. 긴 상품명은
+  // 아래 루프에서 30px 바닥에 더 빨리 닿아 잘리는 줄이 생길 수 있다 — 지금은
+  // 허용하고, 문제가 되면 날짜 폰트를 줄이는 쪽을 먼저 검토한다.
   const availableHeight =
-    bottom - top - (input.qrSvg ? qrSize + GAP : 0) - expiryHeight;
+    bottom - top - (input.qrSvg ? qrSize + GAP : 0) - dateBlockHeight;
 
   let nameFontSize = CARD_W * 0.0531; // 화면 text-lg(18px) 기준
   let nameLines = [] as string[];
@@ -187,7 +199,7 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
 
   // 전체 높이를 재서 프레임 세로 중앙에 앉힌다.
   const contentHeight =
-    (input.qrSvg ? qrSize + GAP : 0) + nameHeight + expiryHeight;
+    (input.qrSvg ? qrSize + GAP : 0) + nameHeight + dateBlockHeight;
   let cursorY = top + (bottom - top - contentHeight) / 2;
 
   // QR. 흰 배경과 quiet zone은 **SVG가 자체적으로 들고 있다**(CouponQR의 marginSize) —
@@ -211,10 +223,12 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   });
   cursorY += nameHeight + GAP;
 
-  if (input.expiryText) {
-    ctx.font = `${expiryFontSize}px sans-serif`;
+  if (input.dateTexts.length > 0) {
+    ctx.font = `${dateFontSize}px sans-serif`;
     ctx.globalAlpha = 0.7;
-    ctx.fillText(input.expiryText, centerX, cursorY);
+    input.dateTexts.forEach((text, i) => {
+      ctx.fillText(text, centerX, cursorY + i * dateLineHeight);
+    });
     ctx.globalAlpha = 1;
   }
 

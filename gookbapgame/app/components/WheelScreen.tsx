@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { DATE_LOCALES } from "../lib/i18n/dateLocales";
+import { couponDateLines } from "../lib/couponDates";
 import { useCardImageSave } from "../hooks/useCardImageSave";
 import PixelPanel from "./PixelPanel";
 import GatchaCard from "./GatchaCard";
@@ -49,18 +49,14 @@ export default function WheelScreen({
   const coupon = drawResult?.status === "won" ? drawResult.coupon : null;
 
   // 화면과 저장 이미지가 같은 문구를 써야 한다 — 한쪽만 바뀌면 조용히 달라진다.
-  const expiryText =
-    coupon?.expiredAt != null
-      ? t("coupon.expiresAt", {
-          date: new Date(coupon.expiredAt).toLocaleDateString(DATE_LOCALES[locale] ?? "en-US"),
-        })
-      : null;
+  // 조립은 couponDateLines 한 곳에서 하고 양쪽이 같은 배열을 받는다.
+  const dateLines = coupon ? couponDateLines(coupon, locale, t) : [];
 
   const { faceRef, save, saving, saveError } = useCardImageSave(
     coupon,
     flipped,
     locale,
-    expiryText
+    dateLines
   );
 
   // draw는 마운트 시 1회. 카드를 뒤집는 동작은 연출일 뿐이고 API를 다시 부르지
@@ -149,7 +145,7 @@ export default function WheelScreen({
                  저장할 것은 남아 있다. */
               onFlip={() => setFlipped((v) => !v)}
               faceRef={faceRef}
-              expiryText={expiryText}
+              dateLines={dateLines}
             />
           </div>
         )}

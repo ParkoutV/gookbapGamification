@@ -7,6 +7,7 @@ import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { resolveCouponEmoji } from "../lib/couponEmoji";
 import type { Locale } from "../lib/i18n/types";
 import type { IssuedCoupon } from "../actions";
+import type { CouponDateLine } from "../lib/couponDates";
 
 /**
  * 카드 앞면을 이미지로 굽고 저장/공유한다.
@@ -19,7 +20,7 @@ export function useCardImageSave(
   coupon: IssuedCoupon | null,
   flipped: boolean,
   locale: Locale,
-  expiryText: string | null
+  dateLines: CouponDateLine[]
 ) {
   const faceRef = useRef<HTMLDivElement>(null);
   /** 뒤집힐 때 미리 구워두는 카드 이미지. 저장 버튼이 await 없이 공유할 수 있게 한다. */
@@ -29,14 +30,20 @@ export function useCardImageSave(
 
   const emoji = coupon ? resolveCouponEmoji(coupon.couponType) : "";
 
+  /**
+   * 의존성 비교용 값. `dateLines`는 매 렌더 새로 만들어지는 배열이라 그대로 넣으면
+   * 참조가 항상 달라져 이미지를 무한히 다시 굽는다. 내용이 같으면 같은 문자열이 된다.
+   */
+  const dateLinesKey = dateLines.map((line) => line.text).join("\n");
+
   const buildInput = useCallback(
     () => ({
       qrSvg: faceRef.current?.querySelector("svg") ?? null,
       couponName: resolveLocalizedName(coupon?.couponType, locale),
-      expiryText,
+      dateTexts: dateLinesKey === "" ? [] : dateLinesKey.split("\n"),
       emoji,
     }),
-    [coupon?.couponType, locale, expiryText, emoji]
+    [coupon?.couponType, locale, dateLinesKey, emoji]
   );
 
   /**

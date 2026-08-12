@@ -129,6 +129,10 @@ export const ko: Dictionary = {
   "coupon.usedBadge": "사용 완료",
   "coupon.expiredBadge": "기간 만료",
   "coupon.expiresAt": "{date}까지",
+  // 카드 앞면의 날짜 3줄(발급일·시작일·사용기한). 좁은 카드에 나란히 들어가므로
+  // 라벨을 짧게 잡는다. 사용기한만 기존 "{date}까지"를 그대로 쓴다.
+  "coupon.issuedAt": "발급일 {date}",
+  "coupon.validFrom": "시작일 {date}",
   "coupon.showQrButton": "QR 코드 보기",
   "coupon.closeButton": "닫기",
   "coupon.qrUnavailable": "이 쿠폰의 QR 코드를 표시할 수 없어요.",
