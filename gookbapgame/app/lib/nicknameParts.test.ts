@@ -30,6 +30,26 @@ test("formatNickname: 번역이 없는 언어는 한국어로 떨어진다", () 
   assert.equal(formatNickname(partial, "en"), "든든한 국밥");
 });
 
+test("formatNickname: 한쪽만 번역돼 있으면 통째로 한국어 — 언어를 섞지 않는다", () => {
+  // 프리셋 번역이 부분적으로만 채워져 있을 때 단어별로 폴백하면 "Hearty 국밥"처럼
+  // 한 이름 안에 두 언어가 섞인다. 어색해서 통째로 한국어로 떨어뜨린다
+  // (2026-08-12, 이란토). 번역이 채워지면 자동으로 해당 언어가 나온다.
+  const KO = "든든한 국밥\u00a0#0023"; // '#' 앞은 NBSP다(위 테스트 참고).
+
+  const firstOnly = { first: { ko: "든든한", en: "Hearty" }, last: { ko: "국밥" }, number: "0023" };
+  assert.equal(formatNickname(firstOnly, "en"), KO);
+
+  const lastOnly = { first: { ko: "든든한" }, last: { ko: "국밥", en: "Gookbap" }, number: "0023" };
+  assert.equal(formatNickname(lastOnly, "en"), KO);
+
+  // 빈 문자열·공백도 "번역 없음"으로 친다.
+  const blank = { first: { ko: "든든한", en: "  " }, last: { ko: "국밥", en: "Gookbap" }, number: null };
+  assert.equal(formatNickname(blank, "en"), "든든한 국밥");
+
+  // 둘 다 있으면 당연히 해당 언어로 나온다(위 폴백이 과하게 걸리지 않는지 확인).
+  assert.equal(formatNickname(PARTS, "en"), "Hearty Gookbap\u00a0#0023");
+});
+
 test("formatNickname: number가 없으면 붙이지 않는다", () => {
   assert.equal(formatNickname({ ...PARTS, number: null }, "en"), "Hearty Gookbap");
 });

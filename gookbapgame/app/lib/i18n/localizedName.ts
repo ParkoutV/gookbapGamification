@@ -11,7 +11,8 @@ export type LocalizedName = Record<string, string> | null | undefined;
  */
 export const MISSING_NAME_PLACEHOLDER = "—";
 
-const FALLBACK_LOCALE = "ko";
+/** 번역이 없을 때 떨어지는 언어. 닉네임 전체 폴백(`formatNickname`)도 이걸 쓴다. */
+export const FALLBACK_LOCALE = "ko";
 
 function pick(name: NonNullable<LocalizedName>, key: string): string | null {
   const value = name[key];

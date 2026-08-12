@@ -18,10 +18,24 @@ import type { LocalizedName } from "./i18n/localizedName.ts";
 
 type Row = Record<string, unknown>;
 
-/** jsonb 맵이 온전한 객체일 때만 통과시킨다. 문자열·null은 이름이 없는 것으로 친다. */
-function asNameMap(value: unknown): LocalizedName | null {
+/**
+ * jsonb 맵이 온전한 객체일 때만 통과시킨다. 문자열·null은 이름이 없는 것으로 친다.
+ *
+ * 배정 경로(`nicknameApi.ts`)도 이걸 쓴다 — 두 경로가 각자 검사하면 한쪽만 느슨해진다.
+ */
+export function asLocalizedNameMap(value: unknown): LocalizedName | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as LocalizedName;
+}
+
+/**
+ * `nickname_number`는 nullable이다. 빈 문자열·공백도 없는 것으로 친다.
+ *
+ * **조회·배정 두 경로가 반드시 같은 규칙을 써야 한다.** 한쪽만 공백을 남기면 배정
+ * 직후와 재방문의 닉네임이 달라 보인다(2026-08-10 제보와 같은 증상).
+ */
+export function normalizeNicknameNumber(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
 /**
@@ -39,14 +53,9 @@ export function nicknameFromParticipantRows(data: unknown): NicknameParts | null
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") return null;
 
-  const first = asNameMap((row as Row).nickname_first);
-  const last = asNameMap((row as Row).nickname_last);
+  const first = asLocalizedNameMap((row as Row).nickname_first);
+  const last = asLocalizedNameMap((row as Row).nickname_last);
   if (!first || !last) return null;
 
-  const number = (row as Row).nickname_number;
-  return {
-    first,
-    last,
-    number: typeof number === "string" && number.trim() !== "" ? number.trim() : null,
-  };
+  return { first, last, number: normalizeNicknameNumber((row as Row).nickname_number) };
 }
