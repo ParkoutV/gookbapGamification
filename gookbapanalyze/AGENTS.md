@@ -259,7 +259,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`expire_type`** (`text`): 만료 조건 지정 방식 ('days' 또는 'date'). (기본값: 'days')
 * **`expire_days`** (`integer`, Nullable): `expire_type`이 'days'일 때 발급 후 만료 기한(일수).
 * **`expire_date`** (`timestamp with time zone`, Nullable): `expire_type`이 'date'일 때 일괄 만료일.
-* **`max_issuance`** (`integer`, Nullable): 이 쿠폰의 최대 발급 가능 갯수입니다. 누적 발급 갯수가 이 수치에 도달하면 소진 처리됩니다. Null일 경우 무제한입니다.
+* **`max_issuance`** (`integer`, Nullable): 이 쿠폰의 누적 최대 발급 가능 갯수입니다. 누적 발급 갯수가 이 수치에 도달하면 소진 처리됩니다. Null일 경우 무제한입니다.
+* **`daily_max_issuance`** (`integer`, Nullable): 이 쿠폰의 일일 최대 발급 가능 갯수입니다. 오늘(KST 자정 기준) 발급 갯수가 이 수치에 도달하면 소진 처리됩니다. Null일 경우 무제한입니다.
 * **`is_online_coupon`** (`boolean`): 웹 전용 쿠폰 여부. true일 경우 스캐너 조회/KPI 수집에서 제외되며 `web_coupons` 할당을 트리거합니다. (기본값: false)
 
 **[`issued_coupons` - 유저에게 발급된 쿠폰] (Admin: ALL, User: UPDATE/SELECT. *조회 및 발급은 API/RPC 필수*)**

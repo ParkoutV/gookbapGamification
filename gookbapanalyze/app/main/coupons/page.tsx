@@ -32,6 +32,7 @@ interface CouponEffect {
   expire_days?: number | null
   is_online_coupon?: boolean
   max_issuance?: number | null
+  daily_max_issuance?: number | null
   valid_start_type?: 'today' | 'tomorrow'
   expire_type?: 'days' | 'date'
   expire_date?: string | null
@@ -153,6 +154,7 @@ export default function CouponsPage() {
   const [webCouponSettings, setWebCouponSettings] = useState<any>(null)
   const [activeLanguages, setActiveLanguages] = useState<SupportedLanguage[]>([])
   const [issuedCounts, setIssuedCounts] = useState<Record<string, number>>({})
+  const [dailyIssuedCounts, setDailyIssuedCounts] = useState<Record<string, number>>({})
   
   // Modal State for Multilingual text (Coupons)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -236,13 +238,29 @@ export default function CouponsPage() {
     if (rankData) setRankingData(rankData)
 
     // Fetch Issued Counts
-    const { data: issuedCouponsData } = await supabase.from('issued_coupons').select('coupon_effect_id')
+    const { data: issuedCouponsData } = await supabase.from('issued_coupons').select('coupon_effect_id, issued_at')
     if (issuedCouponsData) {
       const counts: Record<string, number> = {}
+      const dailyCounts: Record<string, number> = {}
+
+      const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+      const kstDate = new Date(kstTimeStr)
+      const year = kstDate.getFullYear()
+      const month = String(kstDate.getMonth() + 1).padStart(2, '0')
+      const day = String(kstDate.getDate()).padStart(2, '0')
+      const todayKstStartMs = new Date(`${year}-${month}-${day}T00:00:00.000+09:00`).getTime()
+
       issuedCouponsData.forEach(item => {
         counts[item.coupon_effect_id] = (counts[item.coupon_effect_id] || 0) + 1
+        if (item.issued_at) {
+          const issuedTime = new Date(item.issued_at).getTime()
+          if (issuedTime >= todayKstStartMs) {
+            dailyCounts[item.coupon_effect_id] = (dailyCounts[item.coupon_effect_id] || 0) + 1
+          }
+        }
       })
       setIssuedCounts(counts)
+      setDailyIssuedCounts(dailyCounts)
     }
 
     setLoading(false)
@@ -434,10 +452,25 @@ export default function CouponsPage() {
     setCoupons(newCoupons)
   }
 
+  // Handle Daily Max Issuance Change
+  const handleDailyMaxIssuanceChange = (couponIndex: number, val: string) => {
+    const newCoupons = [...coupons]
+    if (val === '') {
+      newCoupons[couponIndex].daily_max_issuance = null
+    } else {
+      let num = parseInt(val, 10)
+      if (isNaN(num)) num = 0
+      const currentDailyIssued = dailyIssuedCounts[newCoupons[couponIndex].coupon_effect_id] || 0
+      if (num < currentDailyIssued) num = currentDailyIssued
+      newCoupons[couponIndex].daily_max_issuance = num
+    }
+    setCoupons(newCoupons)
+  }
+
   // Excel Navigation
   // Excel Navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number, isOnline: boolean = false) => {
-    const numCols = 3 + gatchaCases.length
+    const numCols = 4 + gatchaCases.length
     const numRows = coupons.length
 
     if (e.key === 'ArrowUp' && rowIdx > 0) {
@@ -480,6 +513,7 @@ export default function CouponsPage() {
       probability: {},
       expire_days: null,
       max_issuance: null,
+      daily_max_issuance: null,
       valid_start_type: 'today',
       expire_type: 'days',
       expire_date: null
@@ -584,6 +618,7 @@ export default function CouponsPage() {
         probability: newProbability,
         expire_days: coup.expire_days || null,
         max_issuance: coup.max_issuance || null,
+        daily_max_issuance: coup.daily_max_issuance || null,
         valid_start_type: coup.valid_start_type || 'today',
         expire_type: coup.expire_type || 'days',
         expire_date: coup.expire_date || null
@@ -897,6 +932,9 @@ export default function CouponsPage() {
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-24 text-center align-middle">
                   최대 갯수
                 </th>
+                <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-24 text-center align-middle">
+                  일일 최대 갯수
+                </th>
                 {gatchaCases.map(c => (
                   <th key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 bg-purple-50 dark:bg-purple-900/20 px-4 py-3 text-sm font-bold text-purple-800 dark:text-purple-300 text-right w-40">
                     {getKoText(typeof c.gatcha_case_name === 'string' ? c.gatcha_case_name : JSON.stringify(c.gatcha_case_name))}<br/>
@@ -1008,20 +1046,36 @@ export default function CouponsPage() {
                       }}
                     />
                     <div className="absolute bottom-1 left-0 right-0 text-[10px] font-bold text-gray-500 text-center pointer-events-none">
-                      발급: {isOnline ? 'N/A' : (issuedCounts[coupon.coupon_effect_id] || 0)}
+                      누적: {isOnline ? 'N/A' : (issuedCounts[coupon.coupon_effect_id] || 0)}
+                    </div>
+                  </td>
+                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative">
+                    <GridInput
+                      id={`cell-${rowIdx}-3`}
+                      initialValue={coupon.daily_max_issuance === null || coupon.daily_max_issuance === undefined ? '' : coupon.daily_max_issuance.toString()}
+                      minAllowed={isOnline ? 0 : (dailyIssuedCounts[coupon.coupon_effect_id] || 0)}
+                      maxAllowed={9999999}
+                      readOnly={isOnline}
+                      placeholder="무제한"
+                      onUpdate={(val) => handleDailyMaxIssuanceChange(rowIdx, val)}
+                      onKeyDown={(e) => handleKeyDown(e, rowIdx, 3, isOnline)}
+                      className={`w-full h-12 px-2 pb-4 pt-1 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white'}`}
+                    />
+                    <div className="absolute bottom-1 left-0 right-0 text-[10px] font-bold text-gray-500 text-center pointer-events-none">
+                      일일: {isOnline ? 'N/A' : (dailyIssuedCounts[coupon.coupon_effect_id] || 0)}
                     </div>
                   </td>
                   {gatchaCases.map((c, idx) => (
                     <td key={c.gatcha_case_id} className="border-b border-gray-300 dark:border-zinc-700 p-0 relative bg-white dark:bg-zinc-950">
                       <GridInput
-                        id={`cell-${rowIdx}-${idx + 3}`}
+                        id={`cell-${rowIdx}-${idx + 4}`}
                         isFloat={true}
                         minAllowed={0}
                         maxAllowed={100}
                         initialValue={((coupon.probability?.[c.gatcha_case_id] || 0) * 100).toFixed(2).replace(/\.00$/, '')}
                         className="w-full h-12 px-8 text-right outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500 bg-transparent text-base font-bold dark:text-white font-mono"
                         onUpdate={(val) => handleProbChange(rowIdx, c.gatcha_case_id, val)}
-                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 3)}
+                        onKeyDown={(e) => handleKeyDown(e, rowIdx, idx + 4)}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400 pointer-events-none opacity-50">%</span>
                     </td>
@@ -1032,7 +1086,7 @@ export default function CouponsPage() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4} className="border-r border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 px-4 py-3 text-sm font-bold text-gray-700 dark:text-zinc-300 text-right">
+                <td colSpan={5} className="border-r border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 px-4 py-3 text-sm font-bold text-gray-700 dark:text-zinc-300 text-right">
                   확률 총합 검증 (100% 이하여야 함)
                 </td>
                 {gatchaCases.map(c => {

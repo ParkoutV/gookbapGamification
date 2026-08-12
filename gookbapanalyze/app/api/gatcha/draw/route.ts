@@ -154,13 +154,31 @@ export async function POST(req: NextRequest) {
     
     const { data: issuedCountsData } = await supabase
       .from('issued_coupons')
-      .select('coupon_effect_id')
+      .select('coupon_effect_id, issued_at')
       .in('coupon_effect_id', offlineCouponIds)
       
     const issuedCounts: Record<string, number> = {}
+    const dailyIssuedCounts: Record<string, number> = {}
+    
     if (issuedCountsData) {
+      // Calculate today's KST 00:00:00
+      const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+      const kstDate = new Date(kstTimeStr)
+      const year = kstDate.getFullYear()
+      const month = String(kstDate.getMonth() + 1).padStart(2, '0')
+      const day = String(kstDate.getDate()).padStart(2, '0')
+      const todayKstStartMs = new Date(`${year}-${month}-${day}T00:00:00.000+09:00`).getTime()
+
       issuedCountsData.forEach(item => {
-        issuedCounts[item.coupon_effect_id] = (issuedCounts[item.coupon_effect_id] || 0) + 1
+        const effectId = item.coupon_effect_id
+        issuedCounts[effectId] = (issuedCounts[effectId] || 0) + 1
+        
+        if (item.issued_at) {
+          const issuedTime = new Date(item.issued_at).getTime()
+          if (issuedTime >= todayKstStartMs) {
+            dailyIssuedCounts[effectId] = (dailyIssuedCounts[effectId] || 0) + 1
+          }
+        }
       })
     }
 
@@ -173,10 +191,22 @@ export async function POST(req: NextRequest) {
       originalSum += Number(originalProb)
       
       let isExhausted = false
-      if (!coupon.is_online_coupon && coupon.max_issuance !== null && coupon.max_issuance !== undefined) {
+      if (!coupon.is_online_coupon) {
         const count = issuedCounts[coupon.coupon_effect_id] || 0
-        if (count >= coupon.max_issuance) {
-          isExhausted = true
+        const dailyCount = dailyIssuedCounts[coupon.coupon_effect_id] || 0
+
+        // Check global max_issuance
+        if (coupon.max_issuance !== null && coupon.max_issuance !== undefined) {
+          if (count >= coupon.max_issuance) {
+            isExhausted = true
+          }
+        }
+        
+        // Check daily_max_issuance
+        if (coupon.daily_max_issuance !== null && coupon.daily_max_issuance !== undefined) {
+          if (dailyCount >= coupon.daily_max_issuance) {
+            isExhausted = true
+          }
         }
       }
       
