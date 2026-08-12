@@ -841,8 +841,8 @@ body {
 
      px 리터럴인 이유는 이 값이 JS 상수와 **같은 값이어야** 하기 때문이다. rem으로
      적으면 루트 폰트 크기가 바뀔 때 둘이 조용히 어긋난다. GAME_CUE_MAX_PX를 바꾸면
-     여기도 같이 고칠 것. */
-  height: 60px;
+     여기도 같이 고칠 것(2026-08-12에 60 → 84로 함께 올렸다). */
+  height: 84px;
   display: flex;
   align-items: center;
   justify-content: center;
