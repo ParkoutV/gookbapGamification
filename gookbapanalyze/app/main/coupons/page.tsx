@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Gift, Plus, Trash2, AlertCircle, Save, Settings, Info, Columns, Globe, X, HelpCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2, Save, X, Settings2, HelpCircle, Gift, AlertCircle, Settings, Info, Columns, Globe } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { createClient } from '@/utils/supabase/client'
 import { SupportedLanguage } from '../tracks/actions'
 
@@ -141,8 +143,13 @@ export default function CouponsPage() {
   const [saving, setSaving] = useState(false)
   
   const [settings, setSettings] = useState<GatchaSetting | null>(null)
+  const [originalSettings, setOriginalSettings] = useState<GatchaSetting | null>(null)
+  
   const [gatchaCases, setGatchaCases] = useState<GatchaCase[]>([])
+  const [originalGatchaCases, setOriginalGatchaCases] = useState<GatchaCase[]>([])
+  
   const [coupons, setCoupons] = useState<CouponEffect[]>([])
+  const [originalCoupons, setOriginalCoupons] = useState<CouponEffect[]>([])
   const [webCouponSettings, setWebCouponSettings] = useState<any>(null)
   const [activeLanguages, setActiveLanguages] = useState<SupportedLanguage[]>([])
   const [issuedCounts, setIssuedCounts] = useState<Record<string, number>>({})
@@ -177,6 +184,13 @@ export default function CouponsPage() {
   const [localLimitN, setLocalLimitN] = useState("")
   const [localLimitM, setLocalLimitM] = useState("")
 
+  const isDirty = 
+    JSON.stringify(settings) !== JSON.stringify(originalSettings) ||
+    JSON.stringify(gatchaCases) !== JSON.stringify(originalGatchaCases) ||
+    JSON.stringify(coupons) !== JSON.stringify(originalCoupons)
+
+  useUnsavedChanges(isDirty)
+
   const fetchAll = async () => {
     setLoading(true)
     const supabase = createClient()
@@ -185,13 +199,17 @@ export default function CouponsPage() {
     const { data: setts } = await supabase.from('gatcha_settings').select('*').eq('id', 1).single()
     if (setts) {
       setSettings(setts)
+      setOriginalSettings(setts)
       setLocalLimitN(setts.limit_n.toString())
       setLocalLimitM(setts.limit_m.toString())
     }
 
     // Fetch Cases
     const { data: cases } = await supabase.from('gatcha_cases').select('*').order('min_score', { ascending: true })
-    if (cases) setGatchaCases(cases)
+    if (cases) {
+      setGatchaCases(cases)
+      setOriginalGatchaCases(cases)
+    }
 
     // Fetch Coupons
     const { data: coups } = await supabase.from('coupon_effects').select('*').order('created_at', { ascending: true })
@@ -202,6 +220,7 @@ export default function CouponsPage() {
         return 0;
       })
       setCoupons(coups)
+      setOriginalCoupons(coups)
     }
 
     // Fetch Web Coupon Settings
@@ -264,6 +283,7 @@ export default function CouponsPage() {
     setSaving(true)
     const supabase = createClient()
     await supabase.from('gatcha_settings').update(settings).eq('id', 1)
+    setOriginalSettings(settings)
     setSaving(false)
     alert('설정이 저장되었습니다.')
   }

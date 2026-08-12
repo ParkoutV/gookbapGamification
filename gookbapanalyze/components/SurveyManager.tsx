@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { v4 as uuidv4 } from 'uuid'
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2, Save, Eye, EyeOff, Image as ImageIcon, X } from 'lucide-react'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 
 interface Language {
   lang_code: string
@@ -42,6 +43,7 @@ export default function SurveyManager({
 }) {
   const supabase = createClient()
   const [questions, setQuestions] = useState<Question[]>([])
+  const [originalQuestions, setOriginalQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
@@ -57,6 +59,9 @@ export default function SurveyManager({
   useEffect(() => {
     fetchQuestions()
   }, [])
+
+  const isDirty = JSON.stringify(questions) !== JSON.stringify(originalQuestions)
+  useUnsavedChanges(isDirty)
 
   const safeJSONParse = (val: any, defaultVal: any = {}) => {
     if (typeof val === 'string') {
@@ -80,11 +85,13 @@ export default function SurveyManager({
     if (error) {
       console.error('Error fetching questions:', error)
     } else {
-      setQuestions(data.map((q: any) => ({
+      const formattedData = data.map((q: any) => ({
         ...q,
         question_text: safeJSONParse(q.question_text),
         options: Array.isArray(q.options) ? q.options : (safeJSONParse(q.options, []) || [])
-      })))
+      }))
+      setQuestions(formattedData)
+      setOriginalQuestions(formattedData)
     }
     setLoading(false)
   }
@@ -110,6 +117,7 @@ export default function SurveyManager({
           })
         if (error) throw error
       }
+      setOriginalQuestions(questions)
       alert('성공적으로 저장되었습니다.')
     } catch (error) {
       console.error('Error saving:', error)

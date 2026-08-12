@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Plus, Trash2, Save, X } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 
 interface Language {
   lang_code: string
@@ -42,6 +43,13 @@ export default function NicknameClient({
   const [digitLength, setDigitLength] = useState<number>(initialDigitLength)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'first_word' | 'last_word'>('first_word')
+
+  const isDirty = 
+    JSON.stringify(presets) !== JSON.stringify(initialPresets) ||
+    JSON.stringify(exclusions) !== JSON.stringify(initialExclusions) ||
+    digitLength !== initialDigitLength
+
+  useUnsavedChanges(isDirty)
 
   // Modals state
   const [showConfirmModal, setShowConfirmModal] = useState(false)

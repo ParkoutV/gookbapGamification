@@ -12,6 +12,7 @@ import Cropper, { ReactCropperElement } from 'react-cropper'
 import 'cropperjs/dist/cropper.css'
 import { Save, ArrowLeft, Plus, Minus, Image as ImageIcon, Trash2, X, Move, Maximize, Target, Upload, ChevronDown, ChevronUp, Edit } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 
 const ZoomControls = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) => {
   const { zoomIn, zoomOut, setTransform } = useControls()
@@ -58,10 +59,13 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const [saving, setSaving] = useState(false)
   const [baseImage, setBaseImage] = useState<any>(null)
   const [questionsCount, setQuestionsCount] = useState<number>(3)
+  const [originalQuestionsCount, setOriginalQuestionsCount] = useState<number>(3)
   
   // States for slots and parts
   const [slots, setSlots] = useState<any[]>([])
+  const [originalSlots, setOriginalSlots] = useState<any[]>([])
   const [parts, setParts] = useState<any[]>([])
+  const [originalParts, setOriginalParts] = useState<any[]>([])
   const [deletedSlotIds, setDeletedSlotIds] = useState<number[]>([])
   const [deletedPartIds, setDeletedPartIds] = useState<number[]>([])
 
@@ -78,6 +82,15 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const cropperRef = useRef<ReactCropperElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [cropData, setCropData] = useState({ x: 0, y: 0, width: 0, height: 0 })
+
+  const isDirty = 
+    JSON.stringify(slots) !== JSON.stringify(originalSlots) ||
+    JSON.stringify(parts) !== JSON.stringify(originalParts) ||
+    questionsCount !== originalQuestionsCount ||
+    deletedSlotIds.length > 0 ||
+    deletedPartIds.length > 0
+
+  useUnsavedChanges(isDirty)
 
   // Mobile Menu State
   const [isMobileMenuExpanded, setIsMobileMenuExpanded] = useState(true)
@@ -105,10 +118,12 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
 
     setBaseImage(result.baseImage)
     setQuestionsCount(result.baseImage.questions_count || 3)
+    setOriginalQuestionsCount(result.baseImage.questions_count || 3)
 
     // Ensure we have unique string IDs for frontend tracking
     const mappedSlots = (result.slots || []).map((s: any) => ({ ...s, tempId: s.id.toString() }))
     setSlots(mappedSlots)
+    setOriginalSlots(mappedSlots)
 
     const mappedParts = (result.parts || []).map((p: any) => ({
       ...p,
@@ -116,6 +131,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
       slotTempId: mappedSlots.find((s: any) => s.category_id === p.category_id)?.tempId
     }))
     setParts(mappedParts)
+    setOriginalParts(mappedParts)
 
 
     setLoading(false)
