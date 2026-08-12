@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { playSfx, SFX } from "../lib/sfx";
+import { playSfx, preloadSfx, SFX } from "../lib/sfx";
 
 /**
  * 화면의 모든 버튼에 클릭 소리를 붙인다.
@@ -18,6 +18,11 @@ import { playSfx, SFX } from "../lib/sfx";
  */
 export function useButtonClickSfx(): void {
   useEffect(() => {
+    // 여기서 효과음을 미리 받아 디코드한다. 시작 버튼에 걸면 늦다 — 첫 pointerdown이
+    // 시작 버튼이라는 보장이 없고(언어 선택·약관 팝업·소리 토글이 앞선다),
+    // 버퍼가 없는 재생은 조용히 건너뛰어져 첫 클릭만 소리가 안 난다.
+    preloadSfx();
+
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target;
       if (!(target instanceof Element)) return;

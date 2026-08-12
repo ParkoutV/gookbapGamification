@@ -246,13 +246,35 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 - **포맷은 m4a(AAC) 하나로 통일한다.** 원본은 opus인데 **iOS Safari가 .ogg 컨테이너를
   재생하지 못한다** — 모바일 웹 게임이라 그쪽에서 안 들리면 의미가 없다.
   원본은 기획 폴더에 있고 리포에는 변환본만 둔다(`bash docs/build-sfx.sh`).
-- **첫 재생은 사용자 제스처 안에서 일어나야 한다.** iOS·Android는 제스처 없는 재생을
-  막는다. 시작 버튼(`page.tsx`의 `handleStart`)에서 `unlockSfx()`로 무음 재생을 한 번
-  돌려 잠금을 풀어둔다 — 이걸 빼면 게임 안에서 정답 소리가 첫 번째만 안 난다.
+- **HTMLAudioElement가 아니라 Web Audio API를 쓴다**(2026-08-12 전환, iOS 실기 제보).
+  예전 구현은 iOS Safari에서 두 가지가 깨졌고, **데스크톱에서는 둘 다 재현되지 않는다** —
+  크롬에서 확인하고 고쳤다고 판단하지 말 것.
+  - **`unlockSfx()`는 삭제했다. 되살리지 말 것.** `volume = 0`으로 6개 파일을 무음
+    재생해 잠금을 푸는 함수였는데, **iOS의 `HTMLMediaElement.volume`은 읽기 전용이라
+    대입이 조용히 무시된다.** 무음이 아니라 효과음 6개가 제 볼륨으로 동시에 울렸다
+    (긴 파일 coupon_lose·coupon·coindrop만 귀에 걸려 "무작위로 2~3개"로 보였다).
+    이제 `playSfx` 앞의 `ctx.resume()`이 그 역할을 대신하므로 잠금 해제 함수 자체가
+    필요 없다. `handleStart`에 다시 배선하지 말 것.
+  - **음량 제어는 GainNode로만 한다.** `gain.gain`은 iOS에서도 정상적으로 쓰인다 —
+    읽기 전용인 건 `HTMLMediaElement.volume`뿐이다. 음소거는 게인을 0으로 두는 것이라
+    이미 재생 중인 소리까지 같이 멎는다(예전 `pauseAll`이 하던 일).
+  - **버튼 클릭음 지연도 여기서 왔다.** `currentTime = 0` → `play()`가 매번 디코더를
+    다시 태워 일정한 딜레이가 붙었다. 미리 디코드한 AudioBuffer를 `start()`하면 없다.
+- **프리로드는 `useButtonClickSfx`의 마운트 시점에 건다**(`preloadSfx()`). 시작 버튼에
+  걸면 늦다 — **첫 pointerdown이 시작 버튼이라는 보장이 없다**(언어 선택, 약관 팝업,
+  소리 토글, 친구 초대하기가 모두 앞선다). `decodeAudioData`가 비동기라 버퍼가 없는
+  재생은 조용히 건너뛰어지므로, 늦게 걸면 그 앞의 버튼들이 첫 소리를 잃는다.
+- **AudioContext를 모듈 최상위에서 만들지 말 것.** 서버 렌더와 node 테스트에는
+  window도 AudioContext도 없어서 import 시점에 던진다 — `sfx.test.ts`가 통째로 죽는다.
+  `getCtx()`가 지연 생성한다. 제스처 밖에서 만들어도 되며(suspended로 생기고
+  `decodeAudioData`는 그 상태에서도 동작한다), 재생 직전 `resume()`이 깨운다.
+- **음소거 검사는 `getCtx()`보다 먼저 온다.** 소리를 끈 사람에게 오디오 하드웨어를
+  깨울 이유가 없다. 순서가 뒤집히면 `sfx.test.ts`의 "음소거 상태면 AudioContext를
+  만들지도 않는다"가 잡는다.
 - **재생 실패는 절대 던지지 않는다.** 소리는 게임 진행에 필수가 아니고, 제스처 전
-  자동재생 차단(NotAllowedError)은 정상 동작이다. `playSfx`는 모든 실패를 삼킨다.
-- 같은 소리를 연달아 내야 하므로(정답 연속) 재생 중이면 `currentTime = 0`으로 되감는다.
-  엘리먼트는 이름당 하나만 만들어 캐시한다.
+  자동재생 차단은 정상 동작이다. `playSfx`는 모든 실패를 삼킨다.
+- 같은 소리가 연달아·겹쳐 나야 한다(정답 연속). BufferSource는 일회용이라 재생마다
+  새로 만들고, 디코드된 버퍼만 이름당 하나 캐시한다.
 - 결과 소리(당첨/꽝)는 **카드가 돌아간 뒤에** 낸다(`GatchaCard`의 450ms 지연).
   탭하자마자 내면 앞면이 보이기도 전에 결과가 소리로 새어나간다.
 - 결과표의 `coindrop`은 **점수와 무관하게 항상 난다.** 만점자 전용 연출이 아니라

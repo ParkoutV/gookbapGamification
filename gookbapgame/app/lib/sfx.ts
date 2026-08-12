@@ -1,6 +1,15 @@
 /**
- * 효과음 재생. HTMLAudioElement를 쓴다 — Web Audio API는 이 정도 용도에 과하고,
- * 짧은 효과음 6개에 AudioContext 생명주기 관리를 얹을 이유가 없다.
+ * 효과음 재생. **Web Audio API**를 쓴다.
+ *
+ * 예전에는 HTMLAudioElement였는데 iOS Safari에서 두 가지가 깨졌다(2026-08-12, 실기 제보):
+ * 1. 버튼 클릭음이 일정하게 늦게 났다. `currentTime = 0` → `play()`가 매번 디코더를
+ *    다시 태우기 때문이다. 미리 디코드해둔 AudioBuffer를 `start()`하면 지연이 없다.
+ * 2. 시작 버튼을 누르면 엉뚱한 효과음이 2~3개 동시에 났다. 잠금 해제용으로
+ *    `volume = 0` 무음 재생을 6개 파일에 돌렸는데, **iOS의 `HTMLMediaElement.volume`은
+ *    읽기 전용이라 대입이 조용히 무시된다** — 무음이 아니라 전부 제 볼륨으로 울렸다.
+ *    긴 파일(coupon_lose, coupon, coindrop)만 귀에 걸려 "무작위"로 보였다.
+ *    GainNode의 `gain`은 iOS에서도 정상적으로 쓰이므로 음량 제어는 그쪽으로 옮겼다.
+ *    **volume 대입으로 되돌리지 말 것.** 데스크톱에서는 둘 다 재현되지 않는다.
  *
  * 포맷은 m4a(AAC)로 통일했다. 원본은 opus였지만 **iOS Safari가 .ogg 컨테이너를
  * 재생하지 못한다** — 모바일 웹 게임이라 그쪽이 못 들으면 의미가 없다.
@@ -35,29 +44,75 @@ export type SfxName = (typeof SFX)[keyof typeof SFX];
 
 const MUTED_KEY = "gookbapgame_sfx_muted";
 
+let ctx: AudioContext | null = null;
+let gain: GainNode | null = null;
+
 /**
- * 같은 소리를 연달아 재생할 수 있어야 한다(정답을 빠르게 연속으로 맞히는 경우).
- * 재생 중인 엘리먼트의 currentTime을 0으로 되돌리는 방식이라 엘리먼트는 이름당 하나면 된다.
+ * AudioContext는 **모듈 최상위에서 만들지 않는다.** 서버 렌더와 node 테스트에는
+ * window도 AudioContext도 없어서 import 시점에 던진다.
+ *
+ * 제스처 밖에서 만들어도 된다 — 그때는 suspended 상태로 생기고, decodeAudioData는
+ * suspended 상태에서도 동작한다. 실제 재생 직전에 `playSfx`가 resume한다.
  */
-const cache = new Map<SfxName, HTMLAudioElement>();
+function getCtx(): { ctx: AudioContext; gain: GainNode } | null {
+  if (typeof window === "undefined") return null;
+  if (ctx && gain) return { ctx, gain };
 
-function getAudio(name: SfxName): HTMLAudioElement | null {
-  // window는 있는데 Audio는 없는 환경이 있다(테스트 스텁, 일부 임베디드 웹뷰).
-  // 여기서 걸러내지 않으면 new Audio()가 던져 호출부까지 예외가 올라간다.
-  if (typeof window === "undefined" || typeof Audio === "undefined") return null;
-
-  const cached = cache.get(name);
-  if (cached) return cached;
+  const Ctor =
+    typeof AudioContext !== "undefined"
+      ? AudioContext
+      : (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return null;
 
   try {
-    const audio = new Audio(`/sfx/${name}.m4a`);
-    audio.preload = "auto";
-    cache.set(name, audio);
-    return audio;
+    ctx = new Ctor();
+    gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    gain.gain.value = isSfxMuted() ? 0 : 1;
+    return { ctx, gain };
   } catch {
     // 소리는 진행에 필수가 아니다. 만들지 못하면 조용히 포기한다.
+    ctx = null;
+    gain = null;
     return null;
   }
+}
+
+/** 디코드된 버퍼. 이름당 하나면 된다 — 재생마다 BufferSource를 새로 만들기 때문. */
+const buffers = new Map<SfxName, AudioBuffer>();
+/** 진행 중인 로드. 같은 파일을 두 번 받지 않도록 프라미스를 재사용한다. */
+const loading = new Map<SfxName, Promise<void>>();
+
+function load(name: SfxName): Promise<void> {
+  const existing = loading.get(name);
+  if (existing) return existing;
+
+  const audio = getCtx();
+  if (!audio) return Promise.resolve();
+
+  const promise = fetch(`/sfx/${name}.m4a`)
+    .then((res) => res.arrayBuffer())
+    .then((raw) => audio.ctx.decodeAudioData(raw))
+    .then((decoded) => void buffers.set(name, decoded))
+    .catch(() => {
+      // 네트워크·디코드 실패. 다음 재생 때 다시 시도할 수 있도록 표시를 지운다.
+      loading.delete(name);
+    });
+
+  loading.set(name, promise);
+  return promise;
+}
+
+/**
+ * 효과음 6개를 미리 받아 디코드한다(전부 합쳐 63KB).
+ *
+ * **첫 버튼을 누르기 한참 전에 끝나 있어야 한다.** decodeAudioData가 비동기라
+ * 버퍼가 없으면 그 재생은 조용히 건너뛰어진다. 그래서 시작 버튼이 아니라
+ * `useButtonClickSfx`의 마운트 시점에 부른다 — 첫 pointerdown이 시작 버튼이라는
+ * 보장이 없다(언어 선택, 약관 팝업, 소리 토글, 친구 초대하기가 모두 앞설 수 있다).
+ */
+export function preloadSfx(): void {
+  for (const name of Object.values(SFX)) load(name);
 }
 
 export function isSfxMuted(): boolean {
@@ -77,63 +132,51 @@ export function setSfxMuted(muted: boolean): void {
   } catch {
     // 저장에 실패해도 이번 세션의 재생은 아래에서 막는다.
   }
-  // 끄는 순간 이미 재생 중이던 소리는 즉시 멈춘다.
-  if (muted) pauseAll();
-}
-
-function pauseAll(): void {
-  for (const audio of cache.values()) {
-    audio.pause();
-    audio.currentTime = 0;
-  }
+  // 끄는 순간 이미 재생 중이던 소리도 함께 멎는다 — 모든 재생이 이 게인을 거친다.
+  // 여기서 context를 새로 만들지는 않는다(음소거 조작만으로 오디오를 깨울 이유가 없다).
+  if (gain) gain.gain.value = muted ? 0 : 1;
 }
 
 /**
  * 효과음 재생. 실패해도 절대 던지지 않는다 — 소리가 안 나는 것은 게임 진행을
  * 막을 이유가 없고, 자동재생 정책 때문에 첫 제스처 전에는 거부되는 게 정상이다.
+ *
+ * 같은 소리가 겹쳐도 된다(정답을 빠르게 연속으로 맞히는 경우). BufferSource는
+ * 일회용이라 매번 새로 만들며, 재생이 끝나면 알아서 수거된다.
  */
 export function playSfx(name: SfxName): void {
   if (isSfxMuted()) return;
 
-  const audio = getAudio(name);
+  const audio = getCtx();
   if (!audio) return;
 
-  // 이미 재생 중이면 처음부터 다시. 정답을 연속으로 맞힐 때 소리가 씹히지 않는다.
-  audio.currentTime = 0;
-  const promise = audio.play();
-
-  // play()는 브라우저에 따라 Promise를 반환하지 않기도 한다.
-  if (promise && typeof promise.catch === "function") {
-    promise.catch(() => {
-      // NotAllowedError(제스처 전 자동재생 차단)가 대부분이다. 조용히 넘긴다.
-    });
+  const buffer = buffers.get(name);
+  if (!buffer) {
+    // 아직 디코드 전이다. 이번 소리는 포기하고 로드만 걸어둔다 —
+    // 뒤늦게 재생하면 누른 시점과 어긋나 오히려 이상하다.
+    load(name);
+    return;
   }
-}
 
-/**
- * 오디오 잠금 해제. iOS·Android는 사용자 제스처 없이 재생을 막으므로,
- * 첫 탭에서 무음 재생을 한 번 시도해 이후 재생이 통과하도록 만든다.
- * 게임 시작 버튼처럼 확실한 제스처 지점에서 한 번 부르면 된다.
- */
-export function unlockSfx(): void {
-  if (typeof window === "undefined") return;
-
-  for (const name of Object.values(SFX)) {
-    const audio = getAudio(name);
-    if (!audio) continue;
-    // 볼륨을 0으로 두고 재생·정지하면 소리 없이 잠금만 풀린다.
-    const originalVolume = audio.volume;
-    audio.volume = 0;
-    const promise = audio.play();
-    const restore = () => {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = originalVolume;
-    };
-    if (promise && typeof promise.then === "function") {
-      promise.then(restore).catch(restore);
-    } else {
-      restore();
+  const fire = () => {
+    try {
+      const source = audio.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audio.gain);
+      source.start();
+    } catch {
+      // 재생 실패는 삼킨다.
     }
+  };
+
+  // 프리로드가 제스처 밖에서 context를 만들기 때문에(마운트 시점) 첫 재생 때는
+  // 거의 항상 suspended다. **resume()은 비동기이므로 기다렸다가 start해야 한다** —
+  // suspended 상태에서 start()를 걸면 재생이 스케줄만 되고 소리가 나지 않는다.
+  // 이걸 놓쳐서 데스크톱에서 효과음이 통째로 안 났다(2026-08-12).
+  if (audio.ctx.state === "suspended") {
+    audio.ctx.resume().then(fire).catch(() => {});
+    return;
   }
+
+  fire();
 }
