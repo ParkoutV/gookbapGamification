@@ -12,6 +12,7 @@ interface LanguageSetting {
     no: string
     used_successfully: string
     expired_coupon?: string
+    not_yet_valid_coupon?: string
     already_used_coupon?: string
     load_error?: string
   }
@@ -42,6 +43,7 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
         no: '아니오',
         used_successfully: '쿠폰이 성공적으로 사용되었습니다.',
         expired_coupon: '만료된 쿠폰입니다. (만료일: {{expired_date}})',
+        not_yet_valid_coupon: '아직 사용 기간이 아닙니다. (시작일: {{valid_date}})',
         already_used_coupon: '이미 사용된 쿠폰입니다.',
         load_error: '쿠폰 정보를 불러오지 못했습니다.'
       }
@@ -160,7 +162,7 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
           {isAdmin && (
             <>
               <h3 className="text-lg font-bold text-white mb-4 mt-6">다국어 텍스트 설정</h3>
-              <p className="text-sm text-zinc-400 mb-4">사용할 수 있는 변수: {'{{user_nickname}}'}, {'{{coupon_effects}}'}, {'{{expired_date}}'}</p>
+              <p className="text-sm text-zinc-400 mb-4">사용할 수 있는 변수: {'{{user_nickname}}'}, {'{{coupon_effects}}'}, {'{{expired_date}}'}, {'{{valid_date}}'}</p>
           
           <div className="flex space-x-2 border-b border-zinc-700 mb-6 overflow-x-auto">
             {languages.map(lang => (
@@ -227,6 +229,17 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
                 value={activeConfig.expired_coupon || ''}
                 onChange={(e) => handleUpdate('expired_coupon', e.target.value)}
                 placeholder="예: 만료된 쿠폰입니다. (만료일: {{expired_date}})"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">사용 기간 전 쿠폰 메시지</label>
+              <textarea 
+                rows={2}
+                value={activeConfig.not_yet_valid_coupon || ''}
+                onChange={(e) => handleUpdate('not_yet_valid_coupon', e.target.value)}
+                placeholder="예: 아직 사용 기간이 아닙니다. (시작일: {{valid_date}})"
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
             </div>

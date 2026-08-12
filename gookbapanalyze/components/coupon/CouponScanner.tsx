@@ -315,6 +315,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     
 
     const expiredTemplate = texts.expired_coupon || '만료된 쿠폰입니다. (만료일: {{expired_date}})'
+    const notYetValidTemplate = texts.not_yet_valid_coupon || '아직 사용 기간이 아닙니다. (시작일: {{valid_date}})'
     const usedText = texts.already_used_coupon || '이미 사용된 쿠폰입니다.'
     const errorText = texts.load_error || '쿠폰 정보를 불러오지 못했습니다.'
 
@@ -323,7 +324,18 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       
       if (error) throw error
       
-      if (data.expired_at && new Date(data.expired_at) < new Date()) {
+      const now = new Date()
+
+      if (data.valid_from && new Date(data.valid_from) > now) {
+        setToastStatus('error')
+        const validDateObj = new Date(data.valid_from)
+        const validDateStr = `${validDateObj.getFullYear()}.${String(validDateObj.getMonth() + 1).padStart(2, '0')}.${String(validDateObj.getDate()).padStart(2, '0')}`
+        setToastMessage(notYetValidTemplate.replace('{{valid_date}}', validDateStr))
+        setTimeout(() => setToastStatus('idle'), 3000)
+        return
+      }
+      
+      if (data.expired_at && new Date(data.expired_at) < now) {
         setToastStatus('error')
         const expireDateObj = new Date(data.expired_at)
         const expireDateStr = `${expireDateObj.getFullYear()}.${String(expireDateObj.getMonth() + 1).padStart(2, '0')}.${String(expireDateObj.getDate()).padStart(2, '0')}`
