@@ -600,7 +600,9 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
     "coupon_type": "{\"ko\": \"국밥 1그릇 무료 뚝딱 쿠폰\", \"en\": \"Free Gookbap\"}",
     "score_used": 1500,
     "coupon_id": "uuid-string-here",
-    "web_coupon_code": "A1B2C3D4" // 웹 전용 쿠폰 당첨 시에만 반환
+    "web_coupon_code": "A1B2C3D4", // 웹 전용 쿠폰 당첨 시에만 반환 (없으면 null)
+    "valid_from": "2026-08-05T00:00:00.000Z",
+    "expired_at": "2026-08-12T23:59:59.000Z"
   }
   ```
 - **Response (No Win / 꽝 - 200 OK)**:
@@ -775,3 +777,4 @@ await supabase.rpc('update_track_log_action', {
 // 행동이 발생했으므로 세션 활동 시간 갱신 (세션 연장)
 localStorage.setItem('track_last_active', now.toString());
 ```
+
