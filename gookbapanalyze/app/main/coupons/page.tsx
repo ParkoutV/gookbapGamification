@@ -199,7 +199,7 @@ export default function CouponsPage() {
     const { data: setts } = await supabase.from('gatcha_settings').select('*').eq('id', 1).single()
     if (setts) {
       setSettings(setts)
-      setOriginalSettings(setts)
+      setOriginalSettings(JSON.parse(JSON.stringify(setts)))
       setLocalLimitN(setts.limit_n.toString())
       setLocalLimitM(setts.limit_m.toString())
     }
@@ -208,7 +208,7 @@ export default function CouponsPage() {
     const { data: cases } = await supabase.from('gatcha_cases').select('*').order('min_score', { ascending: true })
     if (cases) {
       setGatchaCases(cases)
-      setOriginalGatchaCases(cases)
+      setOriginalGatchaCases(JSON.parse(JSON.stringify(cases)))
     }
 
     // Fetch Coupons
@@ -220,7 +220,7 @@ export default function CouponsPage() {
         return 0;
       })
       setCoupons(coups)
-      setOriginalCoupons(coups)
+      setOriginalCoupons(JSON.parse(JSON.stringify(coups)))
     }
 
     // Fetch Web Coupon Settings
@@ -283,7 +283,7 @@ export default function CouponsPage() {
     setSaving(true)
     const supabase = createClient()
     await supabase.from('gatcha_settings').update(settings).eq('id', 1)
-    setOriginalSettings(settings)
+    setOriginalSettings(JSON.parse(JSON.stringify(settings)))
     setSaving(false)
     alert('설정이 저장되었습니다.')
   }
