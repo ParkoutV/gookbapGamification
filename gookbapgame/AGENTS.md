@@ -241,6 +241,31 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   `renderFoundMarks`/`renderWrongMarks`가 같은 구조다. `globals.css`의
   `card-corner-layer`도 같은 이유로 형제 레이어다.
 
+# 화면 높이 — `vh`를 쓰지 말 것
+
+모바일 웹 게임이라 브라우저 툴바가 화면 높이를 좌우한다. **`100vh`는 툴바가 없는
+상태의 높이로 고정**되므로, 하단 툴바가 두꺼운 브라우저에서는 딱 그만큼 화면이 넘친다 —
+iOS Firefox 실기에서 게임판이 잘려 **위아래로 스크롤하며 플레이**해야 했다
+(2026-08-12 제보). 안드로이드는 제조사마다 기본 브라우저와 디스플레이 규격이 달라
+개별 대응이 불가능하므로, 브라우저가 실제 가시 높이를 알려주는 `dvh`를 쓴다.
+
+- 화면 루트는 **`min-h-dvh`**(Tailwind v4 기본 제공, 설정 불필요). `min-h-screen`으로
+  되돌리지 말 것 — Tailwind의 `screen`이 곧 `100vh`다.
+- **`GameScreen`만 `min-`이 없는 `h-dvh`다.** 게임 중에는 페이지가 스크롤되면 안 된다.
+  `min-h-dvh`는 내용이 길어지면 늘어나서 `main`의 `overflow-auto`가 무의미해진다 —
+  루트를 `h-dvh`로 묶어야 `flex-1`인 main이 함께 묶이고, 넘치는 내용이 페이지가 아니라
+  **main 안에서만** 스크롤된다(헤더·게이지는 제자리에 남는다).
+- **`env(safe-area-inset-*)`(`--safe-top`/`--safe-bottom` 류)로는 못 고친다.** 그건 OS
+  노치·홈 인디케이터용이고 브라우저 툴바와 무관하다. 일반 브라우저 탭에서는 OS 인셋이
+  이미 뷰포트에서 빠져 있어 `viewport-fit=cover` 없이는 **0으로 계산된다** — 넣어도
+  코드만 늘고 화면은 바뀌지 않는다. (cover는 콘텐츠를 홈 인디케이터 **아래로** 밀어넣는
+  별개의 큰 변경이라 전면 재패딩이 필요하다. 하게 되면 Next 15+ 기준 `metadata`가 아니라
+  `export const viewport: Viewport`이며, 문서를 먼저 읽을 것.)
+- `globals.css`의 카드·클립보드 크기 상한(`.hint-clipboard`, `.gatcha-card`)도 같은
+  이유로 `dvh`다. **`vw`는 그대로 둔다** — 가로 폭은 툴바의 영향을 받지 않는다.
+- **데스크톱 브라우저와 Playwright로는 검증할 수 없다.** 툴바 두께를 에뮬레이션할
+  수단이 없어서, 창 크기를 줄여도 이 버그는 재현되지 않는다. 실기 확인이 유일한 검증이다.
+
 # 효과음 (`app/lib/sfx.ts`)
 
 - **포맷은 m4a(AAC) 하나로 통일한다.** 원본은 opus인데 **iOS Safari가 .ogg 컨테이너를

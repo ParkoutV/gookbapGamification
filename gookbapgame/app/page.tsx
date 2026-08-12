@@ -234,7 +234,7 @@ export default function Home({ searchParams }: PageProps) {
   }, [goToPhase, refreshCoupons]);
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-dvh bg-black">
       {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
       {/* 화면 위에 늘 떠 있는 도구 모음. 각 버튼이 스스로 fixed를 갖지 않고
           여기서 위치를 정한다 — 따로 두면 서로 겹친다. */}

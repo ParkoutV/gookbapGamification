@@ -302,12 +302,29 @@ export default function GameScreen({
         />
       ));
 
+  // 높이는 `h-dvh`다 — 다른 화면의 `min-h-dvh`와 다르고, 둘 다 `vh`가 아니다.
+  //
+  // `vh`는 **툴바가 없는 상태의 높이**로 고정돼서, 하단 툴바가 두꺼운 브라우저에서는
+  // 그만큼 화면이 넘친다. iOS Firefox 실기에서 게임판이 잘려 위아래로 스크롤하며
+  // 플레이해야 했다(2026-08-12 제보). `dvh`는 툴바를 뺀 실제 가시 높이라
+  // 브라우저·제조사가 달라도 알아서 맞는다 — 안드로이드는 기본 브라우저와 화면 규격이
+  // 제각각이라 개별 대응이 불가능하다.
+  //
+  // **`env(safe-area-inset-*)`로는 못 고친다.** 그건 OS 노치·홈 인디케이터용이고
+  // 브라우저 툴바와 무관하다. 일반 탭에서는 OS 인셋이 이미 뷰포트에서 빠져 있어
+  // `viewport-fit=cover` 없이는 0으로 계산된다 — 넣어도 아무것도 안 바뀐다.
+  //
+  // 이 화면만 `min-`이 없는 이유: 게임 중 페이지가 스크롤되면 안 된다. `min-h-dvh`는
+  // 내용이 길어지면 늘어나므로 아래 `main`의 `overflow-auto`가 무의미해진다.
+  // `h-dvh`로 루트를 묶어야 `flex-1`인 main이 함께 묶이고, 넘치는 내용은 페이지가
+  // 아니라 **main 안에서만** 스크롤된다(헤더와 게이지는 제자리에 남는다).
+  //
   // 바탕은 다른 화면과 같은 --bg다. 예전엔 이 화면만 더 어두운 --bg-deep을 썼는데,
   // 밝은 테마로 바꾼 뒤로는 (1) 이 화면만 눈에 띄게 어두워 패널 화면들과 톤이 갈리고,
   // (2) 시간 임박 경고(text-error)의 대비가 1.55까지 떨어져 정작 가장 중요한 경고가
   // 안 보였다(2026-08-11 실측). 그래서 --bg로 합치고 --bg-deep 자체를 없앴다.
   return (
-    <div className={`flex flex-col min-h-screen bg-bg text-ink ${isShaking ? "animate-shake" : ""}`}>
+    <div className={`flex flex-col h-dvh bg-bg text-ink ${isShaking ? "animate-shake" : ""}`}>
       <header className="relative flex justify-end items-center p-4 md:px-8 bg-surface shadow-lg border-b border-wood z-10 sticky top-0">
         {/* Lv 표시 + 진행 칩. 칩은 시각 정보라 스크린리더에는 기존 문장을 남긴다. */}
         <div
