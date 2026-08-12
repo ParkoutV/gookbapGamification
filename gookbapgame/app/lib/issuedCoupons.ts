@@ -16,6 +16,15 @@ export type IssuedCouponRow = {
   is_used: boolean;
   issued_at?: string;
   expired_at: string | null;
+  /**
+   * 쿠폰이 실제로 유효해지는 시작 시각.
+   *
+   * **아직 `get_my_coupons` 응답에 없다**(2026-08-12 기준). `issued_coupons` 테이블에는
+   * 있고 스캐너(`get_coupon_info_for_scan`)와 draw 응답은 받지만, 이 RPC의 반환 컬럼에는
+   * 빠져 있다 — `issued_coupons` 직접 SELECT는 RLS로 막혀 있어 우회로도 없다.
+   * 그래서 옵셔널이며, 서버가 컬럼을 추가하면 코드 수정 없이 화면에 나타난다.
+   */
+  valid_from?: string | null;
 };
 
 export type IssuedCoupon = {
@@ -29,6 +38,8 @@ export type IssuedCoupon = {
    * `isFreshlyIssued`가 이 경우를 "최근 아님"으로 친다.
    */
   issuedAt?: string;
+  /** 사용 시작 시각(ISO 문자열). RPC가 아직 안 준다 — `IssuedCouponRow` 주석 참고. */
+  validFrom?: string | null;
 };
 
 /**
@@ -56,6 +67,7 @@ export function toIssuedCoupon(
     isUsed: row.is_used,
     expiredAt: row.expired_at,
     issuedAt: row.issued_at,
+    validFrom: row.valid_from,
   };
 }
 

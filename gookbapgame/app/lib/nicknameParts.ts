@@ -1,5 +1,5 @@
 import type { Locale } from "./i18n/types.ts";
-import { resolveLocalizedName, type LocalizedName } from "./i18n/localizedName.ts";
+import { FALLBACK_LOCALE, resolveLocalizedName, type LocalizedName } from "./i18n/localizedName.ts";
 
 /**
  * 닉네임을 **문자열이 아니라 조립 전 재료로** 들고 다닌다.
@@ -24,11 +24,9 @@ export type NicknameParts = {
 /**
  * 이미 조립된 문자열밖에 없을 때 쓰는 형태.
  *
- * 배정 API(`/api/nickname/assign`)가 지금은 `"든든한 국밥 #0023"` 한국어 문자열만
- * 돌려주기 때문에 첫 방문 경로가 여기 해당한다. 로컬 폴백(`generateNickname`)도 같다.
- *
- * **저쪽이 응답에 다국어 맵을 추가하기로 했으므로(2026-08-12 협의) 그때 이 분기는
- * 줄어든다.** 그전까지는 한국어로 표시되며, 이는 지금과 같은 동작이라 회귀가 아니다.
+ * **이제 로컬 폴백(`generateNickname`) 전용이다** — 배정 API도 2026-08-12부터 맵을
+ * 주므로 서버에서 오는 경로는 전부 `NicknameParts`다. 폴백은 환경변수 미설정·장애
+ * 경로라 한국어 전용으로 남긴다(요청서 `docs/client/20260812-nickname-locale.md`).
  */
 export type NicknameText = { text: string };
 
@@ -38,20 +36,39 @@ function isParts(value: Nickname): value is NicknameParts {
   return "first" in value;
 }
 
+/** 해당 로케일 값이 실제로 들어 있을 때만 문자열, 아니면 null(→ 통째로 한국어 폴백). */
+function pickExact(name: LocalizedName, locale: Locale): string | null {
+  const value = name?.[locale];
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
 /**
  * 화면에 표시할 닉네임 문자열.
  *
  * **`#` 앞은 non-breaking space다**(`gookbapanalyze`의 CouponScanner와 같은 규칙).
  * 좁은 화면에서 번호만 다음 줄로 떨어지지 않게 한다. 단어 사이는 일반 공백이다.
  *
- * 맵에 해당 로케일이 없으면 `resolveLocalizedName`이 한국어로 떨어뜨린다. 번역이
- * 아직 채워지지 않은 항목은 그래서 지금과 같은 모습으로 보인다.
+ * **폴백은 단어별이 아니라 닉네임 전체 단위다**(2026-08-12, 이란토). 앞말·뒷말이
+ * 각자 `resolveLocalizedName`을 타면 한쪽만 번역된 프리셋에서 `Hearty 국밥`처럼
+ * 언어가 섞인다 — 한 사람의 이름인데 두 언어가 붙어 있는 꼴이라 어색하다("판교
+ * 사투리"로 놀림거리가 되는 그 형태다). 그래서 **두 단어 모두 해당 로케일 값이
+ * 있을 때만** 그 언어로 쓰고, 하나라도 비면 통째로 한국어로 떨어뜨린다.
+ *
+ * `nickname_presets.text`의 `en`·`ja`가 아직 부분적으로만 채워져 있어 실제로 자주
+ * 걸리는 경로다. 번역이 채워지면 자동으로 해당 언어가 나온다.
+ *
+ * 둘 다 한국어조차 없으면 `resolveLocalizedName`이 `—`로 떨어뜨린다.
  */
 export function formatNickname(nickname: Nickname, locale: Locale): string {
   if (!isParts(nickname)) return nickname.text;
 
-  const first = resolveLocalizedName(nickname.first, locale);
-  const last = resolveLocalizedName(nickname.last, locale);
+  // 두 단어가 모두 이 로케일로 번역돼 있을 때만 그 언어를 쓴다(위 주석 참고).
+  const exactFirst = pickExact(nickname.first, locale);
+  const exactLast = pickExact(nickname.last, locale);
+  const bothTranslated = exactFirst !== null && exactLast !== null;
+
+  const first = bothTranslated ? exactFirst : resolveLocalizedName(nickname.first, FALLBACK_LOCALE);
+  const last = bothTranslated ? exactLast : resolveLocalizedName(nickname.last, FALLBACK_LOCALE);
   const suffix = nickname.number ? ` #${nickname.number}` : "";
   return `${first} ${last}${suffix}`;
 }

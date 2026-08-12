@@ -7,7 +7,7 @@ import PixelPanel from "./PixelPanel";
 import CouponQR from "./CouponQR";
 import type { IssuedCoupon } from "../actions";
 import { isCouponExpired } from "../lib/couponUsability";
-import { DATE_LOCALES } from "../lib/i18n/dateLocales";
+import { couponDateLines } from "../lib/couponDates";
 
 export default function MyCouponsScreen({
   coupons,
@@ -47,15 +47,17 @@ export default function MyCouponsScreen({
                 {!coupon.isUsed && expired && (
                   <p className="text-xs text-muted">{t("coupon.expiredBadge")}</p>
                 )}
-                {!unusable && coupon.expiredAt && (
-                  <p className="text-xs text-muted">
-                    {t("coupon.expiresAt", {
-                      date: new Date(coupon.expiredAt).toLocaleDateString(
-                        DATE_LOCALES[locale] ?? "en-US"
-                      ),
-                    })}
-                  </p>
-                )}
+                {/* 날짜는 카드 앞면과 **같은 헬퍼**로 만든다 — 여기만 기기 시간대로
+                    렌더하면 같은 쿠폰이 화면마다 다른 날짜로 뜬다(KST 23:59:59 만료가
+                    서쪽 기기에서 하루 앞당겨진다). 이 목록은 사용기한 줄만 쓴다. */}
+                {!unusable &&
+                  couponDateLines(coupon, locale, t)
+                    .filter((line) => line.key === "expiry")
+                    .map((line) => (
+                      <p key={line.key} className="text-xs text-muted">
+                        {line.text}
+                      </p>
+                    ))}
 
                 {!unusable && (
                   <button

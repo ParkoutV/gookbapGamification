@@ -350,20 +350,9 @@ async function assignNicknameOrFallback(participantId: string): Promise<Particip
     return localFallback();
   }
 
-  /*
-   * **여기만 아직 다국어가 아니다.** 배정 API가 `"든든한 국밥 #0023"`처럼 이미 조립된
-   * 한국어 문자열 하나만 돌려주기 때문에, 첫 방문자는 어떤 언어를 골랐든 한국어
-   * 닉네임을 받는다. 재방문부터는 `get_participant`가 맵을 주므로 정상이다.
-   *
-   * **gookbapanalyze 쪽에서 응답에 다국어 맵을 추가하기로 했다**(2026-08-12 협의,
-   * `docs/client/20260812-nickname-locale.md`). 반영되면 `requestNicknameAssign`이
-   * 그 필드를 실어오게 하고 여기서 `{ first, last, number }`를 그대로 넘기면 된다 —
-   * 아래 화면 쪽은 이미 맵을 받을 준비가 되어 있어 고칠 것이 없다.
-   *
-   * `nickname_presets`를 직접 조인해 우회하는 방법도 있지만(anon `SELECT` 허용,
-   * 배정 응답의 `first_id`/`last_id` 사용) 곧 불필요해질 코드라 넣지 않았다.
-   */
-  return { nickname: { text: result.nickname }, nicknameSynced: true };
+  // 배정 응답도 2026-08-12부터 다국어 맵을 준다(요청서 반영). 조회 경로와 같은 형태라
+  // 그대로 넘기면 되고, 조립·로케일 선택은 화면(formatNickname)이 한다.
+  return { nickname: result.nickname, nicknameSynced: true };
 }
 
 async function ensureParticipantUnsafe(trackId: string | null): Promise<ParticipantResult> {
