@@ -63,7 +63,7 @@ export default function StartScreen({
   }, [inviteMessage]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-md w-full text-center">
         <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "var(--font-pixel)" }}>
           {t("start.title")}

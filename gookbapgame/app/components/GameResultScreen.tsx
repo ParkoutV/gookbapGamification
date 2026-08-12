@@ -44,7 +44,7 @@ export default function GameResultScreen({
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
       {/* 만점자 축하 연출. 1953점이 총점의 실제 만점이고 그때만 이 등급이 나온다
           (stageConfig의 GUKBAP_TIER_CUTOFFS). 소리는 따로 내지 않는다 — 결과표의
           coindrop이 이미 울린다. */}

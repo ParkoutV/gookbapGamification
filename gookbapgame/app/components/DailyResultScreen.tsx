@@ -27,7 +27,7 @@ export default function DailyResultScreen({
   const stubAchievements = ["첫 만남", "형제의 눈썰미"];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("dailyResult.title")}</h1>
         <p className="text-muted mb-1">{t("dailyResult.nicknameLabel")}</p>

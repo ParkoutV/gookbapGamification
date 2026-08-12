@@ -22,7 +22,6 @@ import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
-import { unlockSfx } from "./lib/sfx";
 import { useButtonClickSfx } from "./hooks/useButtonClickSfx";
 import {
   hasAcknowledgedTerm,
@@ -87,10 +86,9 @@ export default function Home({ searchParams }: PageProps) {
   // 쿠키는 클릭 이벤트에서만 읽으므로 서버 렌더 중에는 호출되지 않는다
   // (enterSurveyFlow의 hasSurveySubmitted와 같은 전제).
   const handleStart = useCallback(() => {
-    // 여기서 오디오 잠금을 푼다. iOS·Android는 사용자 제스처 없이 재생을 막으므로,
-    // 게임 안에서 정답 소리가 처음 나는 순간에는 이미 풀려 있어야 한다.
-    // 시작 버튼은 반드시 거치는 확실한 제스처 지점이다.
-    unlockSfx();
+    // 오디오 잠금 해제는 여기서 하지 않는다. sfx.ts가 Web Audio로 바뀌면서
+    // 재생 직전 ctx.resume()이 그 역할을 맡았고, 프리로드는 useButtonClickSfx가 한다.
+    // 예전의 unlockSfx()는 iOS에서 효과음 6개를 실제로 울리는 버그였다(2026-08-12).
     // 클릭 소리는 useButtonClickSfx가 문서 전체에서 잡으므로 여기서 부르지 않는다.
 
     const withTutorial = !hasSeenTutorial();
@@ -236,7 +234,7 @@ export default function Home({ searchParams }: PageProps) {
   }, [goToPhase, refreshCoupons]);
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-dvh bg-black">
       {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
       {/* 화면 위에 늘 떠 있는 도구 모음. 각 버튼이 스스로 fixed를 갖지 않고
           여기서 위치를 정한다 — 따로 두면 서로 겹친다. */}
