@@ -80,7 +80,9 @@ export function playBgm(name: BgmName, muted: boolean): void {
   if (current !== name) {
     current = name;
     audio.src = `/sfx/${name}.m4a`;
-    audio.load();
+    /* **`load()`를 부르지 말 것.** `preload = "none"`을 무효화해서 자동재생이 막혀
+       있는 동안에도 곡을 통째로 받아버린다(실측: 첫 화면에서 bgm_main 240KB를
+       그냥 받고 있었다). src만 걸어두면 실제 `play()` 시점에 받는다. */
   }
 
   if (muted) {
