@@ -16,6 +16,7 @@ import {
 } from "../lib/stageConfig";
 import { ensureParticipant, reassignNickname as reassignNicknameAction, recordGameStart, submitGameScore } from "../actions";
 import type { GameEndReason } from "../lib/gameEnd";
+import type { Nickname } from "../lib/nicknameParts";
 
 export type GamePhase =
   | "start"
@@ -54,7 +55,12 @@ function countDifferences(session: GameSession): number {
 
 export function useGameProgress(trackId: string | null) {
   const [phase, setPhase] = useState<GamePhase>("start");
-  const [nickname, setNickname] = useState<string>("");
+  /*
+   * 문자열이 아니라 조립 전 재료다. 화면이 렌더 시점에 로케일로 고른다
+   * (`formatNickname`) — 여기서 문자열로 확정하면 언어 토글에 따라오지 않는다.
+   * 초기값은 아직 아무것도 못 받은 상태이므로 빈 문자열 형태로 둔다.
+   */
+  const [nickname, setNickname] = useState<Nickname>({ text: "" });
   const [isRegenerating, setIsRegenerating] = useState(false);
   const nicknameSyncedRef = useRef(false);
   const [stageIndex, setStageIndex] = useState(0);

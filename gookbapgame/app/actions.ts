@@ -8,6 +8,7 @@ import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPol
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { nicknameFromParticipantRows } from "./lib/existingNickname";
+import type { Nickname, NicknameParts } from "./lib/nicknameParts";
 import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
@@ -296,8 +297,13 @@ export async function fetchGameData(
   }
 }
 
+/**
+ * `nickname`은 **문자열이 아니라 조립 전 재료다**(2026-08-12). 언어 선택은 화면이
+ * 렌더 시점에 한다 — 여기서 확정하면 접속 후 언어 토글을 눌러도 닉네임만 한국어로
+ * 남는다(서버 액션은 그때 다시 불리지 않는다). 자세한 배경은 `lib/nicknameParts.ts`.
+ */
 export type ParticipantResult = {
-  nickname: string;
+  nickname: Nickname;
   nicknameSynced: boolean;
 };
 
@@ -308,8 +314,12 @@ async function resolveParticipantId(): Promise<string> {
   return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-${hex32.slice(12, 16)}-${hex32.slice(16, 20)}-${hex32.slice(20, 32)}`;
 }
 
+/**
+ * 배정 API가 없거나 실패했을 때. **한국어 전용이다** — 개발·장애 경로이고,
+ * 서버에 저장되지도 않아 방문할 때마다 바뀐다(`nicknameSynced: false`).
+ */
 function localFallback(): ParticipantResult {
-  return { nickname: generateNickname(), nicknameSynced: false };
+  return { nickname: { text: generateNickname() }, nicknameSynced: false };
 }
 
 /**
@@ -318,7 +328,7 @@ function localFallback(): ParticipantResult {
  * `participants` 직접 SELECT는 RLS로 막혀 있어 `get_participant` RPC를 써야 한다
  * (gookbapanalyze/AGENTS.md).
  */
-async function lookupExistingNickname(participantId: string): Promise<string | null> {
+async function lookupExistingNickname(participantId: string): Promise<NicknameParts | null> {
   const { data, error } = await supabase.rpc("get_participant", { p_id: participantId });
   if (error) {
     console.error("[lookupExistingNickname] get_participant 실패:", error);
@@ -339,7 +349,21 @@ async function assignNicknameOrFallback(participantId: string): Promise<Particip
     console.error("[assignNicknameOrFallback] 닉네임 API 실패:", result.error);
     return localFallback();
   }
-  return { nickname: result.nickname, nicknameSynced: true };
+
+  /*
+   * **여기만 아직 다국어가 아니다.** 배정 API가 `"든든한 국밥 #0023"`처럼 이미 조립된
+   * 한국어 문자열 하나만 돌려주기 때문에, 첫 방문자는 어떤 언어를 골랐든 한국어
+   * 닉네임을 받는다. 재방문부터는 `get_participant`가 맵을 주므로 정상이다.
+   *
+   * **gookbapanalyze 쪽에서 응답에 다국어 맵을 추가하기로 했다**(2026-08-12 협의,
+   * `docs/client/20260812-nickname-locale.md`). 반영되면 `requestNicknameAssign`이
+   * 그 필드를 실어오게 하고 여기서 `{ first, last, number }`를 그대로 넘기면 된다 —
+   * 아래 화면 쪽은 이미 맵을 받을 준비가 되어 있어 고칠 것이 없다.
+   *
+   * `nickname_presets`를 직접 조인해 우회하는 방법도 있지만(anon `SELECT` 허용,
+   * 배정 응답의 `first_id`/`last_id` 사용) 곧 불필요해질 코드라 넣지 않았다.
+   */
+  return { nickname: { text: result.nickname }, nicknameSynced: true };
 }
 
 async function ensureParticipantUnsafe(trackId: string | null): Promise<ParticipantResult> {

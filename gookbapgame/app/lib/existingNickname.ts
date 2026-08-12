@@ -4,44 +4,49 @@
  * 재방문자에게 `assign_random_nickname`을 다시 호출하면 닉네임이 새로 뽑혀서
  * 새로고침마다 바뀐다(2026-08-05 확인). 그래서 재방문 경로에서는 배정 대신
  * 이 조회를 쓴다.
+ *
+ * **다국어 맵을 그대로 돌려준다 — 여기서 문자열로 확정하지 말 것**(2026-08-12).
+ * 예전에는 `pickKorean`이 `"ko"` 키만 뽑아 써서, 영문·일본어 환경에서도 닉네임만
+ * 한국어로 나왔다(gookbapanalyze 담당자 제보). **DB와 RPC는 처음부터 다국어를
+ * 통째로 주고 있었고**(`{"ko": "든든한", "en": "Hearty"}`), 그것을 받은 쪽에서
+ * 버린 것이 원인이었다. 언어 선택은 화면이 렌더 시점에 한다(`formatNickname`) —
+ * 접속 후 언어 토글을 눌러도 따라오게 하려면 여기서 확정하면 안 된다.
  */
 
-type NameMap = Record<string, unknown>;
+import type { NicknameParts } from "./nicknameParts.ts";
+import type { LocalizedName } from "./i18n/localizedName.ts";
 
-const KO = "ko";
+type Row = Record<string, unknown>;
 
-function pickKorean(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const text = (value as NameMap)[KO];
-  return typeof text === "string" && text.trim() !== "" ? text.trim() : null;
+/** jsonb 맵이 온전한 객체일 때만 통과시킨다. 문자열·null은 이름이 없는 것으로 친다. */
+function asNameMap(value: unknown): LocalizedName | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as LocalizedName;
 }
 
 /**
- * 닉네임 문자열, 또는 아직 배정되지 않았거나 응답이 비정상이면 null.
+ * 닉네임 재료, 또는 아직 배정되지 않았거나 응답이 비정상이면 null.
  *
- * null일 때 호출부는 배정 API로 넘어간다. 여기서 한쪽 단어만으로 닉네임을
- * 지어내면 서버에 저장된 값과 어긋나므로, 조합이 온전할 때만 반환한다.
+ * null일 때 호출부는 배정 API로 넘어간다. 한쪽 단어만으로 닉네임을 지어내면 서버에
+ * 저장된 값과 어긋나므로, 조합이 온전할 때만 반환한다.
  *
- * **`nickname_number`를 빠뜨리지 말 것.** 이 경로는 재방문자가 타는데,
- * 번호를 안 붙이면 배정 직후(`#0023` 있음)와 다시 접속했을 때(번호 없음)
- * 이름이 달라 보인다. 같은 사람인데 화면마다 다른 이름이 뜨는 셈이라
- * "닉네임 다시 뽑기"가 안 먹는 것처럼 보인다(2026-08-10 제보).
- *
- * `#` 앞은 non-breaking space다(`gookbapanalyze`의 CouponScanner와 같은 규칙).
- * 좁은 화면에서 번호만 다음 줄로 떨어지지 않게 한다. 단어 사이는 기존대로
- * 일반 공백을 유지한다. `nickname_number`는 nullable이라 없으면 붙이지 않는다.
+ * **`nickname_number`를 빠뜨리지 말 것.** 이 경로는 재방문자가 타는데, 번호를 안
+ * 붙이면 배정 직후(`#0023` 있음)와 다시 접속했을 때(번호 없음) 이름이 달라 보인다.
+ * 같은 사람인데 화면마다 다른 이름이 뜨는 셈이라 "닉네임 다시 뽑기"가 안 먹는 것처럼
+ * 보인다(2026-08-10 제보). 번호를 붙이는 것은 `formatNickname`이 한다.
  */
-export function nicknameFromParticipantRows(data: unknown): string | null {
+export function nicknameFromParticipantRows(data: unknown): NicknameParts | null {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") return null;
 
-  const first = pickKorean((row as NameMap).nickname_first);
-  const last = pickKorean((row as NameMap).nickname_last);
+  const first = asNameMap((row as Row).nickname_first);
+  const last = asNameMap((row as Row).nickname_last);
   if (!first || !last) return null;
 
-  const number = (row as NameMap).nickname_number;
-  const suffix =
-    typeof number === "string" && number.trim() !== "" ? `\u00A0#${number.trim()}` : "";
-
-  return `${first} ${last}${suffix}`;
+  const number = (row as Row).nickname_number;
+  return {
+    first,
+    last,
+    number: typeof number === "string" && number.trim() !== "" ? number.trim() : null,
+  };
 }
