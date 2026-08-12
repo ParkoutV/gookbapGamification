@@ -302,8 +302,8 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 **[RLS Policies]**
 - `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admins have full access to survey_questions)*
 - `ALL` (공개): `해당 지점 관리자 전용` *(Policy: Branch users have full access to their branch's survey_question)*
-- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT survey_questions)*
 - `SELECT` (공개): `모두 허용` *(Policy: Everyone can read survey questions)*
+  * *참고:* `survey_questions`는 게임 클라이언트 표시를 위해 모두에게 읽기가 허용되어 있으나, 대시보드의 **일반 가맹점 관리자(User)** 화면에서는 서버 액션(`actions.ts`) 단에서 강제로 `survey_phase=2` 및 `branch_id` 필터링을 거치도록 처리되어 있어 **Phase 0과 1의 데이터가 노출되지 않습니다**.
 * **`question_id`** (`uuid`, Primary Key): 문항 식별자.
 * **`survey_phase`** (`integer`): 0(힌트), 1(주요 질문), 2(지점 특화 질문) 등 설문 시점을 나타냅니다. 
 * **`question_text`** (`text`): 다국어 질문 내용 (문자열 직렬화).
@@ -326,7 +326,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`participant_id`** (`uuid`): 답변자. (`participants` 외래키, `CASCADE`)
 * **`answer_data`** (`jsonb`): 사용자가 제출한 결과 데이터.
 * **`created_at`** (`timestamp with time zone`): 제출 일시.
-  * *제약조건:* `UNIQUE (question_id, participant_id)`를 통해 사용자가 동일한 설문에 두 번 답변하는 것을 원천 차단합니다.
+  * *제약조건:* 테이블 자체의 `UNIQUE` 제약조건은 제거되었으며, 데이터베이스 트리거(`trg_enforce_unique_survey_response_phase_1_2`)를 통해 **Phase 1과 Phase 2의 질문에 대해서만** 동일 유저가 두 번 답변하는 것을 차단합니다. **Phase 0은 중복 응답을 허용**하며, 대시보드의 '중복 응답 처리' 필터를 통해 통계 조회 시 최신 응답만 남기도록 처리할 수 있습니다.
 
 **[`optional_survey_records`] (Admin: ALL, Everyone: SELECT)**
 

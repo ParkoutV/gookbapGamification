@@ -56,7 +56,8 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
     startDate: null,
     endDate: null,
     answers: {},
-    condition: 'AND'
+    condition: 'AND',
+    deduplicate: true
   })
 
   const [expandedPhases, setExpandedPhases] = useState<Record<number, boolean>>({
@@ -94,22 +95,37 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
   }
 
   // --- Filtering Logic ---
-  const filteredParticipants = useMemo(() => {
-    if (!responses.length) return new Set<string>()
-
-    // 1. Filter responses by date first to get valid pool
-    let validResponses = responses
+  const baseValidResponses = useMemo(() => {
+    if (!responses.length) return []
+    let valid = responses
     if (filters.startDate) {
       const start = new Date(filters.startDate).getTime()
-      validResponses = validResponses.filter(r => new Date(r.created_at).getTime() >= start)
+      valid = valid.filter(r => new Date(r.created_at).getTime() >= start)
     }
     if (filters.endDate) {
       const end = new Date(filters.endDate).getTime()
-      validResponses = validResponses.filter(r => new Date(r.created_at).getTime() <= end)
+      valid = valid.filter(r => new Date(r.created_at).getTime() <= end)
     }
 
-    // All participants in the valid date range
-    const participantIds = new Set(validResponses.map(r => r.participant_id))
+    if (filters.deduplicate) {
+      const deduped = new Map<string, ResponseRow>()
+      for (const r of valid) {
+        const key = `${r.participant_id}_${r.question_id}`
+        const existing = deduped.get(key)
+        if (!existing || new Date(r.created_at).getTime() > new Date(existing.created_at).getTime()) {
+          deduped.set(key, r)
+        }
+      }
+      valid = Array.from(deduped.values())
+    }
+    return valid
+  }, [responses, filters.startDate, filters.endDate, filters.deduplicate])
+
+  const filteredParticipants = useMemo(() => {
+    if (!baseValidResponses.length) return new Set<string>()
+
+    // All participants in the valid date & deduplicated pool
+    const participantIds = new Set(baseValidResponses.map(r => r.participant_id))
 
     // 2. Filter by specific answers if any are set
     const filterQIds = Object.keys(filters.answers)
@@ -119,7 +135,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
       const filteredSet = new Set<string>()
       
       for (const pId of Array.from(participantIds)) {
-        const pResponses = validResponses.filter(r => r.participant_id === pId)
+        const pResponses = baseValidResponses.filter(r => r.participant_id === pId)
         
         // Check condition for this participant
         let passes = condition === 'AND' ? true : false
@@ -146,12 +162,6 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
               userAns = [String(rRow.answer_data)]
             }
 
-            // Check if userAns contains ANY of the required options
-            // (If they checked "A" and "B" for a single question filter, usually means they answered A OR B)
-            // Or it could mean they selected BOTH if it's a multi-choice question.
-            // We'll treat multiple checkboxes on the *same* question as an OR condition for that specific question,
-            // because you usually can't be "Male" AND "Female" at the same time. But for multi-choice, you can.
-            // Let's check if the user's answer array intersects with the required array.
             hasMatched = requiredOptIndices.some(opt => userAns.includes(opt))
           }
 
@@ -176,11 +186,11 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
     }
 
     return participantIds
-  }, [responses, filters])
+  }, [baseValidResponses, filters.answers, filters.condition])
 
   const filteredResponses = useMemo(() => {
-    return responses.filter(r => filteredParticipants.has(r.participant_id))
-  }, [responses, filteredParticipants])
+    return baseValidResponses.filter(r => filteredParticipants.has(r.participant_id))
+  }, [baseValidResponses, filteredParticipants])
 
   // --- Render Helpers ---
 
@@ -409,7 +419,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
   }
 
   const activeFilterCount = (filters.startDate || filters.endDate ? 1 : 0) + Object.keys(filters.answers).length
-  const totalParticipants = new Set(responses.map(r => r.participant_id)).size
+  const totalParticipants = new Set(baseValidResponses.map(r => r.participant_id)).size
   const currentParticipantsCount = filteredParticipants.size
 
   return (
@@ -453,7 +463,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
             <p className="text-sm font-medium text-red-600 dark:text-red-400">필터 조건에 맞는 응답자가 없습니다. 전체 문항이 '응답 데이터 없음'으로 표시됩니다.</p>
           </div>
           <button 
-            onClick={() => setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND' })}
+            onClick={() => setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND', deduplicate: true })}
             className="text-sm text-red-600 dark:text-red-400 font-bold hover:underline"
           >
             필터 초기화
