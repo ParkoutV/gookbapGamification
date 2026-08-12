@@ -4,10 +4,12 @@ import React from "react";
 import { GukbapTier, DISPLAY_MAX_SCORE } from "../lib/stageConfig";
 import { gukbapTierKey } from "../lib/i18n/gukbapTierKey";
 import { useLocale } from "../lib/i18n/LocaleContext";
+import { formatNickname, type Nickname } from "../lib/nicknameParts";
 import PixelPanel from "./PixelPanel";
 
 interface DailyResultScreenProps {
-  nickname: string;
+  /** 조립 전 재료다. 문자열로 만드는 것은 이 화면의 몫 — `formatNickname` 참고. */
+  nickname: Nickname;
   gukbapTier: GukbapTier;
   totalScore: number;
   onRestart: () => void;
@@ -23,7 +25,7 @@ export default function DailyResultScreen({
   onSurveyAgain,
   onOpenMyCoupons,
 }: DailyResultScreenProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const stubAchievements = ["첫 만남", "형제의 눈썰미"];
 
   return (
@@ -31,7 +33,7 @@ export default function DailyResultScreen({
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("dailyResult.title")}</h1>
         <p className="text-muted mb-1">{t("dailyResult.nicknameLabel")}</p>
-        <p className="text-xl text-ink font-bold mb-4">{nickname}</p>
+        <p className="text-xl text-ink font-bold mb-4">{formatNickname(nickname, locale)}</p>
         <p className="text-muted mb-1">{t("dailyResult.gukbapPowerLabel")}</p>
         <p className="text-xl text-accent font-bold mb-4" style={{ fontFamily: "var(--font-pixel)" }}>
           {t(gukbapTierKey(gukbapTier))}

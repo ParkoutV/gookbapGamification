@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
+import { formatNickname, type Nickname } from "../lib/nicknameParts";
 import { fetchSharedTrackId, recordShareClick } from "../actions";
 import { buildInviteMessage, buildInviteUrl } from "../lib/inviteLink";
 
 interface StartScreenProps {
-  nickname: string;
+  /** 조립 전 재료다. 문자열로 만드는 것은 이 화면의 몫 — `formatNickname` 참고. */
+  nickname: Nickname;
   onRegenerateNickname: () => void;
   isRegeneratingNickname: boolean;
   onStart: () => void;
@@ -25,7 +27,7 @@ export default function StartScreen({
   onGoToDraw,
   trackId,
 }: StartScreenProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   // 초대 링크는 **미리** 만들어 둔다. 클릭 핸들러 안에서 트랙을 조회한 뒤
   // clipboard.writeText를 부르면, iOS Safari가 사용자 제스처와 끊긴 것으로 보고
@@ -69,7 +71,9 @@ export default function StartScreen({
           {t("start.title")}
         </h1>
         <div className="flex items-center justify-center gap-2 mb-8">
-          <span className="text-ink">{t("start.welcome", { nickname })}</span>
+          <span className="text-ink">
+            {t("start.welcome", { nickname: formatNickname(nickname, locale) })}
+          </span>
           <button
             type="button"
             onClick={onRegenerateNickname}
