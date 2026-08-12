@@ -30,6 +30,9 @@ interface CouponEffect {
   expire_days?: number | null
   is_online_coupon?: boolean
   max_issuance?: number | null
+  valid_start_type?: 'today' | 'tomorrow'
+  expire_type?: 'days' | 'date'
+  expire_date?: string | null
 }
 
 const SplitInput = ({ 
@@ -161,6 +164,14 @@ export default function CouponsPage() {
   // Delete Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [couponToDelete, setCouponToDelete] = useState<number | null>(null)
+
+  // Rule Modal State
+  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
+  const [editingRuleIndex, setEditingRuleIndex] = useState<number | null>(null)
+  const [ruleModalStartType, setRuleModalStartType] = useState<'today' | 'tomorrow'>('today')
+  const [ruleModalExpireType, setRuleModalExpireType] = useState<'days' | 'date'>('days')
+  const [ruleModalExpireDays, setRuleModalExpireDays] = useState<string>('')
+  const [ruleModalExpireDate, setRuleModalExpireDate] = useState<string>('')
 
   // Local state for Gatcha Limit settings
   const [localLimitN, setLocalLimitN] = useState("")
@@ -404,7 +415,8 @@ export default function CouponsPage() {
   }
 
   // Excel Navigation
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number) => {
+  // Excel Navigation
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, colIdx: number, isOnline: boolean = false) => {
     const numCols = 3 + gatchaCases.length
     const numRows = coupons.length
 
@@ -417,20 +429,20 @@ export default function CouponsPage() {
     } else if (e.key === 'ArrowLeft' && colIdx > 0) {
       // Input cursor movement vs Cell movement
       const target = e.target as HTMLInputElement
-      if (target.selectionStart === 0 && target.selectionEnd === 0) {
+      if (target.readOnly || (target.selectionStart === 0 && target.selectionEnd === 0)) {
         e.preventDefault()
         document.getElementById(`cell-${rowIdx}-${colIdx - 1}`)?.focus()
       }
     } else if (e.key === 'ArrowRight' && colIdx < numCols - 1) {
       const target = e.target as HTMLInputElement
-      if (target.selectionStart === target.value.length && target.selectionEnd === target.value.length) {
+      if (target.readOnly || (target.selectionStart === target.value.length && target.selectionEnd === target.value.length)) {
         e.preventDefault()
         document.getElementById(`cell-${rowIdx}-${colIdx + 1}`)?.focus()
       }
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (colIdx === 0) {
-        openModal(rowIdx)
+        if (!isOnline) openModal(rowIdx)
       } else {
         if (rowIdx < numRows - 1) {
           document.getElementById(`cell-${rowIdx + 1}-${colIdx}`)?.focus()
@@ -447,7 +459,10 @@ export default function CouponsPage() {
       description: '{}',
       probability: {},
       expire_days: null,
-      max_issuance: null
+      max_issuance: null,
+      valid_start_type: 'today',
+      expire_type: 'days',
+      expire_date: null
     }])
   }
 
@@ -548,7 +563,10 @@ export default function CouponsPage() {
         description: coup.description,
         probability: newProbability,
         expire_days: coup.expire_days || null,
-        max_issuance: coup.max_issuance || null
+        max_issuance: coup.max_issuance || null,
+        valid_start_type: coup.valid_start_type || 'today',
+        expire_type: coup.expire_type || 'days',
+        expire_date: coup.expire_date || null
       }
       
       if (coup.coupon_effect_id.startsWith('new-')) {
@@ -594,6 +612,48 @@ export default function CouponsPage() {
     
     setCoupons(newCoupons)
     setIsModalOpen(false)
+  }
+
+  // --- Rule Modal Logic ---
+  const openRuleModal = (index: number) => {
+    const coupon = coupons[index]
+    setEditingRuleIndex(index)
+    setRuleModalStartType(coupon.valid_start_type || 'today')
+    setRuleModalExpireType(coupon.expire_type || 'days')
+    setRuleModalExpireDays(coupon.expire_days === null || coupon.expire_days === undefined ? '' : coupon.expire_days.toString())
+    
+    if (coupon.expire_date) {
+      // Format to YYYY-MM-DD
+      const d = new Date(coupon.expire_date)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      setRuleModalExpireDate(`${year}-${month}-${day}`)
+    } else {
+      setRuleModalExpireDate('')
+    }
+    
+    setIsRuleModalOpen(true)
+  }
+
+  const saveRuleModal = () => {
+    if (editingRuleIndex === null) return
+    const newCoupons = [...coupons]
+    
+    newCoupons[editingRuleIndex].valid_start_type = ruleModalStartType
+    newCoupons[editingRuleIndex].expire_type = ruleModalExpireType
+    
+    if (ruleModalExpireType === 'days') {
+      const parsedDays = parseInt(ruleModalExpireDays, 10)
+      newCoupons[editingRuleIndex].expire_days = isNaN(parsedDays) ? null : parsedDays
+      newCoupons[editingRuleIndex].expire_date = null
+    } else {
+      newCoupons[editingRuleIndex].expire_date = ruleModalExpireDate ? new Date(ruleModalExpireDate).toISOString() : null
+      newCoupons[editingRuleIndex].expire_days = null
+    }
+    
+    setCoupons(newCoupons)
+    setIsRuleModalOpen(false)
   }
 
   if (loading) return <div className="p-12 text-center text-gray-500">로딩 중...</div>
@@ -811,21 +871,8 @@ export default function CouponsPage() {
               <tr>
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-12 text-center"></th>
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-64 text-left">쿠폰 이름</th>
-                <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-24 text-center align-middle">
-                  <div className="flex items-center justify-center gap-1">
-                    <span>만료일(일)</span>
-                    <div className="relative group flex items-center cursor-help">
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500 transition-colors" />
-                      
-                      {/* Tooltip Balloon */}
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 p-3 bg-gray-900 dark:bg-zinc-100 text-white dark:text-gray-900 text-left text-xs leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none font-normal font-sans">
-                        <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900 dark:border-b-zinc-100"></div>
-                        <strong className="block mb-0.5 text-blue-300 dark:text-blue-600">0일 입력:</strong> 당일 23:59:59 만료<br/>
-                        <strong className="block mt-2 mb-0.5 text-blue-300 dark:text-blue-600">1 이상 입력:</strong> 입력한 N일 뒤의 23:59:59 만료<br/><span className="text-[11px] text-gray-400 dark:text-gray-600">(예: 1일 = 내일 자정 직전 만료)</span><br/>
-                        <strong className="block mt-2 mb-0.5 text-blue-300 dark:text-blue-600">빈칸:</strong> 무제한 (기한 없음)
-                      </div>
-                    </div>
-                  </div>
+                <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 min-w-[160px] w-auto text-center align-middle">
+                  발급일 | 만료일
                 </th>
                 <th className="border-b border-r border-gray-300 dark:border-zinc-700 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-zinc-300 w-24 text-center align-middle">
                   최대 갯수
@@ -866,7 +913,7 @@ export default function CouponsPage() {
                       readOnly
                       value={displayText}
                       onKeyDown={(e) => {
-                        if (!isOnline) handleKeyDown(e, rowIdx, 0)
+                        handleKeyDown(e, rowIdx, 0, isOnline)
                       }}
                       onClick={() => {
                         if (!isOnline) openModal(rowIdx)
@@ -879,22 +926,50 @@ export default function CouponsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0">
-                    <GridInput
-                      id={`cell-${rowIdx}-1`}
-                      initialValue={coupon.expire_days === null || coupon.expire_days === undefined ? '' : coupon.expire_days.toString()}
-                      minAllowed={0}
-                      maxAllowed={365}
-                      readOnly={isOnline}
-                      placeholder="무제한"
-                      className={`w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-sm font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white'}`}
-                      onUpdate={(val) => {
-                        if (!isOnline) handleExpireDaysChange(rowIdx, val)
-                      }}
-                      onKeyDown={(e) => {
-                        if (!isOnline) handleKeyDown(e, rowIdx, 1)
-                      }}
-                    />
+                  <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative group">
+                    {(() => {
+                      let ruleDisplayText = "무제한"
+                      if (isOnline) {
+                        ruleDisplayText = "N/A"
+                      } else if (coupon.expire_type === 'date') {
+                        if (coupon.expire_date) {
+                          const d = new Date(coupon.expire_date)
+                          const year = d.getFullYear()
+                          const month = String(d.getMonth() + 1).padStart(2, '0')
+                          const day = String(d.getDate()).padStart(2, '0')
+                          ruleDisplayText = `${coupon.valid_start_type === 'tomorrow' ? '익일 시작' : '당일 시작'} | ${year}-${month}-${day} 만료`
+                        } else {
+                          ruleDisplayText = `${coupon.valid_start_type === 'tomorrow' ? '익일 시작' : '당일 시작'} | 무제한`
+                        }
+                      } else {
+                        if (coupon.expire_days !== null && coupon.expire_days !== undefined) {
+                          ruleDisplayText = `${coupon.valid_start_type === 'tomorrow' ? '익일 시작' : '당일 시작'} | ${coupon.expire_days}일 뒤 만료`
+                        } else {
+                          ruleDisplayText = `${coupon.valid_start_type === 'tomorrow' ? '익일 시작' : '당일 시작'} | 무제한`
+                        }
+                      }
+                      
+                      return (
+                        <input
+                          id={`cell-${rowIdx}-1`}
+                          type="text"
+                          readOnly
+                          value={ruleDisplayText}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !isOnline) {
+                              openRuleModal(rowIdx)
+                              e.preventDefault()
+                            } else {
+                              handleKeyDown(e, rowIdx, 1, isOnline)
+                            }
+                          }}
+                          onClick={() => {
+                            if (!isOnline) openRuleModal(rowIdx)
+                          }}
+                          className={`w-full h-12 px-2 text-center outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 bg-transparent text-[11px] font-bold ${isOnline ? 'text-gray-400 cursor-not-allowed' : 'dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700/50'}`}
+                        />
+                      )
+                    })()}
                   </td>
                   <td className="border-b border-r border-gray-300 dark:border-zinc-700 p-0 relative">
                     <GridInput
@@ -1090,6 +1165,82 @@ export default function CouponsPage() {
               </button>
               <button onClick={saveCaseModal} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
                 적용하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Coupon Rule Modal */}
+      {isRuleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsRuleModalOpen(false)} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-md ring-1 ring-gray-200 dark:ring-zinc-800 flex flex-col p-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">쿠폰 유효기간 룰 설정</h3>
+            
+            <div className="space-y-6">
+              {/* Start Type */}
+              <div>
+                <label className="block text-sm font-bold text-gray-900 dark:text-white mb-3">시작 조건</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" checked={ruleModalStartType === 'today'} onChange={() => setRuleModalStartType('today')} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-gray-700 dark:text-zinc-300">당일 시작</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" checked={ruleModalStartType === 'tomorrow'} onChange={() => setRuleModalStartType('tomorrow')} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-gray-700 dark:text-zinc-300">익일 시작</span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">당일 시작은 발급 즉시 유효하며, 익일 시작은 내일 자정(0시)부터 사용 가능합니다.</p>
+              </div>
+
+              {/* Expire Type */}
+              <div>
+                <label className="block text-sm font-bold text-gray-900 dark:text-white mb-3">만료 조건</label>
+                <div className="flex gap-4 mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" checked={ruleModalExpireType === 'days'} onChange={() => setRuleModalExpireType('days')} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-gray-700 dark:text-zinc-300">몇일 뒤 만료</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" checked={ruleModalExpireType === 'date'} onChange={() => setRuleModalExpireType('date')} className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-gray-700 dark:text-zinc-300">특정일에 만료</span>
+                  </label>
+                </div>
+
+                {ruleModalExpireType === 'days' ? (
+                  <div className="flex flex-col gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      value={ruleModalExpireDays}
+                      onChange={(e) => setRuleModalExpireDays(e.target.value)}
+                      placeholder="무제한인 경우 비워두세요"
+                      className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white outline-none"
+                    />
+                    <p className="text-xs text-gray-500">시작 조건 기준으로 N일 뒤 23:59:59에 만료됩니다. (0일: 시작 당일 만료)</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <input
+                      type="date"
+                      value={ruleModalExpireDate}
+                      onChange={(e) => setRuleModalExpireDate(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white outline-none"
+                    />
+                    <p className="text-xs text-gray-500">지정하신 날짜의 23:59:59에 일괄 만료됩니다.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end gap-3 shrink-0">
+              <button onClick={() => setIsRuleModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                취소
+              </button>
+              <button onClick={saveRuleModal} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                확인
               </button>
             </div>
           </div>

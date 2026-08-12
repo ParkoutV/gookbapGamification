@@ -224,6 +224,7 @@ export async function POST(req: NextRequest) {
 
     // 8. Insert into issued_coupons
     let expired_at = null
+    let valid_from = null
     let is_used = false
     let web_coupon_code: string | undefined = undefined
 
@@ -256,21 +257,34 @@ export async function POST(req: NextRequest) {
       is_used = true
       web_coupon_code = webCoupon.coupon_code
     } else {
-      if (selectedCoupon.expire_days !== null && selectedCoupon.expire_days !== undefined) {
-        // Get current date in KST
-        const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
-        const kstDate = new Date(kstTimeStr)
-        
-        // Add days
-        kstDate.setDate(kstDate.getDate() + selectedCoupon.expire_days)
-        
-        // Set to 23:59:59.999
-        const year = kstDate.getFullYear()
-        const month = String(kstDate.getMonth() + 1).padStart(2, '0')
-        const day = String(kstDate.getDate()).padStart(2, '0')
-        
-        // Timestamptz will correctly parse the +09:00 timezone
-        expired_at = `${year}-${month}-${day}T23:59:59.999+09:00`
+      // Calculate valid_from
+      const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+      const kstDate = new Date(kstTimeStr)
+      
+      if (selectedCoupon.valid_start_type === 'tomorrow') {
+        kstDate.setDate(kstDate.getDate() + 1)
+      }
+      
+      const vYear = kstDate.getFullYear()
+      const vMonth = String(kstDate.getMonth() + 1).padStart(2, '0')
+      const vDay = String(kstDate.getDate()).padStart(2, '0')
+      valid_from = `${vYear}-${vMonth}-${vDay}T00:00:00.000+09:00`
+      
+      // Calculate expired_at
+      if (selectedCoupon.expire_type === 'date' && selectedCoupon.expire_date) {
+        // expire_date is already a date/timestamp, we just want its 23:59:59
+        const expireDateKst = new Date(new Date(selectedCoupon.expire_date).toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
+        const eYear = expireDateKst.getFullYear()
+        const eMonth = String(expireDateKst.getMonth() + 1).padStart(2, '0')
+        const eDay = String(expireDateKst.getDate()).padStart(2, '0')
+        expired_at = `${eYear}-${eMonth}-${eDay}T23:59:59.999+09:00`
+      } else if (selectedCoupon.expire_type === 'days' && selectedCoupon.expire_days !== null && selectedCoupon.expire_days !== undefined) {
+        const expDate = new Date(valid_from)
+        expDate.setDate(expDate.getDate() + selectedCoupon.expire_days)
+        const eYear = expDate.getFullYear()
+        const eMonth = String(expDate.getMonth() + 1).padStart(2, '0')
+        const eDay = String(expDate.getDate()).padStart(2, '0')
+        expired_at = `${eYear}-${eMonth}-${eDay}T23:59:59.999+09:00`
       }
     }
 
@@ -279,6 +293,10 @@ export async function POST(req: NextRequest) {
       coupon_effect_id: selectedCoupon.coupon_effect_id,
       is_used: is_used,
       expired_at: expired_at
+    }
+
+    if (valid_from) {
+      insertPayload.valid_from = valid_from
     }
 
     if (is_used) {
@@ -303,7 +321,9 @@ export async function POST(req: NextRequest) {
       coupon_type: selectedCoupon.coupon_type,
       score_used: bestScore,
       coupon_id: insertedCoupon.coupon_id,
-      web_coupon_code: web_coupon_code
+      web_coupon_code: web_coupon_code,
+      valid_from: valid_from,
+      expired_at: expired_at
     })
 
   } catch (err: any) {

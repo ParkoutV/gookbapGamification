@@ -255,8 +255,10 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`coupon_type`** (`text`): 다국어 혜택명 (JSON 파싱).
 * **`description`** (`text`): 부가 설명.
 * **`probability`** (`jsonb`): 가챠 구간별 당첨 확률이 저장된 맵입니다. `{"case_id": 0.5}` 형태.
-* **`expire_days`** (`integer`, Nullable): 발급 후 만료 기한(일수).
-  * *제약조건:* `CHECK (expire_days IS NULL OR (expire_days >= 0 AND expire_days <= 365))`
+* **`valid_start_type`** (`text`): 쿠폰 유효 시작 조건 ('today' 또는 'tomorrow'). (기본값: 'today')
+* **`expire_type`** (`text`): 만료 조건 지정 방식 ('days' 또는 'date'). (기본값: 'days')
+* **`expire_days`** (`integer`, Nullable): `expire_type`이 'days'일 때 발급 후 만료 기한(일수).
+* **`expire_date`** (`timestamp with time zone`, Nullable): `expire_type`이 'date'일 때 일괄 만료일.
 * **`max_issuance`** (`integer`, Nullable): 이 쿠폰의 최대 발급 가능 갯수입니다. 누적 발급 갯수가 이 수치에 도달하면 소진 처리됩니다. Null일 경우 무제한입니다.
 * **`is_online_coupon`** (`boolean`): 웹 전용 쿠폰 여부. true일 경우 스캐너 조회/KPI 수집에서 제외되며 `web_coupons` 할당을 트리거합니다. (기본값: false)
 
@@ -270,6 +272,7 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`participant_id`** (`uuid`): 소유자. (`participants` 외래키, `CASCADE`)
 * **`coupon_effect_id`** (`uuid`): 혜택 원본. (`coupon_effects` 외래키)
 * **`is_used`** (`boolean`): 쿠폰 사용(매장 스캔) 완료 여부.
+* **`valid_from`** (`timestamp with time zone`, Nullable): 쿠폰이 실제 유효해지는 시작 시간.
 * **`issued_at` / `used_at` / `expired_at`** (`timestamp with time zone`): 각각 발급/사용/만료 일시. 만료 일시는 쿠폰 정보 획득 및 무효 판별에 활용됩니다.
   * *참고 1:* 10분 이내 사용 취소는 `undo_coupon` RPC를 통해 수행합니다.
   * *참고 2:* 발급된 쿠폰이 웹 전용 쿠폰(`is_online_coupon`)일 경우, `expired_at`은 연산되지 않고 영구적으로 null 값을 가집니다.
