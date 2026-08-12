@@ -70,9 +70,6 @@ export const ko: Dictionary = {
 
   // 시작·종료 연출. 세 문자열은 픽셀 폰트로 크게 뜨는 로고성 문구라 세 로케일이
   // 같은 라틴 대문자를 쓴다 — 나중에 「クリア」처럼 갈릴 여지를 남겨 세 파일에 다 넣는다.
-  "countdown.start": "START",
-  "gameEnd.gameOver": "GAME OVER",
-  "gameEnd.clear": "CLEAR!",
   "gameEnd.nextButton": "결과 확인",
 
   "dailyResult.title": "오늘의 결과",

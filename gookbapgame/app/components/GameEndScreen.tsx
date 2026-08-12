@@ -2,7 +2,9 @@
 
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { gameEndLabelKey, GameEndReason } from "../lib/gameEnd";
+import { gameEndLabel, GameEndReason } from "../lib/gameEnd";
+import { useFitText } from "../hooks/useFitText";
+import { GAME_CUE_MAX_PX } from "../lib/gameCue";
 
 interface GameEndScreenProps {
   reason: GameEndReason;
@@ -36,14 +38,15 @@ interface GameEndScreenProps {
  */
 export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
   const { t } = useLocale();
-  const label = t(gameEndLabelKey(reason));
+  const label = gameEndLabel(reason);
   const cleared = reason === "cleared";
   const letters = [...label];
+  const { containerRef, textRef, fontSize } = useFitText(label, GAME_CUE_MAX_PX);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <PixelPanel size="card" className="max-w-sm w-full mx-4 text-center">
-        <div className="game-cue-window">
+        <div className="game-cue-window" ref={containerRef}>
           {cleared ? (
             /*
              * 글자를 쪼개면 스크린리더가 "C, L, E, A, R"처럼 낱자로 읽는다.
@@ -56,8 +59,9 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
                 {label}
               </span>
               <span
+                ref={textRef}
                 className="game-cue game-cue--letters"
-                style={{ fontFamily: "var(--font-pixel)" }}
+                style={{ fontFamily: "var(--font-pixel)", fontSize }}
                 aria-hidden="true"
               >
                 {letters.map((ch, i) => (
@@ -82,8 +86,9 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
             </>
           ) : (
             <span
+              ref={textRef}
               className="game-cue game-cue--fade"
-              style={{ fontFamily: "var(--font-pixel)" }}
+              style={{ fontFamily: "var(--font-pixel)", fontSize }}
               aria-live="assertive"
             >
               {label}

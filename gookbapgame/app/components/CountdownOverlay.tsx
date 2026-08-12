@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
-import { useLocale } from "../lib/i18n/LocaleContext";
+import { useFitText } from "../hooks/useFitText";
+import { GAME_CUE_MAX_PX } from "../lib/gameCue";
 
 interface CountdownOverlayProps {
   onDone: () => void;
@@ -36,7 +37,6 @@ const LAST_STEP = 3;
  * 살짝 기울인다.
  */
 export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
-  const { t } = useLocale();
   const [step, setStep] = useState(0);
 
   // 칸마다 타이머를 하나씩 건다. 마지막 칸(START)이 끝나면 게이트를 열고
@@ -54,7 +54,13 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
     return () => clearTimeout(timeoutId);
   }, [step, onDone]);
 
-  const label = step >= LAST_STEP ? t("countdown.start") : String(LAST_STEP - step);
+  /*
+   * START는 i18n을 타지 않는다 — 로케일 3종이 전부 같은 영문 리터럴이었다
+   * (2026-08-12 확인 후 키 삭제). 종료 화면의 GAME OVER / CLEAR!와 같은 계열의
+   * 로고성 표시다.
+   */
+  const label = step >= LAST_STEP ? "START" : String(LAST_STEP - step);
+  const { containerRef, textRef, fontSize } = useFitText(label, GAME_CUE_MAX_PX);
 
   return (
     // pointer-events-auto: 카운트다운 중 클릭이 뒤 게임판에 닿으면 오답으로 처리된다.
@@ -65,12 +71,13 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
       aria-atomic="true"
     >
       <PixelPanel size="card" className="max-w-sm w-full mx-4">
-        <div className="game-cue-window">
+        <div className="game-cue-window" ref={containerRef}>
           {/* key로 칸마다 요소를 갈아치워야 애니메이션이 매번 다시 돈다. */}
           <span
             key={step}
+            ref={textRef}
             className="game-cue game-cue--pop"
-            style={{ fontFamily: "var(--font-pixel)" }}
+            style={{ fontFamily: "var(--font-pixel)", fontSize }}
           >
             {label}
           </span>
