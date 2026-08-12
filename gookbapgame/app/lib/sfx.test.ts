@@ -141,3 +141,44 @@ test("playSfx: 음소거 상태면 AudioContext를 만들지도 않는다", () =
     delete (globalThis as any).AudioContext;
   }
 });
+
+// BGM이 효과음 경로로 새어 들어가는 것을 막는 가드.
+//
+// preloadSfx()는 SFX 전체를 fetch해서 decodeAudioData로 **압축을 풀어 상주시킨다.**
+// 효과음은 전부 합쳐 166KB라 괜찮지만, BGM은 58초·64초짜리라 디코드하면 각각
+// 20MB·21MB의 PCM이 된다. SFX에 BGM 이름을 하나 넣는 순간 마운트에서 500KB를 받고
+// 41MB를 물고 있게 된다 — 데스크톱에서는 티가 나지 않고 실기에서만 드러난다.
+// BGM은 `bgm.ts`가 <audio>로 스트리밍한다.
+test("SFX 목록에 BGM이 섞여 있지 않다", () => {
+  const names = Object.values(SFX) as string[];
+  const bgm = names.filter((n) => n.startsWith("bgm"));
+  assert.deepEqual(bgm, [], `BGM이 SFX에 들어갔다: ${bgm.join(", ")}`);
+});
+
+// preloadSfx가 실제로 무엇을 받는지 확인한다. 위 테스트는 이름 규칙만 보므로
+// 이름을 다르게 지은 BGM은 잡지 못한다.
+test("preloadSfx: BGM 파일은 요청하지 않는다", async () => {
+  const requested: string[] = [];
+  (globalThis as any).AudioContext = class {
+    createGain() {
+      return { connect() {}, gain: { value: 1 } };
+    }
+    decodeAudioData() {
+      return Promise.resolve({});
+    }
+  };
+  (globalThis as any).fetch = (url: string) => {
+    requested.push(url);
+    return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) });
+  };
+  try {
+    const { preloadSfx } = await import("./sfx.ts?bgm-leak-test");
+    preloadSfx();
+    const bgmHits = requested.filter((u) => u.includes("bgm"));
+    assert.deepEqual(bgmHits, [], `preloadSfx가 BGM을 받았다: ${bgmHits.join(", ")}`);
+    assert.ok(requested.length > 0, "아무것도 요청하지 않았다 — 테스트가 무의미하다");
+  } finally {
+    delete (globalThis as any).AudioContext;
+    delete (globalThis as any).fetch;
+  }
+});

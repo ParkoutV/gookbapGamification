@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
 import { useFitText } from "../hooks/useFitText";
 import { GAME_CUE_MAX_PX } from "../lib/gameCue";
+import { playSfx, SFX } from "../lib/sfx";
 
 interface CountdownOverlayProps {
   onDone: () => void;
@@ -53,6 +54,20 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
     }, STEP_MS);
     return () => clearTimeout(timeoutId);
   }, [step, onDone]);
+
+  /*
+   * 칸이 바뀔 때마다 소리를 낸다. 3·2·1은 count_ready, START는 count_start다.
+   *
+   * **위 타이머 이펙트 안에 넣지 말 것.** 저쪽은 `setTimeout` 콜백이 도는 시점,
+   * 즉 그 칸이 **끝날 때** 실행된다 — 소리가 한 칸씩 밀린다. 여기는 step이
+   * 바뀐 직후, 글자가 나타나는 시점이라 화면과 맞는다.
+   *
+   * 의존성이 [step] 하나뿐이라 StrictMode에서 두 번 불려도 같은 소리가 겹칠 뿐
+   * 진행에는 영향이 없다(playSfx는 실패를 삼키고, 겹침은 원래 허용된다).
+   */
+  useEffect(() => {
+    playSfx(step >= LAST_STEP ? SFX.countStart : SFX.countReady);
+  }, [step]);
 
   /*
    * START는 i18n을 타지 않는다 — 로케일 3종이 전부 같은 영문 리터럴이었다

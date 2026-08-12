@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { gameEndLabel, GameEndReason } from "../lib/gameEnd";
 import { useFitText } from "../hooks/useFitText";
 import { GAME_CUE_MAX_PX } from "../lib/gameCue";
+import { playSfx, SFX } from "../lib/sfx";
 
 interface GameEndScreenProps {
   reason: GameEndReason;
@@ -24,8 +26,9 @@ interface GameEndScreenProps {
  * 있고(page.tsx가 onStageClear/onForceAdvance를 별개 prop으로 넘긴다), 그 사실이
  * endReason으로 여기까지 온다.
  *
- * 소리는 내지 않는다. 결과표의 coindrop은 "결과가 나왔다"는 신호라 결과표에 붙어
- * 있어야 하고, 새 효과음을 추가하는 것은 요청 범위 밖이다.
+ * 결과 멜로디를 낸다(CLEAR!는 game_clear, GAME OVER는 game_over. 2026-08-12 추가).
+ * 결과표의 coindrop은 그대로 결과표에 남는다 — 그건 "결과가 나왔다"는 신호라 자리가
+ * 다르다.
  *
  * 그래픽 애셋을 새로 만들지 않는다 — 픽셀 폰트(Galmuri11) + 그림자 + 기울임으로
  * 카운트다운과 같은 `.game-cue`를 쓴다.
@@ -42,6 +45,20 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
   const cleared = reason === "cleared";
   const letters = [...label];
   const { containerRef, textRef, fontSize } = useFitText(label, GAME_CUE_MAX_PX);
+
+  /*
+   * 결과 멜로디. 마운트할 때 한 번만 낸다.
+   *
+   * **ref 가드가 필요하다** — 의존성이 빈 이펙트는 개발 모드(StrictMode)에서 두 번
+   * 실행되고, 그러면 멜로디가 겹쳐서 울린다. 짧은 효과음은 겹쳐도 티가 안 나지만
+   * 이건 1~3초짜리 멜로디라 바로 들린다.
+   */
+  const playedRef = useRef(false);
+  useEffect(() => {
+    if (playedRef.current) return;
+    playedRef.current = true;
+    playSfx(cleared ? SFX.gameClear : SFX.gameOver);
+  }, [cleared]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

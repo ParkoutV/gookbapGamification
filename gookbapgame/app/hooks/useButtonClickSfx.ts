@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { playSfx, preloadSfx, SFX } from "../lib/sfx";
+import { isSfxMuted, playSfx, preloadSfx, SFX } from "../lib/sfx";
+import { resumeBgm } from "../lib/bgm";
 
 /**
  * 화면의 모든 버튼에 클릭 소리를 붙인다.
@@ -39,7 +40,23 @@ export function useButtonClickSfx(): void {
       playSfx(SFX.click);
     };
 
+    /*
+     * 첫 사용자 제스처에서 BGM을 깨운다.
+     *
+     * `useBgm`이 마운트 시점에 이미 `play()`를 걸지만 자동재생 정책에 막혀 거부된다.
+     * 여기서 한 번 더 밀어줘야 실제로 소리가 난다.
+     *
+     * **버튼 판정 바깥이다.** 화면 아무 데나 눌러도 시작되어야 한다 — 첫 조작이
+     * 버튼이라는 보장이 없고, 여기서 놓치면 다음 버튼을 누를 때까지 무음이다.
+     * `resumeBgm`은 이미 재생 중이면 아무것도 하지 않으므로 매번 불려도 된다.
+     */
+    const onFirstGesture = () => resumeBgm(isSfxMuted());
+
     document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerdown", onFirstGesture, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerdown", onFirstGesture, true);
+    };
   }, []);
 }
