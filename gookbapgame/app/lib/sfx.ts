@@ -16,6 +16,10 @@
  * 원본 opus는 기획 폴더에 그대로 있고, 변환은 `docs/build-sfx.sh` 참고.
  */
 
+// 확장자를 붙인다 — node의 테스트 러너(`--experimental-strip-types`)는 확장자 없는
+// 상대 경로를 해석하지 못해 `sfx.test.ts`가 통째로 죽는다. 번들러는 양쪽 다 받는다.
+import { applyBgmMuted } from "./bgm.ts";
+
 export const SFX = {
   /** 쿠폰 당첨 */
   coupon: "coupon",
@@ -38,6 +42,14 @@ export const SFX = {
   click: "click",
   /** 게임이 끝나고 결과표가 뜰 때. 점수와 무관하게 항상 재생한다. */
   coindrop: "coindrop",
+  /** 카운트다운 3·2·1에서 한 번씩. */
+  countReady: "count_ready",
+  /** 카운트다운의 START! */
+  countStart: "count_start",
+  /** 종료 화면의 CLEAR! 멜로디. */
+  gameClear: "game_clear",
+  /** 종료 화면의 GAME OVER 멜로디. */
+  gameOver: "game_over",
 } as const;
 
 export type SfxName = (typeof SFX)[keyof typeof SFX];
@@ -135,6 +147,11 @@ export function setSfxMuted(muted: boolean): void {
   // 끄는 순간 이미 재생 중이던 소리도 함께 멎는다 — 모든 재생이 이 게인을 거친다.
   // 여기서 context를 새로 만들지는 않는다(음소거 조작만으로 오디오를 깨울 이유가 없다).
   if (gain) gain.gain.value = muted ? 0 : 1;
+
+  // **BGM은 이 게인을 거치지 않는다.** `<audio>`라 그래프 밖이기 때문에 따로 알려야
+  // 한다(`bgm.ts` 주석 참고). 토글은 화면마다 있으므로 컴포넌트가 아니라 여기서
+  // 처리해야 한 곳이라도 빠지는 일이 없다.
+  applyBgmMuted(muted);
 }
 
 /**

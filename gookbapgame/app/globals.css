@@ -813,24 +813,44 @@ body {
    아예 없어 글자만 떠 있었다 — 반투명도 창도 아닌 어중간한 상태였다. 지금은 둘 다
    투명한 오버레이 + 불투명한 창이라 뒤 게임판이 계속 보인다.
 
-   **크기 기준은 뷰포트가 아니라 팝업 창의 폭이다.** 예전에는 화면을 통째로 덮는
-   오버레이라 18vw였는데, 지금은 PixelPanel(max-w-sm = 384px) 안에 들어간다 —
-   vw로 두면 넓은 화면에서 9rem까지 커져 9글자짜리 GAME OVER가 창 밖으로 넘친다.
-   GatchaCard가 밟았던 것과 같은 함정이라(AGENTS.md), 카드와 같은 해법을 쓴다:
-   .game-cue-window가 container-type: inline-size로 기준을 열고 여기서 cqw를 쓴다.
-   19cqw면 GAME OVER 9글자가 창 안쪽(약 340px)에 들어간다 — Galmuri11은 라틴
-   대문자가 약 0.5em 폭이라 9 x 0.5 x 19cqw ≈ 86cqw다. */
+   **font-size는 여기서 정하지 않는다 — JS(`useFitText`)가 실측해서 인라인으로 준다.**
+   예전에는 `clamp(2.5rem, 19cqw, 5rem)`이었는데, 그 19라는 계수는 "Galmuri11은 라틴
+   대문자가 약 0.5em 폭"이라는 **틀린 가정**에서 역산한 값이었다. 폰트 파일을 열어보니
+   글자마다 0.333~0.833em으로 제각각이고(M은 0.833, !는 0.333), GAME OVER의 실제 폭은
+   가정(4.5em)보다 31% 넓은 **5.917em**이다. 그래서 모든 기기에서 창 밖으로 41~55px씩
+   넘쳤다(2026-08-12, iOS 실기 제보로 드러났지만 폰트 메트릭 문제라 플랫폼 무관이며
+   데스크톱에서 창을 좁혀도 재현된다).
+
+   계수를 실측값으로 다시 잡을 수도 있지만, 그러면 라벨이 바뀔 때마다 사람이 다시
+   계산해야 한다. CSS는 컨테이너 폭만 알 뿐 그 안의 글자 폭을 모르므로 원리적으로
+   자동화가 안 된다 — 브라우저에게 실제 렌더 폭을 물어보는 쪽이 맞다.
+   **cqw로 되돌리지 말 것.** container-type은 남겨 두는데, 창 폭을 재는 기준이자
+   앞으로 안쪽 요소가 cqw를 쓸 여지이기 때문이다. */
 .game-cue-window {
   container-type: inline-size;
   /* 폭을 내용에 맡기면 카운트다운의 `1` → `START`에서 창 크기가 눈에 띄게 튄다.
      GatchaLoading이 1·2단계에 같은 창을 쓰는 것과 같은 이유다. */
   width: 100%;
   text-align: center;
+
+  /* **높이도 고정한다.** font-size가 라벨마다 달라지면서(useFitText) line-height: 1인
+     글자의 높이가 따라 변해 팝업 창이 위아래로 흔들렸다 — 긴 GAME OVER만 작아지므로
+     종료 화면의 창이 카운트다운보다 낮아지고, 3-2-1-START 중에도 START 칸에서 튄다
+     (2026-08-12, 이란토). 폰트 크기 상한(GAME_CUE_MAX_PX = 60px)에 맞춰 한 줄
+     높이를 확보해 두면 어떤 라벨이 와도 창 크기가 그대로다.
+
+     px 리터럴인 이유는 이 값이 JS 상수와 **같은 값이어야** 하기 때문이다. rem으로
+     적으면 루트 폰트 크기가 바뀔 때 둘이 조용히 어긋난다. GAME_CUE_MAX_PX를 바꾸면
+     여기도 같이 고칠 것. */
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .game-cue {
   display: inline-block;
-  font-size: clamp(2.5rem, 19cqw, 5rem);
+  /* font-size는 useFitText가 인라인 스타일로 준다(위 주석 참고). */
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;

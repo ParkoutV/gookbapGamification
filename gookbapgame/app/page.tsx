@@ -23,6 +23,7 @@ import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
 import { useButtonClickSfx } from "./hooks/useButtonClickSfx";
+import { useBgm } from "./hooks/useBgm";
 import {
   hasAcknowledgedTerm,
   markTermAcknowledged,
@@ -58,6 +59,10 @@ export default function Home({ searchParams }: PageProps) {
   // 구조 분해해서 그것만 의존성에 넣는다.
   const { goToPhase, proceedToDailyResult, phase, scoreBreakdown, startGame } = game;
   const { loadQuestions, submitAnswers, spin, refreshCoupons, reset: resetCoupon } = coupon;
+
+  // 게임 중에는 게임 BGM, 나머지 화면은 메인 BGM. 여기가 모든 화면의 루트라
+  // 한 곳에서 phase만 보고 갈아끼우면 된다.
+  useBgm(phase);
 
   // localStorage는 서버 렌더링 시점에 없다. 마운트 후에 읽어야 하이드레이션이 어긋나지 않는다.
   const [showDrawEntry, setShowDrawEntry] = useState(false);
