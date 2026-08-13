@@ -509,6 +509,44 @@ iOS Firefox 실기에서 게임판이 잘려 **위아래로 스크롤하며 플�
   - 종료 멜로디는 `playedRef` 가드가 있다. 빈 의존성 이펙트는 StrictMode에서 두 번
     돌고, 1~3초짜리 멜로디는 겹치면 바로 들린다(짧은 효과음과 다르다).
 
+# 랭킹 (`app/components/RankingScreen.tsx`, `actions.ts`의 `fetchRanking`)
+
+구현 스펙은 `docs/client/20260813-ranking-spec.md`에 있다. 여기에는 **실물과 문서가
+어긋난 자리**만 적는다.
+
+- **`ranking_view`에 `nickname_number`가 없다**(2026-08-13 프로덕션 실측).
+  `gookbapanalyze/AGENTS.md:470`은 반환 컬럼에 그것을 포함한다고 적어놨지만 실제
+  뷰 정의(`pg_get_viewdef`)의 SELECT 목록에 없다 — `participants`를 이미 조인해
+  놓고 그 컬럼만 안 꺼냈다. 저쪽 담당자도 있는 줄 알고 있었으므로(테이블에는 있다)
+  **문서·구두 확인만으로 컬럼 존재를 단정하지 말 것.**
+  - 증상은 **랭킹 네 탭 전부 "랭킹을 불러오지 못했어요"**다. PostgREST가 `42703`으로
+    400을 내고 `fetchRanking`이 `ok: false`로 떨어진다. 서버 액션이라 브라우저 콘솔·
+    네트워크에는 **아무 흔적도 남지 않는다** — 실제 에러는 Vercel 함수 로그에만 있다.
+  - **anon 권한을 먼저 의심하지 말 것.** 스펙 7절이 "뷰이므로 grant가 필요하다"고
+    적어둔 탓에 그쪽으로 먼저 갔는데, 실측하니 `anon_can_select`는 true였고 anon으로
+    61행이 읽혔다. 권한과 컬럼 누락은 증상이 같으므로 순서를 잘못 잡으면 헛돈다.
+  - 진단은 이 두 줄이면 끝난다:
+    ```sql
+    select column_name from information_schema.columns
+     where table_schema='public' and table_name='ranking_view';
+    select pg_get_viewdef('public.ranking_view'::regclass, true);
+    ```
+  - **`nickname_number`는 표시용이 아니라 그룹 키의 일부다.** 없다고 select에서 빼면
+    `든든한 국밥 #0023`과 `#4606`이 한 사람으로 합쳐진다(프리셋 조합이 유한해 실제로
+    충돌한다). 컬럼만 지우는 임시 대응은 랭킹을 **조용히 틀리게** 만든다.
+  - 뷰 수정 시 **`create or replace view`는 컬럼을 맨 뒤에 추가할 때만 통한다.**
+    중간에 끼우면 `cannot change name of view column`이 난다. `drop view`로 다시
+    만들면 **GRANT가 날아가므로** `grant select ... to anon, authenticated`를 반드시
+    다시 줄 것 — 안 그러면 같은 증상이 다른 이유로 재발한다.
+- **`gookbap_score`는 `NOT NULL DEFAULT 0`이다**(덤프 `docs/client/20260813_supabase 쿠폰.txt`
+  실물 확인). 그래서 `fetchRanking`의 `nullsFirst: false`는 실제로는 걸리지 않는
+  방어다(주석이 "확인되지 않았다"고 적어둔 것이 이걸로 확인됐다). 해롭지 않으니 둔다.
+  - 같은 이유로 **"내 최고점 0"은 버그가 아니다.** 점수 0인 기록이 실제로 있는 것이며,
+    `fetchMyBestScore`가 실패했다면 `null`이라 줄 자체가 뜨지 않는다.
+- 뷰 원본 정의에 `order by best_score desc, joined_time`이 들어 있지만 **의미가 없다** —
+  `best_score`는 클라이언트가 채우지 않아 전부 0이고(스펙 1절), PostgREST가 `.order()`로
+  덮어쓴다.
+
 # 로케일 (`app/lib/i18n/`)
 
 ko / en / ja / **zh(간체)** 4종. zh는 2026-08-13에 추가했다 — 부산을 찾는 중화권
