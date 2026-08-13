@@ -310,6 +310,11 @@ export default function Home({ searchParams }: PageProps) {
               stageNumber={game.stageNumber}
               totalStages={game.totalStages}
               remainingTimeSec={game.remainingTimeSec}
+              /* 힌트 카운터는 useGameProgress가 들고 있다 — GameScreen은 단계마다
+                 리마운트되므로(위 key) 거기 두면 "게임당 3회"가 "단계당 3회"가 된다. */
+              hintsRemaining={game.hintsRemaining}
+              onConsumeHint={game.consumeHint}
+              onMarkHintSurveyShown={game.markHintSurveyShown}
               onStageClear={game.phase === "gameEnd" ? noop : game.handleStageClear}
               onForceAdvance={game.phase === "gameEnd" ? noop : game.handleForceAdvance}
               onWrongTouch={game.phase === "gameEnd" ? noop : game.recordWrongTouch}

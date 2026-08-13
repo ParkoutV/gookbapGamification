@@ -7,6 +7,7 @@ import type { LoadError } from "../lib/preloadGame";
 import {
   STAGE_CONFIG,
   GLOBAL_TIME_LIMIT_SEC,
+  HINT_LIMIT_PER_GAME,
   calcComboBonusForStreak,
   calcFinalScore,
   calcGukbapTier,
@@ -82,6 +83,16 @@ export function useGameProgress(trackId: string | null) {
   const [totalWrongTouches, setTotalWrongTouches] = useState(0);
   const [comboBankedScore, setComboBankedScore] = useState(0);
   const [comboCurrentStreak, setComboCurrentStreak] = useState(0);
+  /**
+   * 이 판에서 쓴 힌트 횟수. **`GameScreen`이 아니라 여기 있는 것이 요점이다** —
+   * 저쪽은 단계마다 리마운트되므로 카운터를 두면 "게임당 3회"가 아니라 "단계당 3회"가
+   * 된다. `isHintOpen`은 반대로 `GameScreen`의 로컬 state가 맞다(단계가 바뀌면
+   * 닫히는 게 옳은 동작).
+   */
+  const [hintsUsed, setHintsUsed] = useState(0);
+  /** 이 판에서 힌트 설문을 이미 띄웠는지. 게임당 최초 1회만 띄운다 —
+   *  "응답했는지"가 아니라 "띄웠는지"다(응답 없이 닫아도 다시 띄우지 않는다). */
+  const hintSurveyShownRef = useRef(false);
   const totalAnswersRef = useRef(0);
   const currentLevelFoundCountRef = useRef(0);
 
@@ -297,6 +308,8 @@ export function useGameProgress(trackId: string | null) {
       setComboCurrentStreak(0);
       comboCurrentStreakRef.current = 0;
       currentLevelFoundCountRef.current = 0;
+      setHintsUsed(0);
+      hintSurveyShownRef.current = false;
       setScoreBreakdown(null);
       setGukbapTier(null);
       setEndReason(null);
@@ -334,6 +347,20 @@ export function useGameProgress(trackId: string | null) {
       return next;
     });
     currentLevelFoundCountRef.current += 1;
+  }, []);
+
+  /** 힌트 1회 차감. 클립보드가 실제로 열리는 시점에만 부른다 — 설문을 응답 없이
+   *  닫은 경우는 힌트를 받지 못했으므로 차감하지 않는다. */
+  const consumeHint = useCallback(() => {
+    setHintsUsed((prev) => prev + 1);
+  }, []);
+
+  /** 설문을 띄웠다고 표시한다. **첫 await 이전에** 부르는 것이 요점이다 —
+   *  조회를 기다리는 동안 '?'를 다시 누르면 오버레이가 두 개 뜬다. */
+  const markHintSurveyShown = useCallback(() => {
+    if (hintSurveyShownRef.current) return false;
+    hintSurveyShownRef.current = true;
+    return true;
   }, []);
 
   const recordWrongTouch = useCallback(() => {
@@ -415,6 +442,8 @@ export function useGameProgress(trackId: string | null) {
     setComboCurrentStreak(0);
     comboCurrentStreakRef.current = 0;
     currentLevelFoundCountRef.current = 0;
+    setHintsUsed(0);
+    hintSurveyShownRef.current = false;
     setScoreBreakdown(null);
     setGukbapTier(null);
     setEndReason(null);
@@ -440,6 +469,9 @@ export function useGameProgress(trackId: string | null) {
     endReason,
     isCountingDown,
     endCountdown,
+    hintsRemaining: HINT_LIMIT_PER_GAME - hintsUsed,
+    consumeHint,
+    markHintSurveyShown,
     startGame,
     retryPreload,
     recordCorrectFind,

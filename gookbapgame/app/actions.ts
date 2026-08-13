@@ -506,9 +506,13 @@ export async function reassignNickname(): Promise<ParticipantResult> {
 }
 
 /**
- * 쿠폰 받기 전 노출되는 Phase 1 설문 문항을 가져온다.
+ * 설문 문항을 가져온다. 기본값은 쿠폰 받기 전 노출되는 Phase 1이고,
+ * 게임 중 힌트 설문은 `phase: 0`으로 부른다.
  * survey_questions는 Everyone SELECT가 허용되어 있어 직접 조회해도 된다
  * (gookbapanalyze/AGENTS.md).
+ *
+ * **phase마다 형제 함수를 만들지 말 것.** 아래 `is_active` 함정 처리가 그 안에
+ * 있어서, 복사해 가면 한쪽만 고쳐지는 순간 그 phase의 문항이 통째로 사라진다.
  *
  * 반환값이 배열이 아니라 SurveyFetchResult인 이유: 조회 실패와 "문항 0건"을
  * 호출부가 구분해야 하기 때문이다. 둘 다 []를 반환하던 이전 구현에서는
@@ -520,12 +524,12 @@ export async function reassignNickname(): Promise<ParticipantResult> {
  * 통째로 사라진다. 설문이 빈 목록으로 보이는 장애를 고치러 와서 오히려 영구적인
  * 빈 목록을 만들 수 있어, 명시적으로 false인 것만 제외한다.
  */
-export async function fetchSurveyQuestions(): Promise<SurveyFetchResult> {
+export async function fetchSurveyQuestions(phase: number = 1): Promise<SurveyFetchResult> {
   try {
     const { data, error } = await supabase
       .from("survey_questions")
       .select("question_id, question_type, question_text, options, is_required")
-      .eq("survey_phase", 1)
+      .eq("survey_phase", phase)
       .not("is_active", "is", false)
       .order("order_index", { ascending: true });
 
@@ -536,6 +540,42 @@ export async function fetchSurveyQuestions(): Promise<SurveyFetchResult> {
   } catch (error) {
     console.error("[fetchSurveyQuestions] 예기치 못한 예외:", error);
     return { ok: false, questions: [] };
+  }
+}
+
+/**
+ * 아직 답하지 않은 문항의 `question_id` 목록. `check_pending_survey` RPC를 부른다.
+ *
+ * **이것만으로는 화면을 그릴 수 없다** — 문항 텍스트도 선택지도 오지 않는다
+ * (gookbapanalyze/AGENTS.md의 반환 예시). `fetchSurveyQuestions(phase)`로 받은
+ * 전체 행을 이 목록으로 걸러내는 용도다.
+ *
+ * `p_track_id`는 **null을 넘긴다.** track_id는 phase 2에서만 지점 판별에 쓰이므로
+ * (그쪽 문서 주의사항) phase 0에는 의미가 없다 — 호출부가 트랙을 찾아 헤맬 필요가 없다.
+ *
+ * **실패와 "남은 문항 없음"을 구분하지 않는다.** 둘 다 빈 배열이고, 호출부는 어느
+ * 쪽이든 "전체에서 무작위로 재탕"이라는 같은 경로로 떨어진다(phase 0은 중복 응답
+ * 허용). 여기에 `ok` 플래그를 붙이면 소비처 없는 분기만 늘어난다.
+ */
+export async function fetchPendingSurveyQuestionIds(phase: number): Promise<string[]> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { data, error } = await supabase.rpc("check_pending_survey", {
+      p_survey_phase: phase,
+      p_participant_id: participantId,
+      p_track_id: null,
+    });
+
+    if (error) {
+      console.error("[fetchPendingSurveyQuestionIds] 조회 실패:", error);
+      return [];
+    }
+    return ((data ?? []) as { question_id?: string }[])
+      .map((row) => row.question_id)
+      .filter((id): id is string => typeof id === "string");
+  } catch (error) {
+    console.error("[fetchPendingSurveyQuestionIds] 예기치 못한 예외:", error);
+    return [];
   }
 }
 

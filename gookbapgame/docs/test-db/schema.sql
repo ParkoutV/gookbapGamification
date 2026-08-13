@@ -163,6 +163,21 @@ create table if not exists survey_questions (
   track_id uuid
 );
 
+-- `fetchSurveyQuestions`가 select하는 컬럼이라 없으면 조회가 통째로 실패한다
+-- (2026-08-13에 힌트 설문을 붙이면서 실기에서 드러났다 — 로컬에서는 문항 조회가
+-- 항상 실패하고, 실패 시 힌트를 그냥 내주는 폴백에 가려 조용히 넘어갔다).
+--
+-- **`is_active`의 필터는 `= true`가 아니라 "false가 아닌 것"이다** — 그쪽 함정
+-- 주석은 actions.ts에 있다. 기본값을 true로 두지만 NULL도 활성으로 취급된다.
+alter table survey_questions add column if not exists is_active boolean default true;
+alter table survey_questions add column if not exists is_required boolean default true;
+
+-- **`check_pending_survey` RPC는 여기 흉내내지 않는다.** 어떤 문항을 제외하는지
+-- (`optional_survey_records`와의 관계, phase 2의 track 경로)를 실물로 확인한 적이
+-- 없어서 지어낸 함수가 되고, 그러면 로컬 검증이 허구를 확인하게 된다.
+-- 없어도 무해하다 — `fetchPendingSurveyQuestionIds`가 빈 배열로 떨어지고
+-- 호출부는 "전체에서 무작위"라는 정상 경로를 탄다(스펙 §3의 4번).
+
 -- 컬럼 구성은 gookbapanalyze/app/main/survey-results/actions.ts:54가 조회하는
 -- response_id, question_id, participant_id, answer_data, created_at 그대로다.
 create table if not exists survey_responses (
@@ -172,3 +187,15 @@ create table if not exists survey_responses (
   answer_data jsonb,
   created_at timestamptz not null default now()
 );
+
+-- **GRANT를 위쪽 4번 절에 몰아넣을 수 없다** — 그 절은 이 테이블들보다 앞에 있어서
+-- 여기 것을 거기 적으면 "relation does not exist"로 죽는다. 테이블 옆에 두는 편이
+-- 새 테이블을 추가할 때 빠뜨리지 않는다.
+--
+-- 이게 없어서 로컬에서는 설문 조회가 늘 42501로 실패했다(2026-08-13에 힌트 설문을
+-- 붙이면서 드러났다). 프로덕션 권한과 무관하게 **조용히** 실패하는 것이 문제였다 —
+-- 설문 실패 시 흐름을 그냥 진행시키는 폴백이 양쪽 경로에 다 있어서, 로컬에서
+-- 설문 화면을 한 번도 못 봤는데도 아무 신호가 없었다.
+grant select on public.survey_questions to anon;
+grant insert on public.survey_responses to anon;
+grant usage, select on all sequences in schema public to anon;

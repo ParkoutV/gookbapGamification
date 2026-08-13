@@ -142,4 +142,11 @@ export const en: Partial<Dictionary> = {
   "game.wrongTouchAria": "{count}/{limit} wrong touches",
   "game.hintTitle": "TODAY'S ORDER",
   "game.hintCloseAria": "Close hint",
+  "game.hintRemainingAria": "Hints left {remaining}/{limit}",
+  "game.hintExhaustedAria": "No hints left",
+  // 가려진 줄. **정답을 읽어주면 안 된다** — 화면에서는 가토(░)로 지워지는 자리다.
+  "game.hintMaskedAria": "Line faded out",
+  "game.hintSurveyTitle": "One quick question",
+  "game.hintSurveyCloseAria": "Close without answering",
+  "game.hintSurveyNotice": "Answer to see the hint. The clock keeps running.",
 };

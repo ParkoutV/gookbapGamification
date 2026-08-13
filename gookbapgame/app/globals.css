@@ -594,6 +594,17 @@ body {
      실제로 칠해지는 칸은 5.6px이다.
      실기에서 칸이 구분되지 않으면 여기를 먼저 만질 것(1.5px~3px 범위). */
   --gauge-gap: 2px;
+  /* 총 칸 수(GAUGE_CELL_COUNT). 변수로 둔 것은 아래 --gauge-cell·gradient·clip-path
+     세 곳이 같은 값을 봐야 하기 때문이고, **다른 지표가 갈아끼워 재사용하라는
+     뜻이 아니다.**
+
+     2026-08-13에 잔여 힌트 칸을 이 값만 3으로 덮어써서 만들었다가 되돌렸다 —
+     길이만 짧은 같은 굵기의 막대가 시간 게이지 옆에 붙어, 초를 세는 것과 횟수를
+     세는 것이 "같은 종류의 지표 둘"로 보였다(이란토 지적). 칸을 세는 다른 지표는
+     문항·오답 인디케이터처럼 아이콘을 나란히 놓는 방식을 쓸 것. */
+  --gauge-total: 20;
+  /* 칸 하나의 폭(또는 높이). 아래 gradient·clip-path가 공유한다. */
+  --gauge-cell: calc(100% / var(--gauge-total));
 }
 .time-gauge--warn {
   --gauge-color: var(--warning);
@@ -605,11 +616,13 @@ body {
   height: 100%;
   background-image: repeating-linear-gradient(
     90deg,
-    var(--gauge-color) 0 calc(5% - var(--gauge-gap)),
-    transparent calc(5% - var(--gauge-gap)) 5%
+    var(--gauge-color) 0 calc(var(--gauge-cell) - var(--gauge-gap)),
+    transparent calc(var(--gauge-cell) - var(--gauge-gap)) var(--gauge-cell)
   );
   /* 남은 칸만 남기고 오른쪽을 잘라낸다. */
-  clip-path: inset(0 calc((20 - var(--gauge-cells, 20)) * 5%) 0 0);
+  clip-path: inset(
+    0 calc((var(--gauge-total) - var(--gauge-cells, var(--gauge-total))) * var(--gauge-cell)) 0 0
+  );
 }
 
 /* 경고(4칸 이하)에서 숨쉬듯 깜빡인다. 색 전환과 **같은 시점**에 시작한다 —
@@ -633,11 +646,13 @@ body {
   .time-gauge__fill {
     background-image: repeating-linear-gradient(
       180deg,
-      var(--gauge-color) 0 calc(5% - var(--gauge-gap)),
-      transparent calc(5% - var(--gauge-gap)) 5%
+      var(--gauge-color) 0 calc(var(--gauge-cell) - var(--gauge-gap)),
+      transparent calc(var(--gauge-cell) - var(--gauge-gap)) var(--gauge-cell)
     );
     /* 아래에서 위로 남으므로 위쪽을 잘라낸다. */
-    clip-path: inset(calc((20 - var(--gauge-cells, 20)) * 5%) 0 0 0);
+    clip-path: inset(
+      calc((var(--gauge-total) - var(--gauge-cells, var(--gauge-total))) * var(--gauge-cell)) 0 0 0
+    );
   }
 }
 

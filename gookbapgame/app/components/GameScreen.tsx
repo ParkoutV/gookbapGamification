@@ -3,18 +3,35 @@
 import React, { useState, useEffect } from "react";
 import { GameSession } from "../actions";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { WRONG_TOUCH_LIMIT_PER_LEVEL, GLOBAL_TIME_LIMIT_SEC } from "../lib/stageConfig";
+import {
+  WRONG_TOUCH_LIMIT_PER_LEVEL,
+  GLOBAL_TIME_LIMIT_SEC,
+  HINT_LIMIT_PER_GAME,
+} from "../lib/stageConfig";
 import { resolveIndicatorCells, resolveGaugeCells, GAUGE_WARN_CELLS } from "../lib/hudIndicators";
 import HintClipboard from "./HintClipboard";
+import HintSurveyOverlay from "./HintSurveyOverlay";
+import { applyHintMask, pickHintMaskIndex, pickHintSurveyQuestion } from "../lib/hintMask";
+import { fetchPendingSurveyQuestionIds, fetchSurveyQuestions, submitSurveyResponses } from "../actions";
+import type { SurveyQuestion } from "../lib/surveyAnswers";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
 import { resolveHitTargetBox } from "../lib/hitTarget";
+
+/** 힌트 설문의 phase. phase 1은 쿠폰 전 설문, phase 2는 지점별이다. */
+const HINT_SURVEY_PHASE = 0;
 
 interface GameScreenProps {
   session: GameSession;
   stageNumber: number;
   totalStages: number;
   remainingTimeSec: number;
+  /** 이 판에 남은 힌트 횟수. 카운터는 useGameProgress가 들고 있다 — 이 컴포넌트는
+   *  단계마다 리마운트되므로 여기 두면 "게임당 3회"가 "단계당 3회"가 된다. */
+  hintsRemaining: number;
+  onConsumeHint: () => void;
+  /** 이 판에서 힌트 설문을 처음 띄우는 경우에만 true를 돌려준다(이후에는 false). */
+  onMarkHintSurveyShown: () => boolean;
   onStageClear: (foundCount: number) => void;
   onForceAdvance: (foundCount: number) => void;
   onWrongTouch: () => void;
@@ -41,6 +58,9 @@ export default function GameScreen({
   stageNumber,
   totalStages,
   remainingTimeSec,
+  hintsRemaining,
+  onConsumeHint,
+  onMarkHintSurveyShown,
   onStageClear,
   onForceAdvance,
   onWrongTouch,
@@ -53,6 +73,8 @@ export default function GameScreen({
   const [isShaking, setIsShaking] = useState(false);
   const [scale, setScale] = useState(1);
   const [isHintOpen, setIsHintOpen] = useState(false);
+  /** 힌트 설문 오버레이에 띄울 문항. null이면 설문을 띄우지 않는다. */
+  const [hintSurveyQuestion, setHintSurveyQuestion] = useState<SurveyQuestion | null>(null);
   // 단계 전환 연출용. 리마운트되므로 "이전 단계"가 아니라 **이 컴포넌트가 처음
   // 그려질 때 겹쳐 보여줄 직전 사진**을 page.tsx가 아니라 여기서 들고 있는다.
   //
@@ -68,6 +90,17 @@ export default function GameScreen({
   // 차이 슬롯 1개당 정확히 한 줄. 이름이 겹쳐도 dedupe 하지 않는다 —
   // 줄이 줄어들면 플레이어가 문제를 다 찾은 것으로 착각한다.
   const hintNames = differenceSlots.map((slot) => resolveLocalizedName(slot.categoryName, locale));
+
+  /**
+   * 가릴 줄의 인덱스. **한 번 뽑아서 고정한다** — 열 때마다 다시 뽑으면 클립보드를
+   * 여닫는 것만으로 전부 드러난다. `HintClipboard`는 닫을 때 언마운트되므로 그쪽에
+   * 두면 반드시 매번 다시 뽑힌다. 여기 있으면 단계가 바뀔 때(리마운트) 새로 뽑히는데,
+   * 힌트 목록 자체가 달라지는 시점이라 그게 맞는 동작이다.
+   *
+   * 슬롯이 2개 이하인 단계에서는 -1(가리지 않음)이 나온다 — `pickHintMaskIndex` 참고.
+   */
+  const [hintMaskIndex] = useState(() => pickHintMaskIndex(totalDifferences));
+  const maskedHintNames = applyHintMask(hintNames, hintMaskIndex);
 
   const indicatorCells = resolveIndicatorCells(totalDifferences, foundSlots.size);
   /* 게이지 칸 수 하나가 색 전환·breath·가속을 **전부** 판정한다. 초로 따로 비교하면
@@ -100,6 +133,11 @@ export default function GameScreen({
     if (totalDifferences === 0 || foundSlots.size < totalDifferences) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-off UI reset tied to this stage-clear transition, not a cascading sync loop
     setIsHintOpen(false);
+    // 설문 오버레이도 함께 치운다. 플레이어 의사가 아닌 강제 닫힘이므로 차감·환불
+    // 모두 없다(클립보드는 열릴 때 이미 차감됐고 그대로 둔다).
+    // 위 disable 주석이 이 줄까지 함께 덮는다 — 규칙이 이펙트당 한 번만 보고하므로
+    // 여기에 또 붙이면 "unused eslint-disable" 경고가 난다.
+    setHintSurveyQuestion(null);
     const timeoutId = setTimeout(() => onStageClear(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
     return () => clearTimeout(timeoutId);
   }, [foundSlots.size, totalDifferences, onStageClear]);
@@ -142,12 +180,70 @@ export default function GameScreen({
 
     if (next >= WRONG_TOUCH_LIMIT_PER_LEVEL) {
       setIsHintOpen(false);
+      setHintSurveyQuestion(null);
       setIsShaking(true);
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         navigator.vibrate(100);
       }
       forceAdvanceTimeoutRef.current = setTimeout(() => onForceAdvance(foundSlots.size), FORCE_ADVANCE_DELAY_MS);
     }
+  };
+
+  /** 클립보드를 열고 1회 차감한다. 실제로 힌트를 받는 유일한 지점이다. */
+  const openClipboard = () => {
+    onConsumeHint();
+    setIsHintOpen(true);
+  };
+
+  /**
+   * '?' 버튼. **토글이 아니라 열기 전용이다** — 열려 있는 동안 다시 눌러도 닫히지
+   * 않는다. 닫고 다시 열면 1회가 더 나가므로 토글은 곧 실수로 회수를 잃는 경로다.
+   *
+   * 이 판에서 설문을 아직 띄우지 않았다면 클립보드 대신 설문이 먼저 뜨고, 차감은
+   * **응답한 시점**으로 미뤄진다. 두 번째·세 번째 힌트는 설문 없이 곧바로 열린다.
+   *
+   * **DB가 어떻게 실패하든 플레이어는 힌트를 받는다.** 힌트를 잃는 쪽이 훨씬 나쁘다.
+   */
+  const handleHintClick = () => {
+    if (hintsRemaining <= 0 || isHintOpen || hintSurveyQuestion) return;
+
+    // 첫 힌트가 아니면 설문 없이 곧바로 클립보드.
+    // 표시는 **첫 await 이전에** 세운다 — 조회를 기다리는 동안 '?'를 다시 누르면
+    // 오버레이가 두 개 뜬다(markHintSurveyShown이 그 판정과 표시를 함께 한다).
+    if (!onMarkHintSurveyShown()) {
+      openClipboard();
+      return;
+    }
+
+    void (async () => {
+      const [result, pendingIds] = await Promise.all([
+        fetchSurveyQuestions(HINT_SURVEY_PHASE),
+        fetchPendingSurveyQuestionIds(HINT_SURVEY_PHASE),
+      ]);
+      // 조회 실패나 문항 0건이면 설문을 건너뛰고 곧바로 클립보드를 연다.
+      // **이때도 차감한다** — 힌트를 실제로 받았으므로 공짜가 아니다.
+      // pendingIds가 비어 있는 것(전부 응답함/조회 실패)은 실패가 아니다 —
+      // pickHintSurveyQuestion이 전체에서 무작위로 재탕한다.
+      const question = pickHintSurveyQuestion(result.questions, pendingIds);
+      if (!question) {
+        openClipboard();
+        return;
+      }
+      setHintSurveyQuestion(question);
+    })();
+  };
+
+  /**
+   * 설문 응답. 제출 결과를 **await하지 않고** 그대로 힌트를 준다(이란토 지시).
+   * `submitSurveyResponses`의 `ok: false`를 화면에 노출하지 말 것 — 쿠폰 경로
+   * (`useCouponFlow`)는 이 값을 에러 메시지로 띄우지만 힌트 경로는 무시해야 한다.
+   */
+  const handleHintSurveyAnswer = (optionIndex: number) => {
+    const question = hintSurveyQuestion;
+    if (!question) return;
+    setHintSurveyQuestion(null);
+    void submitSurveyResponses([question], { [question.questionId]: [optionIndex] });
+    openClipboard();
   };
 
   const handleBackgroundClick =
@@ -420,6 +516,39 @@ export default function GameScreen({
 
         {/* 힌트 + 게이지 (두 그림 사이) */}
         <div className="flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
+          {/* 잔여 힌트 칸. **'?' 버튼보다 앞(위)** — "second gauge의 반대편"이라는
+              이란토 지시다.
+
+              **`.time-gauge`를 재사용하지 말 것**(2026-08-13에 그렇게 만들었다가
+              되돌렸다). 총 칸 수만 `--gauge-total: 3`으로 갈아끼우면 시간 게이지를
+              길이만 짧게 찌그러뜨린 모양이 되어, 같은 굵기의 막대 두 개가 나란히
+              붙어 "같은 종류의 지표 둘"로 읽힌다 — 하나는 초, 하나는 횟수인데도.
+
+              이란토 지시는 "second gauge의 **표시기와 같은 디자인**으로 3칸"이고,
+              그 표시기 방식은 이 화면의 문항·오답 인디케이터가 이미 쓰고 있다 —
+              아이콘을 나란히 놓고 남은 만큼 불투명하게. 세 지표가 한 체계로 보인다.
+
+              힌트는 **남은 것**을 세므로 채움 방향이 오답과 반대다(오답은 쓴 것을
+              센다). `i < hintsRemaining`이 맞다. */}
+          <div
+            className="flex md:flex-col items-center gap-1 shrink-0"
+            role="img"
+            aria-label={t("game.hintRemainingAria", {
+              remaining: Math.max(0, hintsRemaining),
+              limit: HINT_LIMIT_PER_GAME,
+            })}
+          >
+            {Array.from({ length: HINT_LIMIT_PER_GAME }).map((_, i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                className={`w-4 h-4 border border-wood bg-accent ${
+                  i < hintsRemaining ? "opacity-100" : "opacity-20"
+                }`}
+              />
+            ))}
+          </div>
+
           {/* 힌트 버튼. 좌상단 언어·소리 토글과 같은 양식(w-9 h-9 원형)이다
               — 화면에 떠 있는 보조 버튼이라는 성격이 같아서 생김새를 맞췄다.
               아이콘은 물음표 이모지(U+2753). **그림 이모지를 쓰지 말 것**
@@ -430,10 +559,13 @@ export default function GameScreen({
               클러스터가 합쳐지지 않고 시스템 컬러 이모지로 넘어간다. */}
           <button
             type="button"
-            className="icon-round-btn w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0"
-            onClick={() => setIsHintOpen((prev) => !prev)}
+            className="icon-round-btn w-9 h-9 flex items-center justify-center rounded-full border border-wood bg-surface/90 text-lg leading-none shrink-0 disabled:opacity-40"
+            onClick={handleHintClick}
+            disabled={hintsRemaining <= 0}
             aria-expanded={isHintOpen}
-            aria-label={t("game.hintButton")}
+            aria-label={
+              hintsRemaining <= 0 ? t("game.hintExhaustedAria") : t("game.hintButton")
+            }
           >
             <span aria-hidden="true">{"❓"}</span>
           </button>
@@ -515,7 +647,19 @@ export default function GameScreen({
           </div>
         </div>
       </main>
-      {isHintOpen && <HintClipboard names={hintNames} onClose={() => setIsHintOpen(false)} />}
+      {/* 두 오버레이는 닫기 핸들러를 공유하지 않는다 — 클립보드는 이미 차감됐으므로
+          바깥 탭으로 닫히면 안 되고, 설문은 차감이 없으므로 쉽게 빠져나가야 한다.
+          응답 없이 설문을 닫으면 클립보드도 뜨지 않고 차감도 없다. */}
+      {isHintOpen && (
+        <HintClipboard names={maskedHintNames} onClose={() => setIsHintOpen(false)} />
+      )}
+      {hintSurveyQuestion && (
+        <HintSurveyOverlay
+          question={hintSurveyQuestion}
+          onAnswer={handleHintSurveyAnswer}
+          onDismiss={() => setHintSurveyQuestion(null)}
+        />
+      )}
     </div>
   );
 }

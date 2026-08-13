@@ -141,4 +141,11 @@ export const ja: Partial<Dictionary> = {
   "game.wrongTouchAria": "誤タッチ {count}/{limit}",
   "game.hintTitle": "本日の注文書",
   "game.hintCloseAria": "ヒントを閉じる",
+  "game.hintRemainingAria": "残りヒント {remaining}/{limit}",
+  "game.hintExhaustedAria": "ヒントを使い切りました",
+  // 가려진 줄. **정답을 읽어주면 안 된다** — 화면에서는 가토(░)로 지워지는 자리다.
+  "game.hintMaskedAria": "印刷が消えた行",
+  "game.hintSurveyTitle": "アンケート1問",
+  "game.hintSurveyCloseAria": "答えずに閉じる",
+  "game.hintSurveyNotice": "答えるとヒントが見られます。その間も時間は進みます。",
 };

@@ -149,4 +149,14 @@ export const ko: Dictionary = {
   "game.wrongTouchAria": "오답 {count}/{limit}",
   "game.hintTitle": "오늘의 주문서",
   "game.hintCloseAria": "힌트 닫기",
+  "game.hintRemainingAria": "남은 힌트 {remaining}/{limit}",
+  "game.hintExhaustedAria": "힌트를 모두 사용했어요",
+  // 가려진 줄. **정답을 읽어주면 안 된다** — 화면에서는 가토(░)로 지워지는 자리다.
+  "game.hintMaskedAria": "인쇄가 지워진 줄",
+  "game.hintSurveyTitle": "설문 한 가지",
+  /* 설문 닫기는 힌트 닫기와 결과가 다르다 — 이쪽은 답하지 않고 나가는 것이라
+     힌트 횟수가 줄지 않는다. 같은 문구를 쓰면 스크린리더 사용자가 그 차이를
+     알 수 없다. */
+  "game.hintSurveyCloseAria": "답하지 않고 닫기",
+  "game.hintSurveyNotice": "답하면 힌트를 볼 수 있어요. 그동안에도 시간은 흘러갑니다.",
 };

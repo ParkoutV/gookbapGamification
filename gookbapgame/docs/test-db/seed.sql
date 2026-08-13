@@ -117,5 +117,19 @@ values
   (9002, 1, 1, '{"ko": "좋아하는 반찬을 모두 고르세요", "en": "Pick all side dishes you like"}'::jsonb,
          '[{"ko": "깍두기", "en": "Kkakdugi"}, {"ko": "김치", "en": "Kimchi"}, {"ko": "양파", "en": "Onion"}]'::jsonb, 2),
   (9003, 1, 2, '{"ko": "한마디 남겨주세요", "en": "Leave us a comment"}'::jsonb,
-         '[{"ko": "자유롭게 적어주세요", "en": "Write freely"}]'::jsonb, 3)
+         '[{"ko": "자유롭게 적어주세요", "en": "Write freely"}]'::jsonb, 3),
+  -- Phase 0 = 게임 중 힌트를 처음 열 때 뜨는 설문(2026-08-13). 전부 단일 선택(type 0)
+  -- 이고 필수다.
+  --
+  -- 9000은 **프로덕션 실제 문항을 그대로 옮긴 것이다**(2026-08-13에 이란토가 뜬 덤프).
+  -- 세 번째 선택지에 `en`·`ja`가 없는 것도 실물 그대로다 — resolveLocalizedName의
+  -- 한국어 폴백이 실제로 걸리는지 로컬에서 볼 수 있어야 한다. 임의 문구로 바꾸지 말 것.
+  --
+  -- 9004는 프로덕션에 없는 로컬 전용 추가분이다. 프로덕션이 1건뿐이라 무작위 1건
+  -- 선택이 실제로 갈리는지 확인할 수 없어서 둘로 만들었다(2~3건으로 늘 예정이므로
+  -- 그 상태를 미리 재현하는 셈이다).
+  (9000, 0, 0, '{"ko": "나는 여기에 ", "en": "I came here ", "ja": "私はここに"}'::jsonb,
+         '[{"ko": "혼자 왔다", "en": "Alone", "ja": "一人で来た"}, {"ko": "여럿이 왔다", "en": "With companions", "ja": "同行者と一緒に来た"}, {"ko": "온라인 방문이다"}]'::jsonb, 1),
+  (9004, 0, 0, '{"ko": "매장에 처음 오셨나요?", "en": "Is this your first visit?", "ja": "初めてのご来店ですか？"}'::jsonb,
+         '[{"ko": "처음이에요", "en": "First time", "ja": "初めてです"}, {"ko": "여러 번 왔어요", "en": "Been here before", "ja": "何度も来ました"}]'::jsonb, 2)
 on conflict (question_id) do nothing;
