@@ -128,7 +128,7 @@ export const ja: Partial<Dictionary> = {
   "coupon.validPeriod": "{from} ~ {until}",
   "coupon.expiresAt": "{date}まで",
   "coupon.validFrom": "{date}から",
-  "coupon.showQrButton": "QRコードを表示",
+  "coupon.backToAlbum": "一覧へ",
   "coupon.closeButton": "閉じる",
   "coupon.qrUnavailable": "このクーポンのQRコードを表示できません。",
   "coupon.issuedButHidden": "クーポンは発行されましたが、今は表示できません。しばらくしてから「自分のクーポン」でご確認ください。",

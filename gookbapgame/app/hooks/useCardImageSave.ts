@@ -20,7 +20,9 @@ export function useCardImageSave(
   coupon: IssuedCoupon | null,
   flipped: boolean,
   locale: Locale,
-  dateLines: CouponDateLine[]
+  dateLines: CouponDateLine[],
+  /** 사용 완료·만료 도장 문구. 화면(`GatchaCard`의 `usedStamp`)과 같은 값이어야 한다. */
+  usedStamp: string | null = null
 ) {
   const faceRef = useRef<HTMLDivElement>(null);
   /** 뒤집힐 때 미리 구워두는 카드 이미지. 저장 버튼이 await 없이 공유할 수 있게 한다. */
@@ -42,8 +44,9 @@ export function useCardImageSave(
       couponName: resolveLocalizedName(coupon?.couponType, locale),
       dateTexts: dateLinesKey === "" ? [] : dateLinesKey.split("\n"),
       emoji,
+      usedStamp,
     }),
-    [coupon?.couponType, locale, dateLinesKey, emoji]
+    [coupon?.couponType, locale, dateLinesKey, emoji, usedStamp]
   );
 
   /**

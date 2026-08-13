@@ -134,7 +134,9 @@ export const ko: Dictionary = {
   "coupon.validPeriod": "{from} ~ {until}",
   "coupon.expiresAt": "{date}까지",
   "coupon.validFrom": "{date}부터",
-  "coupon.showQrButton": "QR 코드 보기",
+  // 앨범(격자)으로 돌아가기. 'QR 코드 보기'는 앨범 개편으로 사라졌다 —
+  // 카드 앞면에 QR이 이미 있어서 따로 펼칠 것이 없다(2026-08-13).
+  "coupon.backToAlbum": "목록으로",
   "coupon.closeButton": "닫기",
   "coupon.qrUnavailable": "이 쿠폰의 QR 코드를 표시할 수 없어요.",
   "coupon.issuedButHidden": "쿠폰은 발급되었지만 지금 표시할 수 없어요. 잠시 후 '내 쿠폰'에서 확인해주세요.",

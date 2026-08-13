@@ -16,6 +16,17 @@ import type { CouponDateLine } from "../lib/couponDates";
  */
 const CARD_FACE_INK = "#1A1F24";
 
+/**
+ * 사용 완료·만료 도장 색. 밝은 카드면(#F2F2F2) 위에서 5.7:1이고 본문 잉크(남색
+ * 계열)와도 확실히 갈린다 — 도장은 "무효"를 알리는 표시라 본문과 같은 색이면
+ * 장식으로 보인다.
+ *
+ * `CARD_FACE_INK`과 같은 이유로 테마 변수가 아니라 리터럴이다: `cardImage.ts`가
+ * canvas에 같은 도장을 그릴 때 CSS 변수를 읽을 수 없고, 두 곳이 같은 값이어야
+ * 화면과 저장본이 어긋나지 않는다.
+ */
+const STAMP_INK = "#B3261E";
+
 interface GatchaCardProps {
   /** null이면 꽝 앞면. 뒷면만 보이는 동안에도 null일 수 있다. */
   coupon: IssuedCoupon | null;
@@ -29,10 +40,25 @@ interface GatchaCardProps {
    */
   faceRef?: React.Ref<HTMLDivElement>;
   /**
-   * 이미 지역화된 날짜 줄들(발급일·시작일·사용기한). `couponDateLines`가 조립하며
-   * 저장 이미지와 **같은 배열**을 써야 화면과 저장본이 맞는다.
+   * 이미 지역화된 사용 기간 줄. `couponDateLines`가 조립하며 저장 이미지와
+   * **같은 배열**을 써야 화면과 저장본이 맞는다.
    */
   dateLines: CouponDateLine[];
+  /**
+   * 뒤집힐 때 당첨/꽝 효과음을 낼지. 기본 true(뽑기 화면).
+   *
+   * **내 쿠폰 앨범에서는 false다.** 결과 소리는 "결과가 처음 드러나는 순간"에만
+   * 의미가 있는데(AGENTS.md), 앨범은 이미 아는 결과를 다시 보는 자리다. 게다가
+   * 아래 이펙트의 ref 가드는 **마운트 단위**라, 앨범 카드를 열 때마다 새 인스턴스가
+   * 생겨 당첨 소리가 매번 울린다.
+   */
+  announceResult?: boolean;
+  /**
+   * 사용 완료·기간 만료 표시. QR 위에 도장을 덮어 **스캔용으로 못 쓰게** 한다
+   * (2026-08-13, 이란토). 앨범에서 지난 쿠폰도 카드로 볼 수 있게 하되 재사용은
+   * 막아야 해서 생긴 것이다. 문구는 호출부가 지역화해서 넘긴다.
+   */
+  usedStamp?: string | null;
 }
 
 export default function GatchaCard({
@@ -42,6 +68,8 @@ export default function GatchaCard({
   onFlip,
   faceRef,
   dateLines,
+  announceResult = true,
+  usedStamp = null,
 }: GatchaCardProps) {
   const { t } = useLocale();
 
@@ -73,16 +101,21 @@ export default function GatchaCard({
    * **최초 1회만 낸다.** 앞면으로 돌 때마다 당첨 소리가 울리면 시끄럽고
    * "또 당첨됐나" 하는 오해도 준다. 결과를 알리는 소리는 결과가 처음 드러나는
    * 순간에만 의미가 있다.
+   *
+   * **가드는 마운트 단위다** — 이 컴포넌트가 다시 마운트되면 소리가 또 난다.
+   * 그래서 내 쿠폰 앨범은 `announceResult={false}`로 아예 끈다(카드를 열 때마다
+   * 새 인스턴스가 생기므로 가드로는 막히지 않는다). 이 조건을 지우면 앨범에서
+   * 지난 쿠폰을 열 때마다 당첨 효과음이 울린다.
    */
   const resultSoundPlayedRef = useRef(false);
   useEffect(() => {
-    if (!flipped || resultSoundPlayedRef.current) return;
+    if (!announceResult || !flipped || resultSoundPlayedRef.current) return;
     resultSoundPlayedRef.current = true;
     const timer = setTimeout(() => {
       playSfx(coupon ? SFX.coupon : SFX.couponLose);
     }, 450);
     return () => clearTimeout(timer);
-  }, [flipped, coupon]);
+  }, [announceResult, flipped, coupon]);
 
   return (
     /* w-full이 필요하다. items-center 아래에서는 이 래퍼가 shrink-to-fit이 되어
@@ -153,7 +186,31 @@ export default function GatchaCard({
                 <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-3 overflow-hidden">
                   {coupon ? (
                     <>
-                      <CouponQR coupon={coupon} onLightFace />
+                      {/* 사용 완료·만료 도장은 QR **위에** 덮는다 — 스캔용으로 쓸 수
+                          없게 만드는 것이 목적이므로 옆에 두면 의미가 없다
+                          (2026-08-13, 이란토). QR을 감싸 절대 배치할 자리를 만든다. */}
+                      <div className="relative">
+                        <CouponQR coupon={coupon} onLightFace />
+                        {usedStamp && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center"
+                            /* 반투명 흰 막으로 QR을 덮어 대비를 떨어뜨린다. 스캐너가
+                               읽지 못할 만큼 가리는 것이 요점이고, 아래 글자가 읽히도록
+                               배경도 필요하다. */
+                            style={{ background: "rgba(242, 242, 242, 0.82)" }}
+                          >
+                            <span
+                              className="font-extrabold text-lg border-2 px-2 py-1 -rotate-12"
+                              /* 도장이라 테마 변수가 아니라 리터럴이다 — 카드 앞면은
+                                 밝은 애셋이고 cardImage.ts도 같은 색을 써야 한다
+                                 (CARD_FACE_INK과 같은 이유). */
+                              style={{ color: STAMP_INK, borderColor: STAMP_INK }}
+                            >
+                              {usedStamp}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       {/* 날짜 줄들은 **하나의 블록으로 묶는다.** 형제로 늘어놓으면
                           바깥 gap-3가 줄 사이마다 들어가는데, cardImage.ts는 날짜
                           블록을 통째로 GAP 하나로 계산한다 — 묶어두면 "블록 하나"라는
@@ -210,8 +267,12 @@ export default function GatchaCard({
       </div>
 
       {/* 열어보기 전에만 안내. 커서 힌트와 같은 기준(hasOpened)을 쓴다 —
-          한쪽만 flipped를 보면 되돌렸을 때 문구는 나오는데 커서는 없는 식으로 어긋난다. */}
-      {!hasOpened && (
+          한쪽만 flipped를 보면 되돌렸을 때 문구는 나오는데 커서는 없는 식으로 어긋난다.
+
+          **`flipped`도 함께 본다.** 앨범처럼 앞면으로 마운트하는 호출부에서는
+          hasOpened를 세우는 이펙트가 첫 페인트 뒤에 돌아, 한 프레임 동안
+          "카드를 섞고 있어요"가 깜빡인다(앨범에서는 틀린 문구다). */}
+      {!hasOpened && !flipped && (
         <p className="text-muted text-sm">{canFlip ? t("wheel.flipHint") : t("wheel.spinning")}</p>
       )}
 
