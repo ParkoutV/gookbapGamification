@@ -163,6 +163,21 @@ create table if not exists survey_questions (
   track_id uuid
 );
 
+-- `fetchSurveyQuestions`가 select하는 컬럼이라 없으면 조회가 통째로 실패한다
+-- (2026-08-13에 힌트 설문을 붙이면서 실기에서 드러났다 — 로컬에서는 문항 조회가
+-- 항상 실패하고, 실패 시 힌트를 그냥 내주는 폴백에 가려 조용히 넘어갔다).
+--
+-- **`is_active`의 필터는 `= true`가 아니라 "false가 아닌 것"이다** — 그쪽 함정
+-- 주석은 actions.ts에 있다. 기본값을 true로 두지만 NULL도 활성으로 취급된다.
+alter table survey_questions add column if not exists is_active boolean default true;
+alter table survey_questions add column if not exists is_required boolean default true;
+
+-- **`check_pending_survey` RPC는 여기 흉내내지 않는다.** 어떤 문항을 제외하는지
+-- (`optional_survey_records`와의 관계, phase 2의 track 경로)를 실물로 확인한 적이
+-- 없어서 지어낸 함수가 되고, 그러면 로컬 검증이 허구를 확인하게 된다.
+-- 없어도 무해하다 — `fetchPendingSurveyQuestionIds`가 빈 배열로 떨어지고
+-- 호출부는 "전체에서 무작위"라는 정상 경로를 탄다(스펙 §3의 4번).
+
 -- 컬럼 구성은 gookbapanalyze/app/main/survey-results/actions.ts:54가 조회하는
 -- response_id, question_id, participant_id, answer_data, created_at 그대로다.
 create table if not exists survey_responses (
@@ -172,3 +187,149 @@ create table if not exists survey_responses (
   answer_data jsonb,
   created_at timestamptz not null default now()
 );
+
+-- **GRANT를 위쪽 4번 절에 몰아넣을 수 없다** — 그 절은 이 테이블들보다 앞에 있어서
+-- 여기 것을 거기 적으면 "relation does not exist"로 죽는다. 테이블 옆에 두는 편이
+-- 새 테이블을 추가할 때 빠뜨리지 않는다.
+--
+-- 이게 없어서 로컬에서는 설문 조회가 늘 42501로 실패했다(2026-08-13에 힌트 설문을
+-- 붙이면서 드러났다). 프로덕션 권한과 무관하게 **조용히** 실패하는 것이 문제였다 —
+-- 설문 실패 시 흐름을 그냥 진행시키는 폴백이 양쪽 경로에 다 있어서, 로컬에서
+-- 설문 화면을 한 번도 못 봤는데도 아무 신호가 없었다.
+grant select on public.survey_questions to anon;
+grant insert on public.survey_responses to anon;
+grant usage, select on all sequences in schema public to anon;
+
+-- ============================================================
+-- 9. 쿠폰 테이블 + get_my_coupons 스텁
+-- ============================================================
+--
+-- **프로덕션의 RPC 본문은 볼 수 없다**(마이그레이션 파일이 없는 프로덕션 전용
+-- 함수다 — issuedCoupons.ts:46 주석). 여기 있는 것은 반환 컬럼 모양만 맞춘
+-- 스텁이며, 발급 조건·확률·동시성 같은 실제 로직은 하나도 재현하지 않는다.
+--
+-- 왜 필요한가: 이게 없으면 `fetchMyCoupons`가 늘 빈 배열을 돌려줘서 **내 쿠폰
+-- 앨범을 로컬에서 띄울 수 없다.** 2026-08-13에 앨범 격자를 만들면서 실제
+-- 컴포넌트를 한 번도 마운트하지 못했고, 그 공백에서 blob 오염 버그가 나왔다
+-- (A 열기 → 목록 → B 열기에서 A의 이미지가 B 이름으로 저장되는 버그).
+--
+-- `valid_from`을 반환에 포함한다 — 프로덕션도 2026-08-13에 주는 것이 확인됐다.
+create table if not exists coupon_effects (
+  coupon_effect_id uuid primary key default gen_random_uuid(),
+  coupon_type text not null,
+  expire_days int,
+  expire_type text,
+  expire_date timestamptz
+);
+
+create table if not exists issued_coupons (
+  coupon_id uuid primary key default gen_random_uuid(),
+  participant_id uuid not null,
+  coupon_effect_id uuid not null references coupon_effects(coupon_effect_id),
+  is_used boolean not null default false,
+  issued_at timestamptz not null default now(),
+  used_at timestamptz,
+  expired_at timestamptz,
+  valid_from timestamptz
+);
+
+create or replace function get_my_coupons(p_id uuid)
+returns table (
+  coupon_id uuid,
+  coupon_effect_id uuid,
+  is_used boolean,
+  issued_at timestamptz,
+  expired_at timestamptz,
+  valid_from timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select c.coupon_id, c.coupon_effect_id, c.is_used, c.issued_at, c.expired_at, c.valid_from
+  from issued_coupons c
+  where c.participant_id = p_id
+  order by c.issued_at desc;
+$$;
+
+grant select on public.coupon_effects to anon;
+grant execute on function get_my_coupons(uuid) to anon;
+
+-- ============================================================
+-- 10. ranking_view 스텁
+-- ============================================================
+--
+-- **반환 컬럼 모양만 맞춘 스텁이다.** 프로덕션은 `participants` → `nickname_presets`
+-- 조인으로 이 뷰를 만들지만, 로컬에는 그 테이블들이 없거나 형태가 달라 재현하려 하면
+-- 시간만 버린다 — 위 `get_my_coupons` 스텁과 같은 방침이다.
+--
+-- 왜 필요한가: 이게 없으면 랭킹 화면을 로컬에서 **실제 컴포넌트로 띄울 수 없다.**
+-- 2026-08-13에 쿠폰 앨범을 손으로 조립한 DOM만 보고 넘겼다가 blob 오염 버그를 놓친
+-- 전례가 있다.
+--
+-- `nickname_number`는 **text**다. 프로덕션 샘플이 `0614`처럼 앞자리 0을 갖고 있어
+-- 숫자로 만들면 `0614`와 `614`가 같은 사람으로 합쳐진다(그룹 키가 번호를 포함한다).
+create table if not exists ranking_plays (
+  play_id bigserial primary key,
+  nickname_first jsonb not null,
+  nickname_last  jsonb not null,
+  nickname_number text,
+  best_score int not null default 0,
+  gookbap_score int not null default 0,
+  joined_time timestamptz not null default now()
+);
+
+-- 프로덕션 뷰의 반환 컬럼 그대로: nickname_first / nickname_last / nickname_number /
+-- best_score / gookbap_score / joined_time. **`participant_id`는 내보내지 않는다** —
+-- 프로덕션 뷰가 그것을 의도적으로 제외했고(노출되면 남의 쿠폰을 가로챌 수 있다),
+-- 스텁에 넣으면 클라이언트가 그 컬럼에 의존하는 코드를 쓸 수 있게 된다.
+create or replace view ranking_view as
+  select nickname_first, nickname_last, nickname_number, best_score, gookbap_score, joined_time
+  from ranking_plays;
+
+-- 뷰는 테이블과 별도로 GRANT가 필요하다. **이 GRANT를 위쪽 4번 절로 올리지 말 것** —
+-- 그 절은 이 뷰보다 앞에 있어서 "relation does not exist"로 죽는다(같은 파일의
+-- survey_questions GRANT 주석과 같은 함정이다).
+grant select on public.ranking_view to anon;
+
+-- ============================================================
+-- 11. game_score_logs + get_my_score_logs 스텁
+-- ============================================================
+--
+-- **반환 컬럼 모양만 맞춘 스텁이다**(`get_my_coupons`·`ranking_view`와 같은 방침).
+-- 프로덕션 RPC 본문은 볼 수 없다.
+--
+-- 왜 필요한가: 랭킹 화면의 "내 최고점"이 이 RPC로 온다(`fetchMyBestScore`). 없으면
+-- 그 줄이 조용히 사라지고 — 기록 없음·조회 실패를 둘 다 "안 띄운다"로 처리하기
+-- 때문에 — 로컬에서 **구현이 맞는지 확인할 방법이 없다.**
+--
+-- `submitGameScore`가 이 테이블에 직접 insert하므로(anon INSERT 허용) 게임을 한 판
+-- 돌리면 행이 쌓인다. 즉 시드로 미리 넣지 않아도 실기 확인이 가능하다.
+create table if not exists game_score_logs (
+  log_id uuid primary key default gen_random_uuid(),
+  participant_id uuid not null,
+  best_score int not null default 0,
+  gookbap_score int not null default 0,
+  joined_time timestamptz not null default now()
+);
+
+create or replace function get_my_score_logs(p_id uuid)
+returns table (
+  log_id uuid,
+  participant_id uuid,
+  best_score int,
+  gookbap_score int,
+  joined_time timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select g.log_id, g.participant_id, g.best_score, g.gookbap_score, g.joined_time
+  from game_score_logs g
+  where g.participant_id = p_id
+  order by g.joined_time desc;
+$$;
+
+grant insert on public.game_score_logs to anon;
+grant execute on function get_my_score_logs(uuid) to anon;

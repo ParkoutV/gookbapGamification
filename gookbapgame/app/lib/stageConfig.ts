@@ -28,6 +28,14 @@ export const DISPLAY_MAX_SCORE = 1953;
 
 export const GLOBAL_TIME_LIMIT_SEC = 300;
 export const WRONG_TOUCH_LIMIT_PER_LEVEL = 3;
+/**
+ * 힌트 사용 한도. **단계당이 아니라 게임 전체 기준이다.**
+ *
+ * 그래서 카운터(`hintsUsed`)는 `useGameProgress`에 있다 — `GameScreen`은 단계마다
+ * 리마운트되므로(page.tsx의 key) 거기 두면 조용히 "단계당 3회"가 되고 설문도 매
+ * 단계 뜬다. 단계 하나만 열어보는 테스트는 그 버그를 통과시킨다.
+ */
+export const HINT_LIMIT_PER_GAME = 3;
 export const WRONG_TOUCH_PENALTY = 10;
 export const INCOMPLETE_LEVEL_PENALTY = 10;
 

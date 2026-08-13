@@ -18,6 +18,27 @@ export const ja: Partial<Dictionary> = {
   "start.myResult": "自分の結果",
   "start.ranking": "ランキング",
 
+  // ランキング画面。タブは暦基準(ローリングウィンドウではない、2026-08-13)。
+  "ranking.title": "ランキング",
+  "ranking.tab.daily": "今日",
+  "ranking.tab.weekly": "今週",
+  "ranking.tab.monthly": "今月",
+  "ranking.tab.total": "全体",
+  "ranking.myBestScore": "自己最高 {score}",
+  "ranking.pageIndicator": "{current} / {total}",
+  "ranking.prevPageAria": "前のページ",
+  "ranking.nextPageAria": "次のページ",
+  "ranking.rankHeader": "順位",
+  "ranking.nicknameHeader": "ニックネーム",
+  "ranking.scoreHeader": "スコア",
+  // 読み込み失敗と必ず違う文言にする。同じにするとDB障害が「誰もプレイしていない」に化ける。
+  "ranking.empty": "まだ記録がありません。",
+  "ranking.loadFailed": "ランキングを読み込めませんでした。しばらくしてからもう一度お試しください。",
+  "ranking.loading": "読み込み中...",
+  "ranking.limitNotice": "上位{limit}位まで表示します。",
+  "ranking.partialNotice": "記録が多いため一部のみ集計しました。",
+  "ranking.closeButton": "閉じる",
+
   "term.title": "個人情報の取り扱いについて",
   "term.body":
     "このゲームでは、ゲームの運営とクーポン発行のために以下の情報を収集します。\n\n" +
@@ -104,6 +125,10 @@ export const ja: Partial<Dictionary> = {
   "card.saveButton": "画像として保存",
   "card.saving": "保存中...",
   "card.saveError": "保存に失敗しました。しばらくしてからお試しください。",
+  "card.saveRecommendNotice":
+    "「自分のクーポン」から再度ご確認いただけます。ただしご利用環境によって記録が消える場合がありますので、画像として保存されることをおすすめします。",
+  "card.saveRecommendNoticeShort":
+    "ご利用環境によって記録が消える場合がありますので、画像として保存されることをおすすめします。",
 
   "sound.muteAria": "音を消す",
   "sound.unmuteAria": "音を出す",
@@ -115,6 +140,7 @@ export const ja: Partial<Dictionary> = {
   "wheel.error": "現在サーバーに接続できません。しばらくしてからお試しください。",
   "start.goToDrawButton": "クーポンを引きに行く",
   "start.inviteButton": "友だちを招待する",
+  "start.drawAvailableNotice": "引けるクーポンがあります",
   "start.invitePromo": "クッパマスターは誰だ？\n〈1953 眼力対決〉に参加して、1953 兄弟豚クッパのクーポンをゲットしよう！🍲",
   "start.inviteCopied": "招待リンクをコピーしました！",
   "start.inviteFailed": "コピーできませんでした。しばらくしてからもう一度お試しください。",
@@ -125,6 +151,9 @@ export const ja: Partial<Dictionary> = {
   "coupon.empty": "まだ受け取ったクーポンはありません。",
   "coupon.usedBadge": "使用済み",
   "coupon.expiredBadge": "期限切れ",
+  "coupon.remainingToday": "本日まで",
+  "coupon.remainingDay": "あと1日",
+  "coupon.remainingDays": "あと{days}日",
   "coupon.validPeriod": "{from} ~ {until}",
   "coupon.expiresAt": "{date}まで",
   "coupon.validFrom": "{date}から",
@@ -141,4 +170,11 @@ export const ja: Partial<Dictionary> = {
   "game.wrongTouchAria": "誤タッチ {count}/{limit}",
   "game.hintTitle": "本日の注文書",
   "game.hintCloseAria": "ヒントを閉じる",
+  "game.hintRemainingAria": "残りヒント {remaining}/{limit}",
+  "game.hintExhaustedAria": "ヒントを使い切りました",
+  // 가려진 줄. **정답을 읽어주면 안 된다** — 화면에서는 가토(░)로 지워지는 자리다.
+  "game.hintMaskedAria": "印刷が消えた行",
+  "game.hintSurveyTitle": "アンケート1問",
+  "game.hintSurveyCloseAria": "答えずに閉じる",
+  "game.hintSurveyNotice": "答えるとヒントが見られます。その間も時間は進みます。",
 };

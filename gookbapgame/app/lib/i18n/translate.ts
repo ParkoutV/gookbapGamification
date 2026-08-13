@@ -2,10 +2,11 @@ import type { Locale } from "./types.ts";
 import { ko } from "./locales/ko.ts";
 import { en } from "./locales/en.ts";
 import { ja } from "./locales/ja.ts";
+import { zh } from "./locales/zh.ts";
 
 export type Dictionaries = Record<Locale, Partial<Record<string, string>>>;
 
-const DICTIONARIES: Dictionaries = { ko, en, ja };
+const DICTIONARIES: Dictionaries = { ko, en, ja, zh };
 
 /**
  * 폴백 체인(요청 로케일 → en → ko → 키 이름)을 사전과 분리해 노출한다.

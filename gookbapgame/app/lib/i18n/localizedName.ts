@@ -11,8 +11,18 @@ export type LocalizedName = Record<string, string> | null | undefined;
  */
 export const MISSING_NAME_PLACEHOLDER = "—";
 
-/** 번역이 없을 때 떨어지는 언어. 닉네임 전체 폴백(`formatNickname`)도 이걸 쓴다. */
+/** 번역이 없을 때 최종적으로 떨어지는 언어. 닉네임 전체 폴백(`formatNickname`)도 이걸 쓴다. */
 export const FALLBACK_LOCALE = "ko";
+
+/**
+ * 요청 로케일 다음에 시도하는 언어. `translate.ts`의 문구 폴백 체인과 같은 순서다
+ * (요청 → en → ko) — 두 경로가 갈리면 같은 화면에서 상품명만 한국어로 뜬다.
+ *
+ * 중국어 추가(2026-08-13) 요청서가 명시한 순서이기도 하다. DB의 `coupon_effects`·
+ * 설문 문항에 zh가 아직 없으므로 당분간 zh 사용자는 이 경로를 항상 탄다 —
+ * 한국어보다 영어가 나은 자리다.
+ */
+const SECONDARY_FALLBACK_LOCALE = "en";
 
 function pick(name: NonNullable<LocalizedName>, key: string): string | null {
   const value = name[key];
@@ -21,5 +31,10 @@ function pick(name: NonNullable<LocalizedName>, key: string): string | null {
 
 export function resolveLocalizedName(name: LocalizedName, locale: Locale): string {
   if (!name) return MISSING_NAME_PLACEHOLDER;
-  return pick(name, locale) ?? pick(name, FALLBACK_LOCALE) ?? MISSING_NAME_PLACEHOLDER;
+  return (
+    pick(name, locale) ??
+    pick(name, SECONDARY_FALLBACK_LOCALE) ??
+    pick(name, FALLBACK_LOCALE) ??
+    MISSING_NAME_PLACEHOLDER
+  );
 }

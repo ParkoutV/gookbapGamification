@@ -16,6 +16,27 @@ export const en: Partial<Dictionary> = {
   "start.myResult": "My Results",
   "start.ranking": "Ranking",
 
+  // Ranking screen. Tabs are calendar-based, not rolling windows (2026-08-13).
+  "ranking.title": "Ranking",
+  "ranking.tab.daily": "Today",
+  "ranking.tab.weekly": "This Week",
+  "ranking.tab.monthly": "This Month",
+  "ranking.tab.total": "All Time",
+  "ranking.myBestScore": "Your best {score}",
+  "ranking.pageIndicator": "{current} / {total}",
+  "ranking.prevPageAria": "Previous page",
+  "ranking.nextPageAria": "Next page",
+  "ranking.rankHeader": "Rank",
+  "ranking.nicknameHeader": "Nickname",
+  "ranking.scoreHeader": "Score",
+  // Must differ from loadFailed - otherwise a DB outage looks like "nobody played".
+  "ranking.empty": "No records yet.",
+  "ranking.loadFailed": "Could not load the ranking. Please try again shortly.",
+  "ranking.loading": "Loading...",
+  "ranking.limitNotice": "Showing the top {limit}.",
+  "ranking.partialNotice": "Too many records - only part of them were counted.",
+  "ranking.closeButton": "Close",
+
   "term.title": "Privacy Notice",
   "term.body":
     "This game collects the following information to run the game and issue coupons.\n\n" +
@@ -102,6 +123,10 @@ export const en: Partial<Dictionary> = {
   "card.saveButton": "Save as image",
   "card.saving": "Saving...",
   "card.saveError": "Couldn't save the image. Please try again later.",
+  "card.saveRecommendNotice":
+    "You can find it again under \"My Coupons\". Records may be lost depending on your browsing environment, so saving the image is recommended.",
+  "card.saveRecommendNoticeShort":
+    "Records may be lost depending on your browsing environment, so saving the image is recommended.",
 
   "sound.muteAria": "Mute sound",
   "sound.unmuteAria": "Unmute sound",
@@ -113,6 +138,7 @@ export const en: Partial<Dictionary> = {
   "wheel.error": "We can't reach the server right now. Please try again later.",
   "start.goToDrawButton": "Go draw your coupon",
   "start.inviteButton": "Invite a friend",
+  "start.drawAvailableNotice": "You have a coupon draw available",
   "start.invitePromo": "Who's the true Gookbap Master?\nJoin the <1953 Spot-the-Difference Challenge> and grab a 1953 Brother Pork Gookbap coupon! 🍲",
   "start.inviteCopied": "Invite link copied!",
   "start.inviteFailed": "Couldn't copy. Please try again in a moment.",
@@ -123,6 +149,11 @@ export const en: Partial<Dictionary> = {
   "coupon.empty": "You don't have any coupons yet.",
   "coupon.usedBadge": "Used",
   "coupon.expiredBadge": "Expired",
+  "coupon.remainingToday": "Today only",
+  /* 영어만 단수형이 필요하다. ko·ja는 조수사가 바뀌지 않으므로 두 키가 같은 문구를
+     가리킨다 — 키를 안 만들면 t()가 키 문자열을 그대로 뱉는다. */
+  "coupon.remainingDay": "1 day left",
+  "coupon.remainingDays": "{days} days left",
   // 구분자는 en dash(–)가 아니라 ASCII 하이픈이다. 픽셀 폰트 서브셋은 로케일 파일에
   // 등장하는 문자로 만들어지므로(docs/build-pixel-font.sh) 비ASCII를 넣으면 폰트를
   // 다시 빌드해야 하고, 빠뜨리면 에러 없이 두부로 보인다.
@@ -142,4 +173,11 @@ export const en: Partial<Dictionary> = {
   "game.wrongTouchAria": "{count}/{limit} wrong touches",
   "game.hintTitle": "TODAY'S ORDER",
   "game.hintCloseAria": "Close hint",
+  "game.hintRemainingAria": "Hints left {remaining}/{limit}",
+  "game.hintExhaustedAria": "No hints left",
+  // 가려진 줄. **정답을 읽어주면 안 된다** — 화면에서는 가토(░)로 지워지는 자리다.
+  "game.hintMaskedAria": "Line faded out",
+  "game.hintSurveyTitle": "One quick question",
+  "game.hintSurveyCloseAria": "Close without answering",
+  "game.hintSurveyNotice": "Answer to see the hint. The clock keeps running.",
 };

@@ -16,6 +16,34 @@ export const ko: Dictionary = {
   "start.myResult": "내 결과",
   "start.ranking": "랭킹",
 
+  // 랭킹 화면. 탭은 **달력 기준**이다(롤링 윈도우가 아니다) — "이번 주 1위"가
+  // 집계하기도 쿠폰 지급하기도 직관적이어서 매장 운영에 맞는다(2026-08-13, 이란토).
+  "ranking.title": "랭킹",
+  "ranking.tab.daily": "오늘",
+  "ranking.tab.weekly": "이번 주",
+  "ranking.tab.monthly": "이번 달",
+  "ranking.tab.total": "전체",
+  /* 내 최고점. **순위는 붙이지 않는다** — ranking_view에 participant_id가 없어서
+     목록에서 내 줄을 확실히 특정할 수 없다(2026-08-13, 이란토). */
+  "ranking.myBestScore": "내 최고점 {score}",
+  // 페이지네이션. 한 페이지 10위, 최대 20위까지.
+  "ranking.pageIndicator": "{current} / {total}",
+  "ranking.prevPageAria": "이전 페이지",
+  "ranking.nextPageAria": "다음 페이지",
+  "ranking.rankHeader": "순위",
+  "ranking.nicknameHeader": "닉네임",
+  "ranking.scoreHeader": "점수",
+  // 기록이 0건인 정상 상태. 조회 실패와 **반드시 다른 문구여야 한다** — 같은 문구를
+  // 쓰면 DB 장애가 "오늘 아무도 안 함"으로 위장된다(설문 조회에서 얻은 교훈).
+  "ranking.empty": "아직 기록이 없어요.",
+  "ranking.loadFailed": "랭킹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+  "ranking.loading": "불러오는 중...",
+  // 표시 상한을 넘겼다는 안내. 조용히 잘라내면 "전체가 이만큼"으로 읽힌다.
+  "ranking.limitNotice": "상위 {limit}위까지 보여줍니다.",
+  // 서버 응답 자체가 잘린 경우(PostgREST 행 상한). 위 표시 상한과 다른 사정이다.
+  "ranking.partialNotice": "기록이 많아 일부만 집계했습니다.",
+  "ranking.closeButton": "닫기",
+
   "term.title": "개인정보 처리 안내",
   "term.body":
     "이 게임은 원활한 참여와 쿠폰 발급을 위해 아래 정보를 수집합니다.\n\n" +
@@ -107,6 +135,16 @@ export const ko: Dictionary = {
   "card.saveButton": "이미지로 저장",
   "card.saving": "저장하는 중...",
   "card.saveError": "저장에 실패했어요. 잠시 후 다시 시도해주세요.",
+  /* 쿠폰 유실 주의문(2026-08-13, 이란토). '다음'을 처음부터 띄우면서 함께 넣었다.
+     participant_id는 로그인이 아닌 느슨한 식별자라 기기를 바꾸거나 브라우저 데이터를
+     지우면 쿠폰을 되찾을 수 없다 — **구체적인 기술 용어는 쓰지 않는다**(이란토 지시:
+     편의상 생략하여 이해를 돕는다). '내 쿠폰'에서 다시 볼 수 있다는 사실만 알리고
+     그 조건을 숨기면, 나중에 못 찾는 사람이 생겼을 때 알릴 의무를 다하지 않은 셈이 된다. */
+  "card.saveRecommendNotice":
+    "'내 쿠폰'에서 다시 볼 수 있어요. 다만 접속 환경에 따라 기록이 사라질 수 있으니 이미지로 저장해 두시는 것을 권합니다.",
+  /* 앨범용. 이미 "다시 볼 수 있는 곳"에 있으므로 그 문장은 빼고 유실 주의만 남긴다. */
+  "card.saveRecommendNoticeShort":
+    "접속 환경에 따라 기록이 사라질 수 있으니 이미지로 저장해 두시는 것을 권합니다.",
 
   "sound.muteAria": "소리 끄기",
   "sound.unmuteAria": "소리 켜기",
@@ -118,6 +156,9 @@ export const ko: Dictionary = {
   "wheel.error": "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.",
   "start.goToDrawButton": "쿠폰 뽑으러 가기",
   "start.inviteButton": "친구 초대하기",
+  /* '내 쿠폰' 버튼의 red-dot을 스크린리더에 알리는 문장. 점은 aria-hidden이라
+     이것이 없으면 뽑기 기회가 남은 것을 전혀 알 수 없다. */
+  "start.drawAvailableNotice": "뽑을 수 있는 쿠폰이 있어요",
   "start.invitePromo": "국밥 마스터의 주인공은 누구?\n<1953 눈썰미 대결>에 참여하고, 1953 형제돼지국밥 쿠폰도 받자! 🍲",
   "start.inviteCopied": "초대 링크를 복사했어요!",
   "start.inviteFailed": "복사에 실패했어요. 잠시 후 다시 시도해주세요.",
@@ -128,6 +169,11 @@ export const ko: Dictionary = {
   "coupon.empty": "아직 받은 쿠폰이 없어요.",
   "coupon.usedBadge": "사용 완료",
   "coupon.expiredBadge": "기간 만료",
+  /* 0일은 "0일 남음"이 아니라 "오늘까지"다 — 숫자 0은 이미 끝났다는 뜻으로 읽힌다. */
+  "coupon.remainingToday": "오늘까지",
+  /* 한국어는 단수·복수가 갈리지 않지만 en이 갈리므로 키를 둘 다 둔다(en.ts 참고). */
+  "coupon.remainingDay": "1일 남음",
+  "coupon.remainingDays": "{days}일 남음",
   // 쿠폰 사용 가능 기간. 시작일·사용기한이 모두 있으면 validPeriod 한 줄,
   // 한쪽만 있으면 아래 둘 중 하나로 떨어진다(`couponDates.ts`).
   // 발급일은 표시하지 않는다 — 매장에서 쓰지 않아 2026-08-13에 뺐다.
@@ -149,4 +195,14 @@ export const ko: Dictionary = {
   "game.wrongTouchAria": "오답 {count}/{limit}",
   "game.hintTitle": "오늘의 주문서",
   "game.hintCloseAria": "힌트 닫기",
+  "game.hintRemainingAria": "남은 힌트 {remaining}/{limit}",
+  "game.hintExhaustedAria": "힌트를 모두 사용했어요",
+  // 가려진 줄. **정답을 읽어주면 안 된다** — 화면에서는 가토(░)로 지워지는 자리다.
+  "game.hintMaskedAria": "인쇄가 지워진 줄",
+  "game.hintSurveyTitle": "설문 한 가지",
+  /* 설문 닫기는 힌트 닫기와 결과가 다르다 — 이쪽은 답하지 않고 나가는 것이라
+     힌트 횟수가 줄지 않는다. 같은 문구를 쓰면 스크린리더 사용자가 그 차이를
+     알 수 없다. */
+  "game.hintSurveyCloseAria": "답하지 않고 닫기",
+  "game.hintSurveyNotice": "답하면 힌트를 볼 수 있어요. 그동안에도 시간은 흘러갑니다.",
 };

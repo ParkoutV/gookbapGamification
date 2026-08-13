@@ -38,13 +38,6 @@ export default function WheelScreen({
 }: WheelScreenProps) {
   const { t, locale } = useLocale();
   const [flipped, setFlipped] = useState(false);
-  /**
-   * 저장을 한 번이라도 시도했는지. 이걸로 '다음'을 드러낸다 — 처음부터 띄워두면
-   * 카드를 저장하려던 사람이 실수로 눌러 넘어가고, 그 카드는 이 화면에서 다시 볼 수 없다.
-   * 성공 여부는 보지 않는다: 공유 시트는 앨범 저장인지 전송인지 알려주지 않고,
-   * 취소했다고 숨겨두면 "눌렀는데 왜 안 생기지"가 된다.
-   */
-  const [saveAttempted, setSaveAttempted] = useState(false);
 
   const coupon = drawResult?.status === "won" ? drawResult.coupon : null;
 
@@ -170,35 +163,42 @@ export default function WheelScreen({
           <p className="text-muted mb-8 text-sm">{t("wheel.error")}</p>
         )}
 
-        {/* 당첨 카드를 뒤집은 뒤에는 '이미지로 저장'이 주된 행동이다 — 그 자리를
-            차지하고 있다가, 한 번 누르면 폭을 줄여 옆에 '다음'(화살표)을 들인다.
-            처음부터 둘 다 띄우면 저장하려던 사람이 '다음'을 눌러 넘어가 버리고,
-            이 화면의 카드는 다시 볼 수 없다.
+        {/* **'다음'을 처음부터 띄운다**(2026-08-13, 이란토).
+            한때 '이미지로 저장'을 한 번 눌러야 '다음'이 나타났다 — 저장하려던 사람이
+            실수로 넘어가면 그 카드를 **다시 볼 수 없었기** 때문이다. 내 쿠폰 앨범이
+            생겨 언제든 카드를 다시 열고 저장할 수 있게 되면서 그 근거가 사라졌고,
+            나중에 저장하고 싶은 사람의 선택지를 막을 이유도 없어졌다.
+
+            대신 **유실 주의문을 함께 띄운다.** participant_id는 로그인이 아닌 느슨한
+            식별자라 기기를 바꾸거나 브라우저 데이터를 지우면 쿠폰을 되찾을 수 없다 —
+            "앨범에서 다시 볼 수 있다"만 알리고 그 조건을 숨기면, 나중에 못 찾는 사람이
+            생겼을 때 우리가 알릴 의무를 다하지 않은 셈이 된다.
 
             꽝이거나 카드가 없는 경우엔 저장할 것이 없으므로 '다음'이 곧바로 전체 폭이다. */}
         {flipped && coupon ? (
-          <div className="flex flex-col items-center gap-1 w-full">
+          <div className="flex flex-col items-center gap-2 w-full">
             {/* w-full이 있어야 이 행의 w-full이 기준을 갖는다 — items-center 아래에서
                 바깥 래퍼가 shrink-to-fit이 되면 버튼이 내용물 폭으로 쪼그라든다. */}
             <div className="flex w-full gap-2">
               <button
-                onClick={() => save(() => setSaveAttempted(true))}
+                onClick={() => save()}
                 disabled={saving}
                 className="pixel-mask-btn-solid flex-1 py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95 disabled:opacity-50"
               >
                 {saving ? t("card.saving") : t("card.saveButton")}
               </button>
-              {saveAttempted && (
-                <button
-                  onClick={onNext}
-                  aria-label={t("wheel.nextButton")}
-                  className="pixel-mask-btn-solid py-3 px-5 bg-surface text-ink font-bold transition-opacity active:scale-95"
-                >
-                  <span aria-hidden="true">→</span>
-                </button>
-              )}
+              <button
+                onClick={onNext}
+                aria-label={t("wheel.nextButton")}
+                className="pixel-mask-btn-solid py-3 px-5 bg-surface text-ink font-bold transition-opacity active:scale-95"
+              >
+                <span aria-hidden="true">→</span>
+              </button>
             </div>
             {saveError && <p className="text-error text-xs">{t("card.saveError")}</p>}
+            <p className="text-muted text-xs text-center leading-snug">
+              {t("card.saveRecommendNotice")}
+            </p>
           </div>
         ) : (
           /* 카드가 있는데 아직 안 뒤집었으면 '다음'을 막는다. 열어보지도 않고

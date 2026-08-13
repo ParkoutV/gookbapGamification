@@ -26,6 +26,8 @@ import type { IssuedCoupon } from "./lib/issuedCoupons";
  * 죽어 닉네임이 빈 채로 떴다). `from`을 붙여 원본에서 직접 re-export해야 지워진다.
  */
 export type { IssuedCoupon } from "./lib/issuedCoupons";
+import { rankingPeriodStart, type RankingPeriod } from "./lib/rankingPeriod";
+import type { RankingViewRow } from "./lib/rankingRows";
 import { toSurveyFetchResult, type SurveyFetchResult } from "./lib/surveyFetchResult";
 import {
   buildSurveyResponseRows,
@@ -506,9 +508,13 @@ export async function reassignNickname(): Promise<ParticipantResult> {
 }
 
 /**
- * 쿠폰 받기 전 노출되는 Phase 1 설문 문항을 가져온다.
+ * 설문 문항을 가져온다. 기본값은 쿠폰 받기 전 노출되는 Phase 1이고,
+ * 게임 중 힌트 설문은 `phase: 0`으로 부른다.
  * survey_questions는 Everyone SELECT가 허용되어 있어 직접 조회해도 된다
  * (gookbapanalyze/AGENTS.md).
+ *
+ * **phase마다 형제 함수를 만들지 말 것.** 아래 `is_active` 함정 처리가 그 안에
+ * 있어서, 복사해 가면 한쪽만 고쳐지는 순간 그 phase의 문항이 통째로 사라진다.
  *
  * 반환값이 배열이 아니라 SurveyFetchResult인 이유: 조회 실패와 "문항 0건"을
  * 호출부가 구분해야 하기 때문이다. 둘 다 []를 반환하던 이전 구현에서는
@@ -520,12 +526,12 @@ export async function reassignNickname(): Promise<ParticipantResult> {
  * 통째로 사라진다. 설문이 빈 목록으로 보이는 장애를 고치러 와서 오히려 영구적인
  * 빈 목록을 만들 수 있어, 명시적으로 false인 것만 제외한다.
  */
-export async function fetchSurveyQuestions(): Promise<SurveyFetchResult> {
+export async function fetchSurveyQuestions(phase: number = 1): Promise<SurveyFetchResult> {
   try {
     const { data, error } = await supabase
       .from("survey_questions")
       .select("question_id, question_type, question_text, options, is_required")
-      .eq("survey_phase", 1)
+      .eq("survey_phase", phase)
       .not("is_active", "is", false)
       .order("order_index", { ascending: true });
 
@@ -536,6 +542,42 @@ export async function fetchSurveyQuestions(): Promise<SurveyFetchResult> {
   } catch (error) {
     console.error("[fetchSurveyQuestions] 예기치 못한 예외:", error);
     return { ok: false, questions: [] };
+  }
+}
+
+/**
+ * 아직 답하지 않은 문항의 `question_id` 목록. `check_pending_survey` RPC를 부른다.
+ *
+ * **이것만으로는 화면을 그릴 수 없다** — 문항 텍스트도 선택지도 오지 않는다
+ * (gookbapanalyze/AGENTS.md의 반환 예시). `fetchSurveyQuestions(phase)`로 받은
+ * 전체 행을 이 목록으로 걸러내는 용도다.
+ *
+ * `p_track_id`는 **null을 넘긴다.** track_id는 phase 2에서만 지점 판별에 쓰이므로
+ * (그쪽 문서 주의사항) phase 0에는 의미가 없다 — 호출부가 트랙을 찾아 헤맬 필요가 없다.
+ *
+ * **실패와 "남은 문항 없음"을 구분하지 않는다.** 둘 다 빈 배열이고, 호출부는 어느
+ * 쪽이든 "전체에서 무작위로 재탕"이라는 같은 경로로 떨어진다(phase 0은 중복 응답
+ * 허용). 여기에 `ok` 플래그를 붙이면 소비처 없는 분기만 늘어난다.
+ */
+export async function fetchPendingSurveyQuestionIds(phase: number): Promise<string[]> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { data, error } = await supabase.rpc("check_pending_survey", {
+      p_survey_phase: phase,
+      p_participant_id: participantId,
+      p_track_id: null,
+    });
+
+    if (error) {
+      console.error("[fetchPendingSurveyQuestionIds] 조회 실패:", error);
+      return [];
+    }
+    return ((data ?? []) as { question_id?: string }[])
+      .map((row) => row.question_id)
+      .filter((id): id is string => typeof id === "string");
+  } catch (error) {
+    console.error("[fetchPendingSurveyQuestionIds] 예기치 못한 예외:", error);
+    return [];
   }
 }
 
@@ -704,5 +746,125 @@ export async function submitGameScore(gookbapScore: number): Promise<void> {
     if (error) console.error("[submitGameScore] insert 실패(무시, best-effort):", error);
   } catch (error) {
     console.error("[submitGameScore] 예기치 못한 예외:", error);
+  }
+}
+
+/**
+ * 랭킹 조회 결과. **조회 실패와 "기록 0건"을 구분한다** — `SurveyFetchResult`와 같은
+ * 이유다. 둘 다 빈 배열을 돌려주면 DB 장애가 "오늘 아무도 안 함"으로 위장된다.
+ */
+export type RankingFetchResult = {
+  /** false면 조회 자체가 실패한 것. 기록이 0건인 정상 응답과 다르다. */
+  ok: boolean;
+  rows: RankingViewRow[];
+  /**
+   * PostgREST 행 상한에 걸려 응답이 잘렸는가.
+   *
+   * 로컬 실측(2026-08-13): 상한은 **1000행**이고 `Content-Range: 0-999/1215`로 돌아온다 —
+   * **HTTP 200이고 error도 null이다.** 잘렸다는 신호는 `count`와 응답 길이의 차이뿐이다.
+   * 프로덕션 상한은 다를 수 있으므로 값을 상수로 박지 않고 그 차이로 판정한다.
+   */
+  truncated: boolean;
+};
+
+/**
+ * 랭킹 뷰 조회. **RPC가 아니라 뷰 직접 조회다**(analyze/AGENTS.md).
+ *
+ * ## 기간 필터를 서버로 내려보내는 것이 요점이다
+ *
+ * 뷰는 **플레이 한 번당 한 행**이 쌓이고(샘플에서 12명이 51행), PostgREST에는 응답 행수
+ * 상한이 있다. 닉네임당 최고점을 구하려면 **모든 행이 필요하므로** 잘린 응답으로 계산한
+ * 랭킹은 **오류 없이** 틀린다. `.gte()`로 서버에서 거르면 daily/weekly/monthly는 공짜로
+ * 해결된다.
+ *
+ * `total`은 그럴 수 없어서 `count: "exact"`로 전체 행수를 함께 받아 잘림을 **감지해서
+ * 화면에 알린다.** 조용히 자르지 않는다.
+ *
+ * ## `gookbap_score` 내림차순 정렬을 서버에 맡긴다
+ *
+ * 상한이 `ORDER BY` **뒤에** 걸리는 것을 로컬에서 확인했다(2026-08-13 실측: 1215행 중
+ * 1000행이 돌아오는데 그 안에 전체 최고점 1999가 들어 있었다). 그래서 잘려도 돌아온
+ * 행들이 전역 상위권이고 상위 20위 표시는 맞는다 — 잘림 안내는 정직함을 위한 것이지
+ * 표시를 포기하는 것이 아니다. 정렬을 클라이언트로 옮기면 이 성질이 사라진다.
+ *
+ * 기간 탭도 같은 정렬을 붙인다 — 손님이 몰린 하루가 상한을 넘길 수 있다.
+ */
+/**
+ * 내 최고 점수. 기록이 없거나 조회에 실패하면 null이다.
+ *
+ * **순위는 함께 돌려주지 않는다**(2026-08-13, 이란토). `ranking_view`에 `participant_id`가
+ * 없어서 랭킹 목록에서 내 줄을 확실히 특정할 수 없다 — 닉네임으로 맞춰볼 수는 있지만,
+ * 두 단어 중 하나만 번역된 프리셋이 통째로 한국어로 폴백하는 규칙 때문에 **서로 다른
+ * 사람이 같은 문자열이 될 수 있다**(`rankingRows.ts`의 그룹 키 주석과 같은 사정이다).
+ * 틀린 줄을 "내 기록"으로 강조하는 쪽이 아무것도 안 하는 것보다 나쁘다.
+ *
+ * `game_score_logs`는 직접 SELECT가 막혀 있어 RPC를 써야 한다(analyze/AGENTS.md).
+ * 이 RPC는 **내 기록만** 돌려주므로 `participant_id`가 밖으로 새지 않는다.
+ *
+ * 여기서는 `best_score`가 아니라 `gookbap_score`를 본다 — 랭킹과 **같은 컬럼이어야**
+ * "내 점수"와 목록의 점수가 같은 척도가 된다(`rankingRows.ts`의 컬럼 주석 참고).
+ */
+export async function fetchMyBestScore(): Promise<number | null> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { data, error } = await supabase.rpc("get_my_score_logs", { p_id: participantId });
+    if (error) {
+      console.error("[fetchMyBestScore] get_my_score_logs 실패:", error);
+      return null;
+    }
+
+    const scores = ((data ?? []) as { gookbap_score: number | null }[])
+      .map((row) => row.gookbap_score)
+      .filter((score): score is number => typeof score === "number");
+
+    return scores.length === 0 ? null : Math.max(...scores);
+  } catch (error) {
+    console.error("[fetchMyBestScore] 예기치 못한 예외:", error);
+    return null;
+  }
+}
+
+export async function fetchRanking(period: RankingPeriod): Promise<RankingFetchResult> {
+  try {
+    let query = supabase
+      .from("ranking_view")
+      .select("nickname_first, nickname_last, nickname_number, gookbap_score, joined_time", {
+        count: "exact",
+      })
+      /*
+       * **`nullsFirst: false`가 빠지면 조용히 랭킹이 틀어진다.** Postgres는 DESC 정렬에서
+       * NULL을 **앞에** 놓는다(로컬에서 직접 확인). `gookbap_score`가 null인 행은
+       * `toRankingList`가 버리는데, 그 행들이 응답의 앞자리를 차지하면 **행 상한 안에서
+       * 실제 상위권이 밀려나** 순위가 비거나 틀린 채로 그려진다 — 잘림은 감지되지만
+       * 감지만으로는 고칠 수 없는 자리다.
+       *
+       * 로컬 스텁 컬럼은 `not null`이라 이 경로가 로컬에서는 재현되지 않는다. 프로덕션
+       * 뷰가 null을 낼 수 있는지 확인되지 않았으므로, null이 없으면 공짜이고 있으면
+       * 사고를 막는 이 한 줄을 넣어 둔다.
+       */
+      .order("gookbap_score", { ascending: false, nullsFirst: false });
+
+    const start = rankingPeriodStart(period);
+    if (start) query = query.gte("joined_time", start.toISOString());
+
+    const { data, error, count } = await query;
+    if (error) {
+      console.error("[fetchRanking] ranking_view 조회 실패:", error);
+      return { ok: false, rows: [], truncated: false };
+    }
+
+    const rows = (data ?? []) as RankingViewRow[];
+    // count가 null이면(집계 실패) 잘렸는지 알 수 없다 — 모르는 것을 "안 잘렸다"로
+    // 단정하지 않고 안내를 띄우는 쪽이 안전하지만, 그러면 정상 상황에서도 늘 뜬다.
+    // count는 같은 응답 헤더에서 오므로 error 없이 null인 경우가 사실상 없어,
+    // 여기서는 비교 가능할 때만 판정한다.
+    const truncated = count != null && count > rows.length;
+    if (truncated) {
+      console.warn(`[fetchRanking] 응답이 잘렸다 — ${rows.length}/${count}행 (period=${period})`);
+    }
+    return { ok: true, rows, truncated };
+  } catch (error) {
+    console.error("[fetchRanking] 예기치 못한 예외:", error);
+    return { ok: false, rows: [], truncated: false };
   }
 }

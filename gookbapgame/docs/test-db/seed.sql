@@ -117,5 +117,184 @@ values
   (9002, 1, 1, '{"ko": "좋아하는 반찬을 모두 고르세요", "en": "Pick all side dishes you like"}'::jsonb,
          '[{"ko": "깍두기", "en": "Kkakdugi"}, {"ko": "김치", "en": "Kimchi"}, {"ko": "양파", "en": "Onion"}]'::jsonb, 2),
   (9003, 1, 2, '{"ko": "한마디 남겨주세요", "en": "Leave us a comment"}'::jsonb,
-         '[{"ko": "자유롭게 적어주세요", "en": "Write freely"}]'::jsonb, 3)
+         '[{"ko": "자유롭게 적어주세요", "en": "Write freely"}]'::jsonb, 3),
+  -- Phase 0 = 게임 중 힌트를 처음 열 때 뜨는 설문(2026-08-13). 전부 단일 선택(type 0)
+  -- 이고 필수다.
+  --
+  -- 9000은 **프로덕션 실제 문항을 그대로 옮긴 것이다**(2026-08-13에 이란토가 뜬 덤프).
+  -- 세 번째 선택지에 `en`·`ja`가 없는 것도 실물 그대로다 — resolveLocalizedName의
+  -- 한국어 폴백이 실제로 걸리는지 로컬에서 볼 수 있어야 한다. 임의 문구로 바꾸지 말 것.
+  --
+  -- 9004는 프로덕션에 없는 로컬 전용 추가분이다. 프로덕션이 1건뿐이라 무작위 1건
+  -- 선택이 실제로 갈리는지 확인할 수 없어서 둘로 만들었다(2~3건으로 늘 예정이므로
+  -- 그 상태를 미리 재현하는 셈이다).
+  (9000, 0, 0, '{"ko": "나는 여기에 ", "en": "I came here ", "ja": "私はここに"}'::jsonb,
+         '[{"ko": "혼자 왔다", "en": "Alone", "ja": "一人で来た"}, {"ko": "여럿이 왔다", "en": "With companions", "ja": "同行者と一緒に来た"}, {"ko": "온라인 방문이다"}]'::jsonb, 1),
+  (9004, 0, 0, '{"ko": "매장에 처음 오셨나요?", "en": "Is this your first visit?", "ja": "初めてのご来店ですか？"}'::jsonb,
+         '[{"ko": "처음이에요", "en": "First time", "ja": "初めてです"}, {"ko": "여러 번 왔어요", "en": "Been here before", "ja": "何度も来ました"}]'::jsonb, 2)
 on conflict (question_id) do nothing;
+
+-- 쿠폰 — 내 쿠폰 앨범의 남은 일수 표시를 구간마다 확인하기 위한 것이다(2026-08-13).
+--
+-- **날짜를 고정 문자열로 박지 말 것.** `now()` 기준 상대값이어야 며칠 뒤에 시드를
+-- 다시 부어도 같은 구간이 나온다. `expired_at`은 프로덕션과 같이 KST 23:59:59.999로
+-- 맞춘다 — 그래야 KST 날짜 경계 계산(`couponRemaining.ts`)이 실물과 같은 값을 본다.
+--
+-- **participant_id를 미리 알 수 없다.** 그 값은 브라우저 토큰의 해시이고
+-- (`actions.ts`의 `resolveParticipantId`), 토큰은 기기마다 새로 발급된다. 그래서
+-- 아래 UUID는 자리표시자이며, 이 상태로는 앨범에 아무것도 뜨지 않는다.
+--
+-- 쓰는 방법: 게임을 한 번 띄운 뒤 실제 participant_id로 갈아끼운다.
+--
+--   update issued_coupons set participant_id = '<진짜 uuid>'
+--   where participant_id = '00000000-0000-4000-8000-000000000001';
+--
+-- 진짜 uuid는 `select participant_id from participants order by created_at desc limit 1;`
+-- 로 얻는다(게임을 띄우면 `ensureParticipant`가 행을 만든다).
+insert into coupon_effects (coupon_effect_id, coupon_type)
+values
+  ('c0000000-0000-4000-8000-000000000001',
+   '{"ko": "국밥 한 그릇 무료", "en": "Free bowl of gookbap", "ja": "クッパ1杯無料"}'),
+  ('c0000000-0000-4000-8000-000000000002',
+   '{"ko": "음료 서비스", "en": "Free drink", "ja": "ドリンクサービス"}'),
+  ('c0000000-0000-4000-8000-000000000003',
+   '{"ko": "수육 소자 3,000원 할인", "en": "3,000 KRW off boiled pork", "ja": "ゆで豚3,000ウォン割引"}')
+on conflict (coupon_effect_id) do nothing;
+
+-- "KST 기준 오늘부터 N일 뒤의 23:59:59.999"를 프로덕션과 같은 형태로 만든다.
+--
+-- **`current_date at time zone 'Asia/Seoul'`을 쓰지 말 것.** 그것은 date를 timestamp로
+-- 올린 뒤 그 값을 KST 지역시각으로 **해석해서** UTC로 환산하므로 UTC 09:00(= KST 18:00)이
+-- 되고, 남은 일수가 하루씩 밀린다. 2026-08-13에 실제로 그렇게 넣었다가 DB에서 실측해
+-- 잡았다(의도한 0·1·3·4일이 1·2·4·5일로 나왔다). KST 날짜를 먼저 구하고, 그 날짜의
+-- 시각을 KST로 **지정**해야 한다 — 아래 함수가 그 순서다.
+create or replace function seed_kst_end_of_day(days_from_today int)
+returns timestamptz
+language sql
+stable
+as $$
+  select (((now() at time zone 'Asia/Seoul')::date + days_from_today + interval '23:59:59.999')
+          at time zone 'Asia/Seoul');
+$$;
+
+insert into issued_coupons (coupon_id, participant_id, coupon_effect_id, is_used, issued_at, expired_at, valid_from)
+values
+  -- 오늘까지 (0일 남음 — 강조)
+  ('d0000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000001', false, now(),
+   seed_kst_end_of_day(0), now() - interval '3 days'),
+  -- 1일 남음 (강조)
+  ('d0000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000002', false, now() - interval '1 hour',
+   seed_kst_end_of_day(1), now() - interval '1 day'),
+  -- 3일 남음 (강조 경계 안쪽)
+  ('d0000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000003', false, now() - interval '2 hours',
+   seed_kst_end_of_day(3), now()),
+  -- 4일 남음 (강조 경계 바깥 — 평범하게 보여야 한다)
+  ('d0000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000001', false, now() - interval '3 hours',
+   seed_kst_end_of_day(4), now()),
+  -- 만료됨 (어제까지였다)
+  ('d0000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000002', false, now() - interval '10 days',
+   seed_kst_end_of_day(-1), now() - interval '10 days'),
+  -- 사용 완료 (만료일이 남아 있어도 '사용 완료'가 먼저다)
+  ('d0000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000003', true, now() - interval '5 days',
+   seed_kst_end_of_day(10), now() - interval '5 days'),
+  -- 만료일 없음 (무기한 — 상태 줄이 아예 없어야 한다). 2026-08-12 이전 발급분이
+  -- 실제로 이 상태다(expire_type 컬럼 추가 전에 발급된 8건).
+  ('d0000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000001', false, now() - interval '20 days', null, null)
+on conflict (coupon_id) do nothing;
+
+-- ============================================================
+-- 랭킹 시드 (ranking_view 스텁의 원본 테이블)
+-- ============================================================
+--
+-- **날짜는 전부 `now()` 기준 상대값이다.** 고정 문자열로 박으면 며칠 뒤 다시 부었을 때
+-- daily/weekly/monthly 구간이 달라져 시드가 검증 도구로서 쓸모없어진다.
+--
+-- KST 자정을 만들 때 `current_date at time zone 'Asia/Seoul'`을 쓰지 말 것 — 하루 밀린다
+-- (위 `seed_kst_end_of_day` 주석의 함정과 같다). KST 날짜를 먼저 구하고 그 날짜의 시각을
+-- KST로 **지정**하는 순서다.
+create or replace function seed_kst_start_of_day(days_from_today int)
+returns timestamptz
+language sql
+stable
+as $$
+  select (((now() at time zone 'Asia/Seoul')::date + days_from_today)::timestamp
+          at time zone 'Asia/Seoul');
+$$;
+
+-- 멱등성: bigserial PK라 on conflict를 쓸 수 없으므로 시드 블록을 통째로 지우고 다시 넣는다.
+-- 이 테이블은 로컬 픽스처 전용이라 지워도 잃을 것이 없다.
+delete from ranking_plays;
+
+insert into ranking_plays (nickname_first, nickname_last, nickname_number, best_score, gookbap_score, joined_time)
+values
+  -- ── 같은 닉네임의 여러 기록. 최고점(1953) 한 줄로 줄어야 한다 ──
+  ('{"ko":"활기찬","en":"Energetic","ja":"活気ある"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0614', 0, 1200, seed_kst_start_of_day(0) + interval '9 hours'),
+  ('{"ko":"활기찬","en":"Energetic","ja":"活気ある"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0614', 0, 1953, seed_kst_start_of_day(0) + interval '10 hours'),
+  ('{"ko":"활기찬","en":"Energetic","ja":"活気ある"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0614', 0, 800, seed_kst_start_of_day(0) + interval '11 hours'),
+
+  -- ── KST 00:00~09:00 구간. `kstDayStart` 재사용의 9시간 구멍이 정확히 여기를 삼킨다 ──
+  -- 이 두 줄이 daily 탭에서 사라지면 경계 계산이 `Z`로 만들어진 것이다.
+  ('{"ko":"부지런한","en":"Diligent","ja":"勤勉な"}'::jsonb,
+   '{"ko":"국밥","en":"Gookbap","ja":"クッパ"}'::jsonb,
+   '0001', 0, 1900, seed_kst_start_of_day(0) + interval '30 minutes'),
+  ('{"ko":"새벽의","en":"Dawn","ja":"夜明けの"}'::jsonb,
+   '{"ko":"한그릇","en":"One Bowl","ja":"一杯"}'::jsonb,
+   '0002', 0, 1850, seed_kst_start_of_day(0) + interval '8 hours'),
+
+  -- ── 동점 + joined_time 차이. 이른 쪽(#0010)이 위여야 한다 ──
+  ('{"ko":"성실한","en":"Steady","ja":"誠実な"}'::jsonb,
+   '{"ko":"수육","en":"Boiled Pork","ja":"ゆで豚"}'::jsonb,
+   '0010', 0, 1500, seed_kst_start_of_day(0) + interval '3 hours'),
+  ('{"ko":"성실한","en":"Steady","ja":"誠実な"}'::jsonb,
+   '{"ko":"수육","en":"Boiled Pork","ja":"ゆで豚"}'::jsonb,
+   '0011', 0, 1500, seed_kst_start_of_day(0) + interval '7 hours'),
+
+  -- ── 번호가 null인 행 2건. **합쳐지지 않아야 한다** ──
+  -- 단어 조합까지 같으므로, 번호를 빈 문자열로 취급하는 구현에서는 한 줄로 뭉친다.
+  ('{"ko":"무명의","en":"Nameless","ja":"無名の"}'::jsonb,
+   '{"ko":"손님","en":"Guest","ja":"お客"}'::jsonb,
+   null, 0, 1400, seed_kst_start_of_day(0) + interval '4 hours'),
+  ('{"ko":"무명의","en":"Nameless","ja":"無名の"}'::jsonb,
+   '{"ko":"손님","en":"Guest","ja":"お客"}'::jsonb,
+   null, 0, 1300, seed_kst_start_of_day(0) + interval '5 hours'),
+
+  -- ── 번역이 한국어만 있는 프리셋. `formatNickname`이 통째로 한국어로 떨어지는 경로다 ──
+  -- **그래도 ko/en의 그룹 수는 같아야 한다**(키가 로케일과 무관하므로).
+  -- 두 사람 모두 en 번역이 없어서, 표시 문자열을 키로 쓰면 이 둘이 합쳐질 수 있다.
+  ('{"ko":"수줍은"}'::jsonb, '{"ko":"깍두기"}'::jsonb,
+   '0020', 0, 1700, seed_kst_start_of_day(0) + interval '2 hours'),
+  ('{"ko":"수줍은"}'::jsonb, '{"ko":"깍두기"}'::jsonb,
+   '0021', 0, 1600, seed_kst_start_of_day(0) + interval '6 hours'),
+
+  -- ── 기간 경계에 걸친 행 ──
+  -- 어제(daily에는 없고 weekly에는 있다 — 단, 오늘이 월요일이면 weekly에서도 빠진다)
+  ('{"ko":"어제의","en":"Yesterday","ja":"昨日の"}'::jsonb,
+   '{"ko":"국밥","en":"Gookbap","ja":"クッパ"}'::jsonb,
+   '0030', 0, 1990, seed_kst_start_of_day(-1) + interval '12 hours'),
+  -- 이번 달 1일 KST 00:30 (monthly 경계 + 9시간 구멍 조합)
+  ('{"ko":"월초의","en":"Month Start","ja":"月初の"}'::jsonb,
+   '{"ko":"솥밥","en":"Pot Rice","ja":"釜飯"}'::jsonb,
+   '0040', 0, 1980,
+   ((date_trunc('month', (now() at time zone 'Asia/Seoul')::date::timestamp))::timestamp
+    at time zone 'Asia/Seoul') + interval '30 minutes'),
+  -- 지난달 (monthly에는 없고 total에만 있다)
+  ('{"ko":"지난달의","en":"Last Month","ja":"先月の"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0050', 0, 1995, seed_kst_start_of_day(0) - interval '45 days'),
+  -- 작년 (total에만 있다). 최고점이라 total 1위여야 한다.
+  ('{"ko":"작년의","en":"Last Year","ja":"昨年の"}'::jsonb,
+   '{"ko":"한그릇","en":"One Bowl","ja":"一杯"}'::jsonb,
+   '0060', 0, 1999, seed_kst_start_of_day(0) - interval '400 days');

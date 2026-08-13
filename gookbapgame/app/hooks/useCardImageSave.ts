@@ -85,16 +85,18 @@ export function useCardImageSave(
   }, [flipped, coupon, buildInput]);
 
   /**
-   * `onAttempt`는 결과를 기다리지 않고 곧바로 불린다 — 공유 시트가 떠 있는 동안
-   * '다음' 버튼이 이미 준비돼 있어야 시트를 닫자마자 넘어갈 수 있고, 애초에
-   * "저장 완료"는 신뢰성 있게 감지할 수 없다(시트는 앨범 저장인지 전송인지
-   * 알려주지 않고, 다운로드도 브라우저에 넘긴 시점까지만 안다).
+   * 저장/공유를 시작한다.
+   *
+   * **"저장 완료"는 신뢰성 있게 감지할 수 없다** — 공유 시트는 앨범 저장인지 전송인지
+   * 알려주지 않고, 다운로드도 브라우저에 넘긴 시점까지만 안다. 그래서 성공을 조건으로
+   * 삼는 UI를 만들지 말 것. 한때 `onAttempt` 콜백으로 뽑기 화면의 '다음'을 드러냈는데
+   * (저장을 눌러야 넘어갈 수 있었다), 앨범이 생겨 카드를 다시 열 수 있게 되면서
+   * 그 게이트 자체가 없어졌다(2026-08-13, 이란토).
    */
   const save = useCallback(
-    async (onAttempt?: () => void) => {
+    async () => {
       if (!coupon || saving) return;
       setSaveError(false);
-      onAttempt?.();
 
       const filename = `coupon-${coupon.couponId}.png`;
       const ready = imageBlobRef.current;

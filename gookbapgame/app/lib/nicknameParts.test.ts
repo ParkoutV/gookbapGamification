@@ -50,6 +50,31 @@ test("formatNickname: 한쪽만 번역돼 있으면 통째로 한국어 — 언�
   assert.equal(formatNickname(PARTS, "en"), "Hearty Gookbap\u00a0#0023");
 });
 
+/* \uc911\uad6d\uc5b4 \ucd94\uac00(2026-08-13)\ub85c `resolveLocalizedName`\uc5d0 en \ud3f4\ubc31\uc774 \ub4e4\uc5b4\uac14\uc9c0\ub9cc,
+   \ub2c9\ub124\uc784\uc740 **\uadf8 \uacbd\ub85c\ub97c \ud0c0\uc9c0 \uc54a\ub294\ub2e4** \u2014 `formatNickname`\uc774 \uc790\uccb4 `pickExact`\ub85c \uc804\uccb4
+   \ub2e8\uc704 \ud310\uc815\uc744 \ud558\uace0 `resolveLocalizedName`\uc740 ko \uace0\uc815 \uc778\uc790\ub85c\ub9cc \ubd80\ub974\uae30 \ub54c\ubb38\uc774\ub2e4.
+   \uc774 \uad6c\ubd84\uc774 \ubb34\ub108\uc9c0\uba74 `Hearty \uad6d\ubc25`\uc774 zh \uc0ac\uc6a9\uc790\uc5d0\uac8c \ub418\uc0b4\uc544\ub09c\ub2e4(\uc704 \ud14c\uc2a4\ud2b8 \ucc38\uace0).
+   `nickname_presets.text`\uc5d0 zh\ub294 \ub2f9\ubd84\uac04 \uc5c6\uc73c\ubbc0\ub85c \uc2e4\uc81c\ub85c \ub298 \uac78\ub9ac\ub294 \uacbd\ub85c\ub2e4. */
+test("formatNickname: zh \ubc88\uc5ed\uc774 \uc5c6\uc73c\uba74 en\uc774 \uc544\ub2c8\ub77c \ud55c\uad6d\uc5b4\ub85c \ub5a8\uc5b4\uc9c4\ub2e4", () => {
+  assert.equal(formatNickname(PARTS, "zh"), "\ub4e0\ub4e0\ud55c \uad6d\ubc25\u00a0#0023");
+
+  // \ud55c\ucabd\uc5d0\ub9cc zh\uac00 \uc788\uc5b4\ub3c4 \ub9c8\ucc2c\uac00\uc9c0 \u2014 \uc5b8\uc5b4\ub97c \uc11e\uc9c0 \uc54a\ub294\ub2e4.
+  const firstOnly = {
+    first: { ko: "\ub4e0\ub4e0\ud55c", en: "Hearty", zh: "\u624e\u5b9e\u7684" },
+    last: { ko: "\uad6d\ubc25", en: "Gookbap" },
+    number: null,
+  };
+  assert.equal(formatNickname(firstOnly, "zh"), "\ub4e0\ub4e0\ud55c \uad6d\ubc25");
+
+  // \ub458 \ub2e4 zh\uac00 \uc788\uc73c\uba74 \uc911\uad6d\uc5b4\ub85c \ub098\uc628\ub2e4.
+  const both = {
+    first: { ko: "\ub4e0\ub4e0\ud55c", zh: "\u624e\u5b9e\u7684" },
+    last: { ko: "\uad6d\ubc25", zh: "\u6c64\u996d" },
+    number: null,
+  };
+  assert.equal(formatNickname(both, "zh"), "\u624e\u5b9e\u7684 \u6c64\u996d");
+});
+
 test("formatNickname: number가 없으면 붙이지 않는다", () => {
   assert.equal(formatNickname({ ...PARTS, number: null }, "en"), "Hearty Gookbap");
 });
