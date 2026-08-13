@@ -90,7 +90,9 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
               버그를 통째로 맞았다: 상한과 같은 값을 set하면 React가 커밋을 건너뛰어
               훅이 지운 인라인 스타일이 복원되지 않고 글자가 16px로 떴다(2026-08-13,
               이란토 제보). 근거는 globals.css의 `.game-cue`와 AGENTS.md에 있다. */}
-          <span key={step} className="game-cue game-cue--pop" style={{ fontFamily: "var(--font-pixel)" }}>
+          {/* 폰트는 `.game-cue`가 갖는다 — 인라인 var(--font-pixel)을 되살리지 말 것.
+              그 변수는 zh에서 본문 폰트로 바뀌는데 크기 계수가 Galmuri 실측이다. */}
+          <span key={step} className="game-cue game-cue--pop">
             {label}
           </span>
         </div>

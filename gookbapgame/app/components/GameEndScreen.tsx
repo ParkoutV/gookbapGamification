@@ -78,7 +78,6 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
               {/* CLEAR!는 START보다 넓어(3.721em vs 3.391em) --wide를 쓴다. */}
               <span
                 className="game-cue game-cue--wide game-cue--letters"
-                style={{ fontFamily: "var(--font-pixel)" }}
                 aria-hidden="true"
               >
                 {letters.map((ch, i) => (
@@ -115,7 +114,6 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
               </span>
               <span
                 className="game-cue game-cue--fade game-cue--two-line game-cue--stack"
-                style={{ fontFamily: "var(--font-pixel)" }}
                 aria-hidden="true"
               >
                 {gameEndLabelLines(label).map((line) => (

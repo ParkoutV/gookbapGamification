@@ -82,7 +82,7 @@ test("couponDateLines: 파싱되지 않는 값은 'Invalid Date'를 띄우지 �
 });
 
 test("couponDateLines: 로케일별 메시지 키를 쓴다", () => {
-  for (const locale of ["ko", "en", "ja"] as const) {
+  for (const locale of ["ko", "en", "ja", "zh"] as const) {
     const lines = couponDateLines(BASE, locale, t);
     assert.equal(lines[0].text.split(":")[0], "coupon.validPeriod", `${locale}에서 키가 다르다`);
   }

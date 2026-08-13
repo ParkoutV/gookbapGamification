@@ -69,6 +69,37 @@
   --font-pixel: var(--font-galmuri);
 }
 
+/* **중국어에서는 픽셀 폰트를 쓰지 않는다**(2026-08-13, 이란토 결정).
+   Galmuri11의 한자는 KS X 1001 기반이라 간체자가 통째로 없다 — 실측으로
+   `饭`(밥)·`门`·`险`·`简` 등이 빠져 있고, UI 어휘 43자 중 19자가 누락이었다.
+   **서브셋 재빌드로는 해결되지 않는다**: `docs/fonts-src/Galmuri11.woff2` 원본의
+   cmap에 애초에 없다. 그대로 두면 등급·제목이 에러 없이 두부(􏿽)로 뜬다.
+
+   그래서 zh일 때만 변수를 본문 폰트로 되돌린다. 컴포넌트 8곳의
+   `fontFamily: var(--font-pixel)`은 그대로 두고 변수 하나만 바꾸는 것이라, 픽셀
+   폰트를 새로 쓰는 화면이 생겨도 저절로 따라온다 — 화면마다 로케일 분기를 심으면
+   언젠가 하나가 빠진다.
+
+   **본문 폰트만으로는 부족해서 SC 폰트 꼬리를 명시한다.** `Noto Sans KR`은
+   `layout.tsx`에서 `subsets: ["latin"]`으로 불러오는데, 실측하니 위 19자가
+   **그 폰트에도 전부 없다**(canvas 폭 측정, 2026-08-13 — `document.fonts.check`는
+   글리프 유무를 보지 않으므로 전부 true를 주며 이 판정에 쓸 수 없다).
+   꼬리가 없으면 브라우저의 last-resort 폰트로 떨어져 기기마다 모양이 갈린다.
+   `body` 규칙의 `-apple-system` 꼬리는 **여기에 오지 않는다** — 인라인
+   `fontFamily`가 그 선언을 통째로 대체하기 때문이다.
+   iOS는 PingFang SC, 안드로이드·크롬은 Noto Sans SC, 윈도우는 Microsoft YaHei를 쓴다.
+
+   `lang` 속성은 `LocaleContext`가 로케일이 바뀔 때마다 갱신한다.
+
+   **카운트다운·GAME OVER 연출은 영향을 받지 않는다** — 그 라벨들은 i18n을 타지
+   않는 라틴 리터럴이라 zh에서도 픽셀 폰트로 떠야 맞다. 여기서 폰트가 바뀌어도
+   `.game-cue`의 크기 계수는 Galmuri 메트릭 기준이므로, 만약 저 연출까지 본문
+   폰트로 떨어지면 계수가 어긋나 잘린다. 지금은 리터럴이라 그럴 일이 없다. */
+:root:lang(zh) {
+  --font-pixel: var(--font-body), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -84,8 +115,20 @@ body {
      그래서 첫 항목의 실제 family 이름만 직접 적는다 — cardImage.ts가 canvas에서
      같은 이유로 목록의 첫 항목만 떼어 쓰는 것과 같은 처리다.
      이름은 next/font의 `localFont({ src: "../public/fonts/NotoEmoji-subset.woff2" })`가
-     파일명에서 만들어낸 것이라, 그 파일을 옮기거나 이름을 바꾸면 여기도 바뀐다. */
+     파일명에서 만들어낸 것이라, 그 파일을 옮기거나 이름을 바꾸면 여기도 바뀐다.
+
+     **간체 폰트를 꼬리에 둔다**(2026-08-13, 중국어 추가와 함께). `Noto Sans KR`은
+     `layout.tsx`에서 `subsets: ["latin"]`으로 불러오는데, 실측하니 간체 전용자
+     (`饭`·`门`·`优`·`开` 등 19자)가 **그 폰트에 전혀 없다**(canvas 폭 측정).
+     원래 꼬리(`-apple-system`, `Apple SD Gothic Neo`)는 한국어용이라 이들을 받지
+     못하고, 그러면 브라우저의 last-resort 폰트로 떨어져 기기마다 모양이 갈린다.
+     iOS는 PingFang SC, 안드로이드·크롬은 Noto Sans SC, 윈도우는 Microsoft YaHei다.
+     **한국어 꼬리보다 뒤에 둔다** — 앞에 두면 한중 공통 한자를 SC 자형으로 그려
+     한국어 화면의 서체가 미묘하게 달라진다.
+     - 이 항목은 **개발 리눅스 머신으로 검증할 수 없다**: 여기엔 SC 폰트가 하나도
+       설치돼 있지 않아 붙이든 말든 결과가 같다(실측 확인). 실기가 유일한 검증이다. */
   font-family: notoEmoji, var(--font-body), -apple-system, "Apple SD Gothic Neo",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC",
     sans-serif;
 }
 
@@ -881,6 +924,13 @@ body {
 
 .game-cue {
   display: inline-block;
+  /* **폰트를 여기서 직접 잡는다 — `var(--font-pixel)`을 쓰지 말 것**(2026-08-13).
+     그 변수는 zh에서 본문 폰트로 재정의되는데(위 `:root:lang(zh)` 참고), 아래 계수는
+     Galmuri11에서 직접 잰 폭이라 폰트가 바뀌면 통째로 어긋나 잘린다. 라벨 6종은
+     i18n을 타지 않는 라틴 리터럴이라 어느 로케일에서든 픽셀 폰트로 떠야 맞고,
+     간체자 누락 문제와도 무관하다(라틴은 Galmuri에 다 있다).
+     이름은 next/font가 파일명에서 만든 것이라 폰트 파일을 옮기면 여기도 고쳐야 한다. */
+  font-family: var(--font-galmuri);
   /* **크기는 여기서 정한다. JS로 실측하지 않는다**(2026-08-13).
      예전에는 `useFitText`가 렌더 폭을 재서 인라인 스타일로 넣었는데, 그 훅이
      `el.style.fontSize = ""`로 DOM을 직접 지운 뒤 `setFontSize(next)`로 복원하는
