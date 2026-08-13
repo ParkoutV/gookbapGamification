@@ -20,10 +20,30 @@ export type GameEndReason = "cleared" | "wrongTouchExhausted" | "timeout";
  * 언젠가 누가 번역해 넣는다. 같은 이유로 CountdownOverlay의 START도 함께
  * 하드코딩했다.
  *
- * 참고로 라벨이 길어져도 창 밖으로 넘치지는 않는다 — GameEndScreen이 실제
- * 렌더 폭을 재서 font-size를 줄인다(`useFitText`). 다만 그건 넘침 방지일 뿐
- * 번역 경로를 되살릴 근거는 아니다.
+ * **라벨을 바꾸면 크기를 다시 재야 한다.** 글자 크기는 CSS가 라벨별 클래스로 갖고
+ * 있고(`globals.css`의 `.game-cue` 계열), 자동으로 맞춰주는 장치가 없다 —
+ * 실측 계산은 2026-08-13에 걷어냈다. `max-width: 100%`가 창을 뚫는 것만 막아줄
+ * 뿐이므로, 긴 라벨을 넣으면 잘린다.
+ *
+ * **공백이 줄바꿈 지점이다**(`gameEndLabelLines`). `GAME OVER`가 두 줄로 쌓이는
+ * 것이 그 때문이며, 라벨에 공백을 넣으면 자동으로 여러 줄이 된다.
  */
 export function gameEndLabel(reason: GameEndReason): string {
   return reason === "cleared" ? "CLEAR!" : "GAME OVER";
+}
+
+/**
+ * 라벨을 줄 단위로 쪼갠다. `GAME OVER` → `["GAME", "OVER"]`, `CLEAR!` → `["CLEAR!"]`.
+ *
+ * 한 줄로 두면 `GAME OVER`는 9자라 폭 제약에 먼저 걸려 53px까지만 커지는데,
+ * 그러면 `CLEAR!`(84px) 옆에서 눈에 띄게 작다 — 창을 92% 채우므로 크기 계수 문제가
+ * 아니라 한 줄의 물리적 한계다(2026-08-13, 이란토 제보). 두 줄로 쪼개면 각 줄이
+ * 4자라 상한까지 커진다.
+ *
+ * **공백을 기준으로 나눈다.** 라벨이 6종 고정이라 `["GAME","OVER"]`를 그대로 박아도
+ * 되지만, 그러면 라벨과 줄 구성이 두 곳에 나뉘어 한쪽만 고쳐질 수 있다. 공백 규칙
+ * 하나면 `gameEndLabel`만 고쳐도 줄 구성이 따라온다.
+ */
+export function gameEndLabelLines(label: string): string[] {
+  return label.split(" ");
 }

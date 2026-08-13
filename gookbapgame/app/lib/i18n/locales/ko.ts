@@ -128,12 +128,15 @@ export const ko: Dictionary = {
   "coupon.empty": "아직 받은 쿠폰이 없어요.",
   "coupon.usedBadge": "사용 완료",
   "coupon.expiredBadge": "기간 만료",
+  // 쿠폰 사용 가능 기간. 시작일·사용기한이 모두 있으면 validPeriod 한 줄,
+  // 한쪽만 있으면 아래 둘 중 하나로 떨어진다(`couponDates.ts`).
+  // 발급일은 표시하지 않는다 — 매장에서 쓰지 않아 2026-08-13에 뺐다.
+  "coupon.validPeriod": "{from} ~ {until}",
   "coupon.expiresAt": "{date}까지",
-  // 카드 앞면의 날짜 3줄(발급일·시작일·사용기한). 좁은 카드에 나란히 들어가므로
-  // 라벨을 짧게 잡는다. 사용기한만 기존 "{date}까지"를 그대로 쓴다.
-  "coupon.issuedAt": "발급일 {date}",
-  "coupon.validFrom": "시작일 {date}",
-  "coupon.showQrButton": "QR 코드 보기",
+  "coupon.validFrom": "{date}부터",
+  // 앨범(격자)으로 돌아가기. 'QR 코드 보기'는 앨범 개편으로 사라졌다 —
+  // 카드 앞면에 QR이 이미 있어서 따로 펼칠 것이 없다(2026-08-13).
+  "coupon.backToAlbum": "목록으로",
   "coupon.closeButton": "닫기",
   "coupon.qrUnavailable": "이 쿠폰의 QR 코드를 표시할 수 없어요.",
   "coupon.issuedButHidden": "쿠폰은 발급되었지만 지금 표시할 수 없어요. 잠시 후 '내 쿠폰'에서 확인해주세요.",

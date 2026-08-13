@@ -123,10 +123,13 @@ export const en: Partial<Dictionary> = {
   "coupon.empty": "You don't have any coupons yet.",
   "coupon.usedBadge": "Used",
   "coupon.expiredBadge": "Expired",
+  // 구분자는 en dash(–)가 아니라 ASCII 하이픈이다. 픽셀 폰트 서브셋은 로케일 파일에
+  // 등장하는 문자로 만들어지므로(docs/build-pixel-font.sh) 비ASCII를 넣으면 폰트를
+  // 다시 빌드해야 하고, 빠뜨리면 에러 없이 두부로 보인다.
+  "coupon.validPeriod": "Valid {from} - {until}",
   "coupon.expiresAt": "Valid until {date}",
-  "coupon.issuedAt": "Issued {date}",
   "coupon.validFrom": "Valid from {date}",
-  "coupon.showQrButton": "Show QR code",
+  "coupon.backToAlbum": "Back",
   "coupon.closeButton": "Close",
   "coupon.qrUnavailable": "This coupon's QR code can't be displayed.",
   "coupon.issuedButHidden": "Your coupon was issued but can't be shown right now. Check \"My Coupons\" in a moment.",

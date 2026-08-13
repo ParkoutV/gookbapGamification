@@ -3,9 +3,7 @@
 import { useEffect, useRef } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { gameEndLabel, GameEndReason } from "../lib/gameEnd";
-import { useFitText } from "../hooks/useFitText";
-import { GAME_CUE_MAX_PX } from "../lib/gameCue";
+import { gameEndLabel, gameEndLabelLines, GameEndReason } from "../lib/gameEnd";
 import { playSfx, SFX } from "../lib/sfx";
 
 interface GameEndScreenProps {
@@ -44,7 +42,6 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
   const label = gameEndLabel(reason);
   const cleared = reason === "cleared";
   const letters = [...label];
-  const { containerRef, textRef, fontSize } = useFitText(label, GAME_CUE_MAX_PX);
 
   /*
    * 결과 멜로디. 마운트할 때 한 번만 낸다.
@@ -63,7 +60,10 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <PixelPanel size="card" className="max-w-sm w-full mx-4 text-center">
-        <div className="game-cue-window" ref={containerRef}>
+        {/* GAME OVER만 두 줄이라 창이 더 높아야 한다. 카운트다운(3-2-1-START)은
+            한 줄짜리 창을 그대로 쓴다 — 두 화면은 동시에 뜨지 않으므로 높이가
+            달라도 창이 흔들려 보이지 않는다. */}
+        <div className={`game-cue-window${cleared ? "" : " game-cue-window--two-line"}`}>
           {cleared ? (
             /*
              * 글자를 쪼개면 스크린리더가 "C, L, E, A, R"처럼 낱자로 읽는다.
@@ -75,10 +75,10 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
               <span className="sr-only" aria-live="assertive">
                 {label}
               </span>
+              {/* CLEAR!는 START보다 넓어(3.721em vs 3.391em) --wide를 쓴다. */}
               <span
-                ref={textRef}
-                className="game-cue game-cue--letters"
-                style={{ fontFamily: "var(--font-pixel)", fontSize }}
+                className="game-cue game-cue--wide game-cue--letters"
+                style={{ fontFamily: "var(--font-pixel)" }}
                 aria-hidden="true"
               >
                 {letters.map((ch, i) => (
@@ -102,14 +102,27 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
               </span>
             </>
           ) : (
-            <span
-              ref={textRef}
-              className="game-cue game-cue--fade"
-              style={{ fontFamily: "var(--font-pixel)", fontSize }}
-              aria-live="assertive"
-            >
-              {label}
-            </span>
+            /* GAME OVER는 두 줄로 쌓는다(`GAME` / `OVER`). 한 줄로는 9자라 폭 제약에
+               걸려 53px까지만 커져 CLEAR!(84px) 옆에서 작아 보였다 — 근거는
+               `gameEndLabelLines`에 있다.
+
+               쪼갠 줄은 aria-hidden으로 감추고 sr-only 원문을 따로 둔다. CLEAR!가
+               글자를 쪼갤 때와 같은 이유다 — 스크린리더가 "GAME, OVER"를 두 번
+               읽거나 줄바꿈을 문장 경계로 오해하는 것을 막는다. */
+            <>
+              <span className="sr-only" aria-live="assertive">
+                {label}
+              </span>
+              <span
+                className="game-cue game-cue--fade game-cue--two-line game-cue--stack"
+                style={{ fontFamily: "var(--font-pixel)" }}
+                aria-hidden="true"
+              >
+                {gameEndLabelLines(label).map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+              </span>
+            </>
           )}
         </div>
 

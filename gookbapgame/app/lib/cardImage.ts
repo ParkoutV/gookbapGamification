@@ -15,6 +15,9 @@ const CARD_H = 1371;
 /** 화면의 CARD_FACE_INK와 **반드시 같은 값**. 밝은 카드면 위의 글자색이다. */
 const INK = "#1A1F24";
 
+/** 화면의 STAMP_INK(`GatchaCard`)와 **반드시 같은 값**. 사용 완료·만료 도장 색이다. */
+const STAMP_INK = "#B3261E";
+
 /**
  * 이모지 폰트의 실제 family 이름. next/font가 이름을 해싱하므로 하드코딩할 수 없고,
  * layout.tsx가 심어둔 CSS 변수(--font-emoji)에서 읽는다.
@@ -91,6 +94,11 @@ export type CardImageInput = {
    */
   dateTexts: string[];
   emoji: string;
+  /**
+   * 사용 완료·만료 도장 문구. null이면 그리지 않는다.
+   * 화면(`GatchaCard`의 `usedStamp`)과 **같은 값**을 받아야 한다.
+   */
+  usedStamp?: string | null;
 };
 
 export async function renderCardImage(input: CardImageInput): Promise<Blob> {
@@ -176,9 +184,12 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const dateBlockHeight =
     input.dateTexts.length > 0 ? input.dateTexts.length * dateLineHeight + GAP : 0;
 
-  // 날짜가 3줄로 늘면서 상품명이 쓸 수 있는 높이가 그만큼 줄었다. 긴 상품명은
-  // 아래 루프에서 30px 바닥에 더 빨리 닿아 잘리는 줄이 생길 수 있다 — 지금은
-  // 허용하고, 문제가 되면 날짜 폰트를 줄이는 쪽을 먼저 검토한다.
+  // 날짜는 기간 한 줄이다(2026-08-13에 3줄에서 합쳤다). 3줄 시절에는 상품명이 쓸 수
+  // 있는 높이가 그만큼 줄어 긴 이름이 아래 루프의 30px 바닥에 빨리 닿았는데, 한 줄로
+  // 돌아오면서 여유가 생겼다. **줄을 다시 늘리려면 그 제약을 먼저 볼 것.**
+  //
+  // 날짜 문구에 비ASCII 글리프를 넣지 말 것 — 여기는 sans-serif라 안전하지만, 화면
+  // 쪽과 픽셀 폰트 서브셋이 로케일 파일 전체 문자를 훑는다(`couponDates.ts` 참고).
   const availableHeight =
     bottom - top - (input.qrSvg ? qrSize + GAP : 0) - dateBlockHeight;
 
@@ -213,6 +224,41 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
     ctx.strokeStyle = "rgba(0,0,0,0.25)";
     ctx.lineWidth = 2;
     ctx.strokeRect(qrX, cursorY, qrSize, qrSize);
+
+    // 사용 완료·만료 도장. QR **위에** 덮어 스캔용으로 못 쓰게 한다 — 화면
+    // (`GatchaCard`)과 같은 구성이어야 저장본이 어긋나지 않는다. 색·기울기·테두리를
+    // 양쪽이 각자 들고 있으므로 한쪽만 고치지 말 것.
+    if (input.usedStamp) {
+      ctx.save();
+      ctx.fillStyle = "rgba(242, 242, 242, 0.82)";
+      ctx.fillRect(qrX, cursorY, qrSize, qrSize);
+
+      const stampFontSize = qrSize * 0.16;
+      ctx.font = `bold ${stampFontSize}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const cx = centerX;
+      const cy = cursorY + qrSize / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate((-12 * Math.PI) / 180); // 화면의 -rotate-12와 같은 각도
+      ctx.fillStyle = STAMP_INK;
+      ctx.strokeStyle = STAMP_INK;
+      const textWidth = ctx.measureText(input.usedStamp).width;
+      const padX = stampFontSize * 0.5;
+      const padY = stampFontSize * 0.35;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(
+        -textWidth / 2 - padX,
+        -stampFontSize / 2 - padY,
+        textWidth + padX * 2,
+        stampFontSize + padY * 2
+      );
+      ctx.fillText(input.usedStamp, 0, 0);
+      ctx.restore();
+      // textBaseline/Align은 아래에서 다시 세팅되지만, save/restore로 되돌려 두는 것이
+      // 이 블록만 읽어도 안전함을 보장한다.
+    }
+
     cursorY += qrSize + GAP;
   }
 

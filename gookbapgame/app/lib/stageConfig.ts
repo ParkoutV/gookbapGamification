@@ -159,15 +159,10 @@ export function calcGukbapTier(totalScore: number): GukbapTier {
   return found ? found.tier : "국밥 입문생";
 }
 
-/**
- * 문항 인디케이터가 기본으로 그리는 칸 수.
- *
- * 현재 DB에 등록된 최대 문항 수는 7개다(2026-08-09). 9는 여유분이다.
- *
- * **DB에 하드 상한은 없다** — `validate_base_image_questions_count` 트리거는
- * `questions_count`가 연결된 `image_slots` 개수 이하인지만 검증한다
- * (`gookbapanalyze/AGENTS.md`). 즉 7은 콘텐츠 관행이지 제약이 아니며, 슬롯을
- * 충분히 만든 이미지라면 그 이상도 설정될 수 있다. 그래서 이 값을 넘는 경우
- * `resolveIndicatorCells`는 칸을 **잘라내지 않고** 실제 개수만큼 돌려준다.
+/*
+ * `INDICATOR_SLOT_CAP`(9)은 삭제했다(2026-08-13). 문항 인디케이터가 항상 9칸을
+ * 그리고 초과분을 `opacity: 0`으로 감추던 시절의 상수인데, 감춘 칸이 자리를 차지한
+ * 탓에 보이는 칸이 왼쪽으로 쏠렸다 — `resolveIndicatorCells` 주석 참고.
+ * **되살리지 말 것.** 칸 수 고정이 필요해 보이면 `justify-center`가 이미 그 몫을
+ * 하고 있는지 먼저 볼 것(중심이 고정이라 좌우로 균등하게 자란다).
  */
-export const INDICATOR_SLOT_CAP = 9;

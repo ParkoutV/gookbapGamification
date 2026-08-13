@@ -20,7 +20,9 @@ export function useCardImageSave(
   coupon: IssuedCoupon | null,
   flipped: boolean,
   locale: Locale,
-  dateLines: CouponDateLine[]
+  dateLines: CouponDateLine[],
+  /** 사용 완료·만료 도장 문구. 화면(`GatchaCard`의 `usedStamp`)과 같은 값이어야 한다. */
+  usedStamp: string | null = null
 ) {
   const faceRef = useRef<HTMLDivElement>(null);
   /** 뒤집힐 때 미리 구워두는 카드 이미지. 저장 버튼이 await 없이 공유할 수 있게 한다. */
@@ -42,8 +44,9 @@ export function useCardImageSave(
       couponName: resolveLocalizedName(coupon?.couponType, locale),
       dateTexts: dateLinesKey === "" ? [] : dateLinesKey.split("\n"),
       emoji,
+      usedStamp,
     }),
-    [coupon?.couponType, locale, dateLinesKey, emoji]
+    [coupon?.couponType, locale, dateLinesKey, emoji, usedStamp]
   );
 
   /**
@@ -52,10 +55,20 @@ export function useCardImageSave(
    * 유효한 동안"에만 허용하는데, 탭과 share 호출 사이에 이미지 로드·직렬화가
    * 끼면 그 유효 시간이 소모되어 NotAllowedError로 거부된다.
    * 미리 구워두면 클릭 핸들러가 곧바로 share를 부를 수 있다.
+   *
+   * **굽기 전에 이전 blob을 반드시 버린다.** `cancelled` 플래그는 늦게 도착한 결과가
+   * 새 blob을 덮어쓰는 것만 막고, **이미 들고 있는 옛 blob은 그대로 남는다.**
+   * 내 쿠폰 앨범은 같은 훅 인스턴스에서 쿠폰을 갈아끼우므로(A 열기 → 목록 → B 열기)
+   * B의 굽기가 끝나기 전에 저장을 누르면 `save()`가 A의 이미지를 `coupon-B.png`라는
+   * 이름으로 내보낸다 — **다른 쿠폰의 QR과 도장이 찍힌 파일을 손에 쥐여주는 것이다.**
+   * (`WheelScreen`은 마운트당 쿠폰이 하나라 이 경로가 없었다.)
+   * 비워두면 그 탭은 아래 폴백 경로로 떨어져 다시 굽는다 — iOS 공유 시트를 한 번
+   * 놓칠 수 있지만, 엉뚱한 쿠폰을 저장하는 쪽이 비교할 수 없이 나쁘다.
    */
   useEffect(() => {
     if (!flipped || !coupon) return;
     let cancelled = false;
+    imageBlobRef.current = null;
 
     renderCardImage(buildInput())
       .then((blob) => {
