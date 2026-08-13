@@ -1,0 +1,252 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.base_images (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  title jsonb NOT NULL,
+  image_url text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  level integer DEFAULT 1 CHECK (level >= 1 AND level <= 9),
+  questions_count integer DEFAULT 3,
+  CONSTRAINT base_images_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.part_categories (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  name jsonb NOT NULL,
+  CONSTRAINT part_categories_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.parts (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  category_id bigint,
+  name jsonb NOT NULL,
+  image_url text NOT NULL,
+  offset_x integer DEFAULT 0,
+  offset_y integer DEFAULT 0,
+  scale real DEFAULT 1.0,
+  CONSTRAINT parts_pkey PRIMARY KEY (id),
+  CONSTRAINT parts_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.part_categories(id)
+);
+CREATE TABLE public.image_slots (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  base_image_id bigint,
+  category_id bigint,
+  x_coordinate integer NOT NULL,
+  y_coordinate integer NOT NULL,
+  z_index integer DEFAULT 1,
+  scale real DEFAULT 1.0,
+  CONSTRAINT image_slots_pkey PRIMARY KEY (id),
+  CONSTRAINT image_slots_base_image_id_fkey FOREIGN KEY (base_image_id) REFERENCES public.base_images(id),
+  CONSTRAINT image_slots_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.part_categories(id)
+);
+CREATE TABLE public.accounts (
+  user_id uuid NOT NULL,
+  account_id text NOT NULL UNIQUE,
+  permission integer NOT NULL CHECK (permission = ANY (ARRAY[0, 1])),
+  created_at timestamp with time zone DEFAULT now(),
+  is_setup_completed boolean DEFAULT false,
+  assigned_branch_id uuid,
+  CONSTRAINT accounts_pkey PRIMARY KEY (user_id),
+  CONSTRAINT accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT accounts_assigned_branch_id_fkey FOREIGN KEY (assigned_branch_id) REFERENCES public.branches(branch_id)
+);
+CREATE TABLE public.participants (
+  participant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  roulette_joined timestamp with time zone,
+  last_participated_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  nickname_first_id uuid,
+  nickname_last_id uuid,
+  nickname_number character varying,
+  CONSTRAINT participants_pkey PRIMARY KEY (participant_id),
+  CONSTRAINT participants_nickname_first_id_fkey FOREIGN KEY (nickname_first_id) REFERENCES public.nickname_presets(id),
+  CONSTRAINT participants_nickname_last_id_fkey FOREIGN KEY (nickname_last_id) REFERENCES public.nickname_presets(id)
+);
+CREATE TABLE public.coupon_effects (
+  coupon_effect_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coupon_type text NOT NULL,
+  description text,
+  created_at timestamp with time zone DEFAULT now(),
+  probability jsonb DEFAULT '{}'::jsonb,
+  expire_days integer CHECK (expire_days IS NULL OR expire_days >= 0 AND expire_days <= 365),
+  is_online_coupon boolean DEFAULT false,
+  max_issuance integer CHECK (max_issuance >= 0),
+  valid_start_type text DEFAULT 'today'::text,
+  expire_type text DEFAULT 'days'::text,
+  expire_date timestamp with time zone,
+  daily_max_issuance integer,
+  CONSTRAINT coupon_effects_pkey PRIMARY KEY (coupon_effect_id)
+);
+CREATE TABLE public.issued_coupons (
+  coupon_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  participant_id uuid NOT NULL,
+  coupon_effect_id uuid NOT NULL,
+  is_used boolean DEFAULT false,
+  issued_at timestamp with time zone DEFAULT now(),
+  used_at timestamp with time zone,
+  expired_at timestamp with time zone,
+  log_id uuid,
+  valid_from timestamp with time zone,
+  CONSTRAINT issued_coupons_pkey PRIMARY KEY (coupon_id),
+  CONSTRAINT issued_coupons_coupon_effect_id_fkey FOREIGN KEY (coupon_effect_id) REFERENCES public.coupon_effects(coupon_effect_id),
+  CONSTRAINT issued_coupons_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id),
+  CONSTRAINT issued_coupons_log_id_fkey FOREIGN KEY (log_id) REFERENCES public.track_logs(log_id)
+);
+CREATE TABLE public.survey_questions (
+  question_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  survey_phase integer NOT NULL DEFAULT 0,
+  question_text text NOT NULL,
+  question_type integer NOT NULL,
+  options jsonb,
+  image_url text,
+  is_required boolean DEFAULT true,
+  order_index integer NOT NULL DEFAULT 0,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  branch_id uuid,
+  CONSTRAINT survey_questions_pkey PRIMARY KEY (question_id),
+  CONSTRAINT survey_questions_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id)
+);
+CREATE TABLE public.survey_responses (
+  response_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  question_id uuid NOT NULL,
+  participant_id uuid NOT NULL,
+  answer_data jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  log_id uuid,
+  CONSTRAINT survey_responses_pkey PRIMARY KEY (response_id),
+  CONSTRAINT survey_responses_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.survey_questions(question_id),
+  CONSTRAINT survey_responses_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id),
+  CONSTRAINT survey_responses_log_id_fkey FOREIGN KEY (log_id) REFERENCES public.track_logs(log_id)
+);
+CREATE TABLE public.supported_languages (
+  lang_code character varying NOT NULL,
+  lang_name character varying NOT NULL,
+  is_active boolean DEFAULT true,
+  order_index integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  coupon_use_text jsonb DEFAULT '{"no": "아니오", "yes": "네", "used_successfully": "쿠폰이 정상적으로 사용되었습니다.", "use_coupon_question": "{{user_nickname}}님의 {{coupon_effects}}을(를) 사용하시겠습니까?"}'::jsonb,
+  CONSTRAINT supported_languages_pkey PRIMARY KEY (lang_code)
+);
+CREATE TABLE public.tracks (
+  track_id character varying NOT NULL,
+  is_shared boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  branch_id uuid NOT NULL,
+  CONSTRAINT tracks_pkey PRIMARY KEY (track_id),
+  CONSTRAINT fk_tracks_branch FOREIGN KEY (branch_id) REFERENCES public.branches(branch_id)
+);
+CREATE TABLE public.track_logs (
+  log_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  participant_id uuid NOT NULL,
+  track_id character varying,
+  access_time timestamp with time zone DEFAULT now(),
+  game_start_count integer DEFAULT 0,
+  share_clicked boolean DEFAULT false,
+  CONSTRAINT track_logs_pkey PRIMARY KEY (log_id),
+  CONSTRAINT track_logs_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id)
+);
+CREATE TABLE public.branches (
+  branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_name text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT branches_pkey PRIMARY KEY (branch_id)
+);
+CREATE TABLE public.game_score_logs (
+  log_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  participant_id uuid NOT NULL,
+  best_score integer NOT NULL DEFAULT 0,
+  gookbap_score integer NOT NULL DEFAULT 0,
+  joined_time timestamp with time zone DEFAULT now(),
+  track_log_id uuid,
+  CONSTRAINT game_score_logs_pkey PRIMARY KEY (log_id),
+  CONSTRAINT game_score_logs_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id),
+  CONSTRAINT game_score_logs_track_log_id_fkey FOREIGN KEY (track_log_id) REFERENCES public.track_logs(log_id)
+);
+CREATE TABLE public.unified_images (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  base_image_id bigint NOT NULL,
+  image_slots jsonb NOT NULL DEFAULT '{}'::jsonb,
+  unified_image_url text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT unified_images_pkey PRIMARY KEY (id),
+  CONSTRAINT unified_images_base_image_id_fkey FOREIGN KEY (base_image_id) REFERENCES public.base_images(id)
+);
+CREATE TABLE public.nickname_presets (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  type character varying NOT NULL CHECK (type::text = ANY (ARRAY['first_word'::character varying, 'last_word'::character varying]::text[])),
+  text jsonb,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT nickname_presets_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.nickname_exclusions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  first_word_id uuid NOT NULL,
+  last_word_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT nickname_exclusions_pkey PRIMARY KEY (id),
+  CONSTRAINT nickname_exclusions_first_word_id_fkey FOREIGN KEY (first_word_id) REFERENCES public.nickname_presets(id),
+  CONSTRAINT nickname_exclusions_last_word_id_fkey FOREIGN KEY (last_word_id) REFERENCES public.nickname_presets(id)
+);
+CREATE TABLE public.gatcha_cases (
+  gatcha_case_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  gatcha_case_name jsonb NOT NULL,
+  min_score integer NOT NULL CHECK (min_score >= 0),
+  max_score integer NOT NULL CHECK (max_score <= 1953),
+  CONSTRAINT gatcha_cases_pkey PRIMARY KEY (gatcha_case_id)
+);
+CREATE TABLE public.gatcha_settings (
+  id integer NOT NULL DEFAULT 1 CHECK (id = 1),
+  aggregation_hours integer NOT NULL DEFAULT 2 CHECK (aggregation_hours >= 0 AND aggregation_hours <= 99),
+  aggregation_minutes integer NOT NULL DEFAULT 0 CHECK (aggregation_minutes >= 0 AND aggregation_minutes <= 59),
+  limit_type character varying NOT NULL DEFAULT 'days'::character varying CHECK (limit_type::text = ANY (ARRAY['days'::character varying, 'hours'::character varying]::text[])),
+  limit_n integer NOT NULL DEFAULT 1 CHECK (limit_n >= 0),
+  limit_m integer NOT NULL DEFAULT 1 CHECK (limit_m >= 0),
+  exhaustion_behavior character varying NOT NULL DEFAULT 'turn_to_blank'::character varying CHECK (exhaustion_behavior::text = ANY (ARRAY['turn_to_blank'::character varying, 'normalize_probability'::character varying]::text[])),
+  CONSTRAINT gatcha_settings_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.web_coupon_settings (
+  id integer NOT NULL,
+  title jsonb DEFAULT '{"en": "Web Coupon", "ko": "웹 쿠폰"}'::jsonb,
+  description jsonb DEFAULT '{"en": "", "ko": ""}'::jsonb,
+  CONSTRAINT web_coupon_settings_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.web_coupons (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coupon_code text NOT NULL UNIQUE,
+  participant_id uuid,
+  assigned_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT web_coupons_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.nickname_settings (
+  id integer NOT NULL CHECK (id = 1),
+  digit_length integer NOT NULL DEFAULT 4,
+  CONSTRAINT nickname_settings_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.survey_settings (
+  id integer NOT NULL CHECK (id = 1),
+  optional_survey_once boolean NOT NULL DEFAULT true,
+  CONSTRAINT survey_settings_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.optional_survey_records (
+  participant_id uuid NOT NULL,
+  record jsonb NOT NULL DEFAULT '[]'::jsonb,
+  CONSTRAINT optional_survey_records_pkey PRIMARY KEY (participant_id),
+  CONSTRAINT optional_survey_records_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id)
+);
+CREATE TABLE public.gatcha_logs (
+  log_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  participant_id uuid NOT NULL,
+  joined_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT gatcha_logs_pkey PRIMARY KEY (log_id),
+  CONSTRAINT gatcha_logs_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id)
+);
+CREATE TABLE public.participant_sessions (
+  participant_id uuid NOT NULL,
+  current_log_id uuid,
+  last_requested_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT participant_sessions_pkey PRIMARY KEY (participant_id),
+  CONSTRAINT participant_sessions_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(participant_id),
+  CONSTRAINT participant_sessions_current_log_id_fkey FOREIGN KEY (current_log_id) REFERENCES public.track_logs(log_id)
+);

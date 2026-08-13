@@ -146,6 +146,15 @@ export const ja: Partial<Dictionary> = {
   "start.inviteFailed": "コピーできませんでした。しばらくしてからもう一度お試しください。",
   "wheel.nextButton": "次へ",
 
+  "webCoupon.label": "オンラインストアクーポン",
+  "webCoupon.copyButton": "コピー",
+  "webCoupon.copied": "コードをコピーしました！",
+  "webCoupon.copyFailed": "コピーできませんでした。コードを直接入力してください。",
+  "webCoupon.grantedTitle": "オンラインストアクーポンを獲得しました！",
+  "webCoupon.grantedBody":
+    "公式オンラインストアで下記のコードを登録するとご利用いただけます。\n「自分のクーポン」から再度ご確認いただけます。",
+  "webCoupon.grantedConfirm": "確認",
+
   "coupon.myCouponsButton": "自分のクーポンを見る",
   "coupon.myCouponsTitle": "自分のクーポン",
   "coupon.empty": "まだ受け取ったクーポンはありません。",

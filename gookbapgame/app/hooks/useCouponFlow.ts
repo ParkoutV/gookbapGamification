@@ -2,12 +2,18 @@
 
 import { useCallback, useRef, useState } from "react";
 import {
+  assignWebCoupon,
   drawCoupon,
+  ensureWebCoupons,
   fetchMyCoupons,
+  fetchMyWebCoupons,
   fetchSurveyQuestions,
+  fetchWebCouponSettings,
   submitSurveyResponses,
   type DrawCouponResult,
   type IssuedCoupon,
+  type WebCoupon,
+  type WebCouponSettings,
 } from "../actions";
 import type { SurveyAnswerMap, SurveyQuestion } from "../lib/surveyAnswers";
 import { clearPendingDraw, markPendingDraw } from "../lib/pendingDraw";
@@ -28,6 +34,17 @@ export function useCouponFlow() {
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [drawResult, setDrawResult] = useState<DrawCouponResult | null>(null);
   const [coupons, setCoupons] = useState<IssuedCoupon[]>([]);
+  const [webCoupons, setWebCoupons] = useState<WebCoupon[]>([]);
+  /** 티켓에 뜨는 문구(`web_coupon_settings`). null이면 로케일 파일 기본값을 쓴다. */
+  const [webCouponSettings, setWebCouponSettings] = useState<WebCouponSettings | null>(null);
+  /**
+   * 설문 직후 안내 팝업에 띄울 쿠폰. 팝업을 닫으면 null로 되돌린다.
+   *
+   * **`webCoupons[0]`을 보지 않고 따로 두는 이유**: 그 배열은 앨범을 열 때마다 다시
+   * 채워지므로, 그걸 방아쇠로 삼으면 앨범에 들어갈 때마다 팝업이 다시 뜬다.
+   * 이 값은 "방금 발급됐다"는 일회성 사건을 뜻한다.
+   */
+  const [grantedWebCoupon, setGrantedWebCoupon] = useState<WebCoupon | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // 룰렛 진입당 draw는 정확히 1회. 리렌더·StrictMode 이중 실행으로 두 번 호출되면
@@ -77,6 +94,30 @@ export function useCouponFlow() {
         return false;
       }
       markSurveySubmitted();
+
+      /*
+       * 온라인몰 쿠폰은 **설문 최초 응답자에게 100% 확정 지급**된다(2026-08-13, 이란토).
+       * 카드 뽑기와 별개이며 확률도 없다.
+       *
+       * `await`하는 이유는 곧바로 안내 팝업을 띄우기 위해서다. 여기서 실패해도
+       * 흐름을 막지 않는다 — 실패는 앨범 진입 시 `ensureWebCoupons`가 한 번 더
+       * 시도해서 메운다(그쪽 주석 참고).
+       *
+       * **`hasSurveySubmitted()` 가드 뒤에 있다는 점이 중요하다.** 재제출로 들어온
+       * 사람은 위에서 이미 리턴했으므로 여기 도달하지 않는다 — 발급 요청이 반복되지
+       * 않는다. 서버도 자격을 검증하지만, 부르지 않는 편이 낫다.
+       */
+      const assigned = await assignWebCoupon();
+      if (assigned.ok) {
+        // 팝업에도 티켓이 뜨므로 문구가 함께 필요하다. 목록과 독립이라 병렬로 보낸다.
+        const [web, settings] = await Promise.all([fetchMyWebCoupons(), fetchWebCouponSettings()]);
+        setWebCoupons(web);
+        if (settings) setWebCouponSettings(settings);
+        // 방금 받은 것을 팝업으로 보여준다. 목록이 비어 있으면(조회 실패) 띄우지 않는다 —
+        // 코드 없는 "쿠폰을 받았어요" 팝업은 아무 쓸모가 없다.
+        if (web.length > 0) setGrantedWebCoupon(web[0]);
+      }
+
       setState("idle");
       return true;
     },
@@ -124,8 +165,26 @@ export function useCouponFlow() {
     setState("done");
   }, []);
 
+  /**
+   * 앨범을 열기 전에 두 목록을 모두 새로 읽는다.
+   *
+   * 온라인몰 쿠폰은 `ensureWebCoupons`로 읽는다 — 목록이 비어 있으면 **발급을 한 번 더
+   * 시도한다.** `submitAnswers`가 이미 제출한 사람에게는 서버를 부르지 않고 곧장
+   * 리턴하므로(재제출 차단), 설문 직후 발급이 네트워크 오류로 실패하면 다시 시도할
+   * 자리가 여기밖에 없다. 자격 판정은 서버가 하므로 자격 없는 사람이 열어도 안전하다.
+   *
+   * 두 요청은 서로 독립이라 병렬로 보낸다.
+   */
   const refreshCoupons = useCallback(async () => {
-    setCoupons(await fetchMyCoupons());
+    const [issued, web, settings] = await Promise.all([
+      fetchMyCoupons(),
+      ensureWebCoupons(),
+      fetchWebCouponSettings(),
+    ]);
+    setCoupons(issued);
+    setWebCoupons(web);
+    // 조회 실패(null)면 이전 값을 지우지 않는다 — 문구가 있다가 사라지는 것보다 낫다.
+    if (settings) setWebCouponSettings(settings);
   }, []);
 
   const reset = useCallback(() => {
@@ -141,6 +200,12 @@ export function useCouponFlow() {
     questions,
     drawResult,
     coupons,
+    webCoupons,
+    webCouponSettings,
+    grantedWebCoupon,
+    /* 팝업 닫기. `reset()`에 넣지 않는다 — 그쪽은 뽑기 흐름을 다시 태우는 용도라
+       설문 직후 팝업과 수명이 다르다. */
+    dismissGrantedWebCoupon: useCallback(() => setGrantedWebCoupon(null), []),
     submitError,
     loadQuestions,
     submitAnswers,

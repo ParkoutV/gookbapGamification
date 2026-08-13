@@ -17,6 +17,7 @@ import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
 import SoundToggle from "./components/SoundToggle";
 import TermNotice from "./components/TermNotice";
+import WebCouponGrantedNotice from "./components/WebCouponGrantedNotice";
 import { useGameProgress, type GamePhase } from "./hooks/useGameProgress";
 import { useCouponFlow } from "./hooks/useCouponFlow";
 import type { SurveyAnswerMap } from "./lib/surveyAnswers";
@@ -259,6 +260,16 @@ export default function Home({ searchParams }: PageProps) {
   return (
     <div className="min-h-dvh bg-black">
       {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
+      {/* 설문 직후 온라인몰 쿠폰 안내. **화면 전환과 무관하게 최상위에 둔다** —
+          설문 제출 성공은 곧 `wheel`로 넘어가는 전이를 부르므로(`handleSurveySubmit`),
+          특정 phase 안에 두면 그 화면이 언마운트되면서 팝업도 함께 사라진다. */}
+      {coupon.grantedWebCoupon && (
+        <WebCouponGrantedNotice
+          coupon={coupon.grantedWebCoupon}
+          settings={coupon.webCouponSettings}
+          onConfirm={coupon.dismissGrantedWebCoupon}
+        />
+      )}
       {/* 화면 위에 늘 떠 있는 도구 모음. 각 버튼이 스스로 fixed를 갖지 않고
           여기서 위치를 정한다 — 따로 두면 서로 겹친다. */}
       <div className="fixed top-2 left-2 z-[60] flex items-start gap-2">
@@ -398,6 +409,8 @@ export default function Home({ searchParams }: PageProps) {
       {game.phase === "myCoupons" && (
         <MyCouponsScreen
           coupons={coupon.coupons}
+          webCoupons={coupon.webCoupons}
+          webCouponSettings={coupon.webCouponSettings}
           onClose={() => goToPhase(myCouponsReturnPhase)}
           onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
         />

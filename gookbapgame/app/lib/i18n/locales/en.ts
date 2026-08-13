@@ -144,6 +144,15 @@ export const en: Partial<Dictionary> = {
   "start.inviteFailed": "Couldn't copy. Please try again in a moment.",
   "wheel.nextButton": "Next",
 
+  "webCoupon.label": "Online store coupon",
+  "webCoupon.copyButton": "Copy",
+  "webCoupon.copied": "Code copied!",
+  "webCoupon.copyFailed": "Copy failed. Please enter the code manually.",
+  "webCoupon.grantedTitle": "You got an online store coupon!",
+  "webCoupon.grantedBody":
+    "Register the code below at the official online store to use it.\nYou can find it again under 'My coupons'.",
+  "webCoupon.grantedConfirm": "OK",
+
   "coupon.myCouponsButton": "View my coupons",
   "coupon.myCouponsTitle": "My Coupons",
   "coupon.empty": "You don't have any coupons yet.",

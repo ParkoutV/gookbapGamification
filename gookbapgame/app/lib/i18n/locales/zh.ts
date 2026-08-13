@@ -160,6 +160,15 @@ export const zh: Partial<Dictionary> = {
   "start.inviteFailed": "复制失败，请稍后再试。",
   "wheel.nextButton": "下一步",
 
+  "webCoupon.label": "网上商城优惠券",
+  "webCoupon.copyButton": "复制",
+  "webCoupon.copied": "已复制优惠码！",
+  "webCoupon.copyFailed": "复制失败，请手动输入优惠码。",
+  "webCoupon.grantedTitle": "您获得了网上商城优惠券！",
+  "webCoupon.grantedBody":
+    "在官方网上商城登记下方的优惠码即可使用。\n您可以在「我的优惠券」中再次查看。",
+  "webCoupon.grantedConfirm": "确认",
+
   "coupon.myCouponsButton": "查看我的优惠券",
   "coupon.myCouponsTitle": "我的优惠券",
   "coupon.empty": "还没有领取过优惠券。",
