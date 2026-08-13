@@ -133,3 +133,78 @@ values
   (9004, 0, 0, '{"ko": "매장에 처음 오셨나요?", "en": "Is this your first visit?", "ja": "初めてのご来店ですか？"}'::jsonb,
          '[{"ko": "처음이에요", "en": "First time", "ja": "初めてです"}, {"ko": "여러 번 왔어요", "en": "Been here before", "ja": "何度も来ました"}]'::jsonb, 2)
 on conflict (question_id) do nothing;
+
+-- 쿠폰 — 내 쿠폰 앨범의 남은 일수 표시를 구간마다 확인하기 위한 것이다(2026-08-13).
+--
+-- **날짜를 고정 문자열로 박지 말 것.** `now()` 기준 상대값이어야 며칠 뒤에 시드를
+-- 다시 부어도 같은 구간이 나온다. `expired_at`은 프로덕션과 같이 KST 23:59:59.999로
+-- 맞춘다 — 그래야 KST 날짜 경계 계산(`couponRemaining.ts`)이 실물과 같은 값을 본다.
+--
+-- **participant_id를 미리 알 수 없다.** 그 값은 브라우저 토큰의 해시이고
+-- (`actions.ts`의 `resolveParticipantId`), 토큰은 기기마다 새로 발급된다. 그래서
+-- 아래 UUID는 자리표시자이며, 이 상태로는 앨범에 아무것도 뜨지 않는다.
+--
+-- 쓰는 방법: 게임을 한 번 띄운 뒤 실제 participant_id로 갈아끼운다.
+--
+--   update issued_coupons set participant_id = '<진짜 uuid>'
+--   where participant_id = '00000000-0000-4000-8000-000000000001';
+--
+-- 진짜 uuid는 `select participant_id from participants order by created_at desc limit 1;`
+-- 로 얻는다(게임을 띄우면 `ensureParticipant`가 행을 만든다).
+insert into coupon_effects (coupon_effect_id, coupon_type)
+values
+  ('c0000000-0000-4000-8000-000000000001',
+   '{"ko": "국밥 한 그릇 무료", "en": "Free bowl of gookbap", "ja": "クッパ1杯無料"}'),
+  ('c0000000-0000-4000-8000-000000000002',
+   '{"ko": "음료 서비스", "en": "Free drink", "ja": "ドリンクサービス"}'),
+  ('c0000000-0000-4000-8000-000000000003',
+   '{"ko": "수육 소자 3,000원 할인", "en": "3,000 KRW off boiled pork", "ja": "ゆで豚3,000ウォン割引"}')
+on conflict (coupon_effect_id) do nothing;
+
+-- "KST 기준 오늘부터 N일 뒤의 23:59:59.999"를 프로덕션과 같은 형태로 만든다.
+--
+-- **`current_date at time zone 'Asia/Seoul'`을 쓰지 말 것.** 그것은 date를 timestamp로
+-- 올린 뒤 그 값을 KST 지역시각으로 **해석해서** UTC로 환산하므로 UTC 09:00(= KST 18:00)이
+-- 되고, 남은 일수가 하루씩 밀린다. 2026-08-13에 실제로 그렇게 넣었다가 DB에서 실측해
+-- 잡았다(의도한 0·1·3·4일이 1·2·4·5일로 나왔다). KST 날짜를 먼저 구하고, 그 날짜의
+-- 시각을 KST로 **지정**해야 한다 — 아래 함수가 그 순서다.
+create or replace function seed_kst_end_of_day(days_from_today int)
+returns timestamptz
+language sql
+stable
+as $$
+  select (((now() at time zone 'Asia/Seoul')::date + days_from_today + interval '23:59:59.999')
+          at time zone 'Asia/Seoul');
+$$;
+
+insert into issued_coupons (coupon_id, participant_id, coupon_effect_id, is_used, issued_at, expired_at, valid_from)
+values
+  -- 오늘까지 (0일 남음 — 강조)
+  ('d0000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000001', false, now(),
+   seed_kst_end_of_day(0), now() - interval '3 days'),
+  -- 1일 남음 (강조)
+  ('d0000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000002', false, now() - interval '1 hour',
+   seed_kst_end_of_day(1), now() - interval '1 day'),
+  -- 3일 남음 (강조 경계 안쪽)
+  ('d0000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000003', false, now() - interval '2 hours',
+   seed_kst_end_of_day(3), now()),
+  -- 4일 남음 (강조 경계 바깥 — 평범하게 보여야 한다)
+  ('d0000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000001', false, now() - interval '3 hours',
+   seed_kst_end_of_day(4), now()),
+  -- 만료됨 (어제까지였다)
+  ('d0000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000002', false, now() - interval '10 days',
+   seed_kst_end_of_day(-1), now() - interval '10 days'),
+  -- 사용 완료 (만료일이 남아 있어도 '사용 완료'가 먼저다)
+  ('d0000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000003', true, now() - interval '5 days',
+   seed_kst_end_of_day(10), now() - interval '5 days'),
+  -- 만료일 없음 (무기한 — 상태 줄이 아예 없어야 한다). 2026-08-12 이전 발급분이
+  -- 실제로 이 상태다(expire_type 컬럼 추가 전에 발급된 8건).
+  ('d0000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001',
+   'c0000000-0000-4000-8000-000000000001', false, now() - interval '20 days', null, null)
+on conflict (coupon_id) do nothing;

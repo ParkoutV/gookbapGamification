@@ -8,6 +8,7 @@ import GatchaCard from "./GatchaCard";
 import { useCardImageSave } from "../hooks/useCardImageSave";
 import type { IssuedCoupon } from "../actions";
 import { isCouponExpired } from "../lib/couponUsability";
+import { resolveCouponRemaining } from "../lib/couponRemaining";
 import { couponDateLines } from "../lib/couponDates";
 
 /**
@@ -43,6 +44,35 @@ export default function MyCouponsScreen({
     if (coupon.isUsed) return t("coupon.usedBadge");
     if (isCouponExpired(coupon)) return t("coupon.expiredBadge");
     return null;
+  };
+
+  /**
+   * 격자 칸 아래 상태 줄. 쓸 수 없는 쿠폰은 이유를, 쓸 수 있는 쿠폰은 남은 기간을
+   * 보여준다(2026-08-13, 이란토) — **여러 칸을 한눈에 보는 자리라 급한 것이 드러나야
+   * 한다.** 카드 앞면에는 넣지 않았다: 저장 이미지(`cardImage.ts`)에도 함께 실려야
+   * 하는데, 남은 일수는 저장한 다음 날부터 틀린 값이 된다.
+   *
+   * `soon`(3일 이하)이면 굵게 + 경고색이다. 색은 `--warning`이 아니라 `--error`다 —
+   * 주황 계열은 밝은 바탕에서 글자 대비가 모자라 면에만 쓴다(게임 화면 시간 경고와
+   * 같은 판단).
+   */
+  const statusLineFor = (coupon: IssuedCoupon): { text: string; soon: boolean } | null => {
+    const remaining = resolveCouponRemaining(coupon);
+    switch (remaining.kind) {
+      case "used":
+        return { text: t("coupon.usedBadge"), soon: false };
+      case "expired":
+        return { text: t("coupon.expiredBadge"), soon: false };
+      case "none":
+        return null;
+      case "remaining":
+        if (remaining.days === 0) return { text: t("coupon.remainingToday"), soon: true };
+        if (remaining.days === 1) return { text: t("coupon.remainingDay"), soon: true };
+        return {
+          text: t("coupon.remainingDays", { days: String(remaining.days) }),
+          soon: remaining.soon,
+        };
+    }
   };
 
   /*
@@ -116,7 +146,7 @@ export default function MyCouponsScreen({
           <div className="grid grid-cols-2 gap-3 mb-6">
             {coupons.map((coupon) => {
               const unusable = coupon.isUsed || isCouponExpired(coupon);
-              const stamp = stampFor(coupon);
+              const status = statusLineFor(coupon);
 
               return (
                 <button
@@ -144,7 +174,15 @@ export default function MyCouponsScreen({
                     <span className="text-xs font-bold text-ink text-center leading-tight line-clamp-2">
                       {resolveLocalizedName(coupon.couponType, locale)}
                     </span>
-                    {stamp && <span className="text-xs text-muted">{stamp}</span>}
+                    {status && (
+                      <span
+                        className={`text-xs ${
+                          status.soon ? "font-bold text-error" : "text-muted"
+                        }`}
+                      >
+                        {status.text}
+                      </span>
+                    )}
                   </span>
                 </button>
               );

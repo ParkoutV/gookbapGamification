@@ -128,6 +128,11 @@ export const ko: Dictionary = {
   "coupon.empty": "아직 받은 쿠폰이 없어요.",
   "coupon.usedBadge": "사용 완료",
   "coupon.expiredBadge": "기간 만료",
+  /* 0일은 "0일 남음"이 아니라 "오늘까지"다 — 숫자 0은 이미 끝났다는 뜻으로 읽힌다. */
+  "coupon.remainingToday": "오늘까지",
+  /* 한국어는 단수·복수가 갈리지 않지만 en이 갈리므로 키를 둘 다 둔다(en.ts 참고). */
+  "coupon.remainingDay": "1일 남음",
+  "coupon.remainingDays": "{days}일 남음",
   // 쿠폰 사용 가능 기간. 시작일·사용기한이 모두 있으면 validPeriod 한 줄,
   // 한쪽만 있으면 아래 둘 중 하나로 떨어진다(`couponDates.ts`).
   // 발급일은 표시하지 않는다 — 매장에서 쓰지 않아 2026-08-13에 뺐다.

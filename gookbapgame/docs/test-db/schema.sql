@@ -199,3 +199,58 @@ create table if not exists survey_responses (
 grant select on public.survey_questions to anon;
 grant insert on public.survey_responses to anon;
 grant usage, select on all sequences in schema public to anon;
+
+-- ============================================================
+-- 9. 쿠폰 테이블 + get_my_coupons 스텁
+-- ============================================================
+--
+-- **프로덕션의 RPC 본문은 볼 수 없다**(마이그레이션 파일이 없는 프로덕션 전용
+-- 함수다 — issuedCoupons.ts:46 주석). 여기 있는 것은 반환 컬럼 모양만 맞춘
+-- 스텁이며, 발급 조건·확률·동시성 같은 실제 로직은 하나도 재현하지 않는다.
+--
+-- 왜 필요한가: 이게 없으면 `fetchMyCoupons`가 늘 빈 배열을 돌려줘서 **내 쿠폰
+-- 앨범을 로컬에서 띄울 수 없다.** 2026-08-13에 앨범 격자를 만들면서 실제
+-- 컴포넌트를 한 번도 마운트하지 못했고, 그 공백에서 blob 오염 버그가 나왔다
+-- (A 열기 → 목록 → B 열기에서 A의 이미지가 B 이름으로 저장되는 버그).
+--
+-- `valid_from`을 반환에 포함한다 — 프로덕션도 2026-08-13에 주는 것이 확인됐다.
+create table if not exists coupon_effects (
+  coupon_effect_id uuid primary key default gen_random_uuid(),
+  coupon_type text not null,
+  expire_days int,
+  expire_type text,
+  expire_date timestamptz
+);
+
+create table if not exists issued_coupons (
+  coupon_id uuid primary key default gen_random_uuid(),
+  participant_id uuid not null,
+  coupon_effect_id uuid not null references coupon_effects(coupon_effect_id),
+  is_used boolean not null default false,
+  issued_at timestamptz not null default now(),
+  used_at timestamptz,
+  expired_at timestamptz,
+  valid_from timestamptz
+);
+
+create or replace function get_my_coupons(p_id uuid)
+returns table (
+  coupon_id uuid,
+  coupon_effect_id uuid,
+  is_used boolean,
+  issued_at timestamptz,
+  expired_at timestamptz,
+  valid_from timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select c.coupon_id, c.coupon_effect_id, c.is_used, c.issued_at, c.expired_at, c.valid_from
+  from issued_coupons c
+  where c.participant_id = p_id
+  order by c.issued_at desc;
+$$;
+
+grant select on public.coupon_effects to anon;
+grant execute on function get_my_coupons(uuid) to anon;

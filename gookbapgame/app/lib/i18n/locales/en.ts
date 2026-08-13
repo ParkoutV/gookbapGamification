@@ -123,6 +123,11 @@ export const en: Partial<Dictionary> = {
   "coupon.empty": "You don't have any coupons yet.",
   "coupon.usedBadge": "Used",
   "coupon.expiredBadge": "Expired",
+  "coupon.remainingToday": "Today only",
+  /* 영어만 단수형이 필요하다. ko·ja는 조수사가 바뀌지 않으므로 두 키가 같은 문구를
+     가리킨다 — 키를 안 만들면 t()가 키 문자열을 그대로 뱉는다. */
+  "coupon.remainingDay": "1 day left",
+  "coupon.remainingDays": "{days} days left",
   // 구분자는 en dash(–)가 아니라 ASCII 하이픈이다. 픽셀 폰트 서브셋은 로케일 파일에
   // 등장하는 문자로 만들어지므로(docs/build-pixel-font.sh) 비ASCII를 넣으면 폰트를
   // 다시 빌드해야 하고, 빠뜨리면 에러 없이 두부로 보인다.
