@@ -254,3 +254,40 @@ $$;
 
 grant select on public.coupon_effects to anon;
 grant execute on function get_my_coupons(uuid) to anon;
+
+-- ============================================================
+-- 10. ranking_view 스텁
+-- ============================================================
+--
+-- **반환 컬럼 모양만 맞춘 스텁이다.** 프로덕션은 `participants` → `nickname_presets`
+-- 조인으로 이 뷰를 만들지만, 로컬에는 그 테이블들이 없거나 형태가 달라 재현하려 하면
+-- 시간만 버린다 — 위 `get_my_coupons` 스텁과 같은 방침이다.
+--
+-- 왜 필요한가: 이게 없으면 랭킹 화면을 로컬에서 **실제 컴포넌트로 띄울 수 없다.**
+-- 2026-08-13에 쿠폰 앨범을 손으로 조립한 DOM만 보고 넘겼다가 blob 오염 버그를 놓친
+-- 전례가 있다.
+--
+-- `nickname_number`는 **text**다. 프로덕션 샘플이 `0614`처럼 앞자리 0을 갖고 있어
+-- 숫자로 만들면 `0614`와 `614`가 같은 사람으로 합쳐진다(그룹 키가 번호를 포함한다).
+create table if not exists ranking_plays (
+  play_id bigserial primary key,
+  nickname_first jsonb not null,
+  nickname_last  jsonb not null,
+  nickname_number text,
+  best_score int not null default 0,
+  gookbap_score int not null default 0,
+  joined_time timestamptz not null default now()
+);
+
+-- 프로덕션 뷰의 반환 컬럼 그대로: nickname_first / nickname_last / nickname_number /
+-- best_score / gookbap_score / joined_time. **`participant_id`는 내보내지 않는다** —
+-- 프로덕션 뷰가 그것을 의도적으로 제외했고(노출되면 남의 쿠폰을 가로챌 수 있다),
+-- 스텁에 넣으면 클라이언트가 그 컬럼에 의존하는 코드를 쓸 수 있게 된다.
+create or replace view ranking_view as
+  select nickname_first, nickname_last, nickname_number, best_score, gookbap_score, joined_time
+  from ranking_plays;
+
+-- 뷰는 테이블과 별도로 GRANT가 필요하다. **이 GRANT를 위쪽 4번 절로 올리지 말 것** —
+-- 그 절은 이 뷰보다 앞에 있어서 "relation does not exist"로 죽는다(같은 파일의
+-- survey_questions GRANT 주석과 같은 함정이다).
+grant select on public.ranking_view to anon;

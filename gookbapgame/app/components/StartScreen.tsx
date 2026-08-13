@@ -14,6 +14,7 @@ interface StartScreenProps {
   isRegeneratingNickname: boolean;
   onStart: () => void;
   onOpenTutorial: () => void;
+  onOpenRanking: () => void;
   onGoToDraw?: () => void;
   trackId: string | null;
 }
@@ -24,6 +25,7 @@ export default function StartScreen({
   isRegeneratingNickname,
   onStart,
   onOpenTutorial,
+  onOpenRanking,
   onGoToDraw,
   trackId,
 }: StartScreenProps) {
@@ -102,8 +104,11 @@ export default function StartScreen({
           <PixelPanel size="btn">
             <button type="button" className="w-full font-bold text-ink text-sm">{t("start.myResult")}</button>
           </PixelPanel>
+          {/* '내 결과'(위)는 아직 핸들러가 없다 — 랭킹과 별개 작업이라 건드리지 않았다. */}
           <PixelPanel size="btn">
-            <button type="button" className="w-full font-bold text-ink text-sm">{t("start.ranking")}</button>
+            <button type="button" onClick={onOpenRanking} className="w-full font-bold text-ink text-sm">
+              {t("start.ranking")}
+            </button>
           </PixelPanel>
           <PixelPanel size="btn">
             <button type="button" onClick={onOpenTutorial} className="w-full font-bold text-ink text-sm">

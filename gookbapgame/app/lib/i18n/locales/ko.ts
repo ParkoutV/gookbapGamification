@@ -16,6 +16,27 @@ export const ko: Dictionary = {
   "start.myResult": "내 결과",
   "start.ranking": "랭킹",
 
+  // 랭킹 화면. 탭은 **달력 기준**이다(롤링 윈도우가 아니다) — "이번 주 1위"가
+  // 집계하기도 쿠폰 지급하기도 직관적이어서 매장 운영에 맞는다(2026-08-13, 이란토).
+  "ranking.title": "랭킹",
+  "ranking.tab.daily": "오늘",
+  "ranking.tab.weekly": "이번 주",
+  "ranking.tab.monthly": "이번 달",
+  "ranking.tab.total": "전체",
+  "ranking.rankHeader": "순위",
+  "ranking.nicknameHeader": "닉네임",
+  "ranking.scoreHeader": "점수",
+  // 기록이 0건인 정상 상태. 조회 실패와 **반드시 다른 문구여야 한다** — 같은 문구를
+  // 쓰면 DB 장애가 "오늘 아무도 안 함"으로 위장된다(설문 조회에서 얻은 교훈).
+  "ranking.empty": "아직 기록이 없어요.",
+  "ranking.loadFailed": "랭킹을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+  "ranking.loading": "불러오는 중...",
+  // 표시 상한을 넘겼다는 안내. 조용히 잘라내면 "전체가 이만큼"으로 읽힌다.
+  "ranking.limitNotice": "상위 {limit}위까지 보여줍니다.",
+  // 서버 응답 자체가 잘린 경우(PostgREST 행 상한). 위 표시 상한과 다른 사정이다.
+  "ranking.partialNotice": "기록이 많아 일부만 집계했습니다.",
+  "ranking.closeButton": "닫기",
+
   "term.title": "개인정보 처리 안내",
   "term.body":
     "이 게임은 원활한 참여와 쿠폰 발급을 위해 아래 정보를 수집합니다.\n\n" +

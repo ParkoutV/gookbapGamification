@@ -18,6 +18,23 @@ export const ja: Partial<Dictionary> = {
   "start.myResult": "自分の結果",
   "start.ranking": "ランキング",
 
+  // ランキング画面。タブは暦基準(ローリングウィンドウではない、2026-08-13)。
+  "ranking.title": "ランキング",
+  "ranking.tab.daily": "今日",
+  "ranking.tab.weekly": "今週",
+  "ranking.tab.monthly": "今月",
+  "ranking.tab.total": "全体",
+  "ranking.rankHeader": "順位",
+  "ranking.nicknameHeader": "ニックネーム",
+  "ranking.scoreHeader": "スコア",
+  // 読み込み失敗と必ず違う文言にする。同じにするとDB障害が「誰もプレイしていない」に化ける。
+  "ranking.empty": "まだ記録がありません。",
+  "ranking.loadFailed": "ランキングを読み込めませんでした。しばらくしてからもう一度お試しください。",
+  "ranking.loading": "読み込み中...",
+  "ranking.limitNotice": "上位{limit}位まで表示します。",
+  "ranking.partialNotice": "記録が多いため一部のみ集計しました。",
+  "ranking.closeButton": "閉じる",
+
   "term.title": "個人情報の取り扱いについて",
   "term.body":
     "このゲームでは、ゲームの運営とクーポン発行のために以下の情報を収集します。\n\n" +

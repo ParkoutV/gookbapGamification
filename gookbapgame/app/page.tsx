@@ -12,6 +12,7 @@ import SurveyIntroScreen from "./components/SurveyIntroScreen";
 import SurveyScreen from "./components/SurveyScreen";
 import WheelScreen from "./components/WheelScreen";
 import MyCouponsScreen from "./components/MyCouponsScreen";
+import RankingScreen from "./components/RankingScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
 import SoundToggle from "./components/SoundToggle";
@@ -254,6 +255,7 @@ export default function Home({ searchParams }: PageProps) {
           isRegeneratingNickname={game.isRegenerating}
           onStart={handleStart}
           onOpenTutorial={openTutorialReview}
+          onOpenRanking={() => goToPhase("ranking")}
           onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
           trackId={trackId}
         />
@@ -361,6 +363,10 @@ export default function Home({ searchParams }: PageProps) {
           onNext={leaveDrawFlow}
         />
       )}
+
+      {/* 시작 화면에서만 들어오므로 닫으면 시작 화면으로 돌아온다(내 쿠폰이
+          dailyResult로 돌아가는 것과 다르다 — 그쪽은 결과 흐름 안의 화면이다). */}
+      {game.phase === "ranking" && <RankingScreen onClose={() => goToPhase("start")} />}
 
       {game.phase === "myCoupons" && (
         <MyCouponsScreen coupons={coupon.coupons} onClose={() => goToPhase("dailyResult")} />

@@ -38,7 +38,10 @@ export type GamePhase =
   | "survey"
   | "wheel"
   | "dailyResult"
-  | "myCoupons";
+  | "myCoupons"
+  // 시작 화면에서 열고 닫으면 시작 화면으로 돌아온다. 게임 진행과 무관한 조회 화면이라
+  // 이 훅의 다른 상태(session·scoreBreakdown 등)를 건드리지 않는다.
+  | "ranking";
 
 /**
  * 프리로드의 진행 상태. "화면 전환"과 분리된 값이라는 점이 핵심이다.

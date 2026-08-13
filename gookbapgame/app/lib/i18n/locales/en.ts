@@ -16,6 +16,23 @@ export const en: Partial<Dictionary> = {
   "start.myResult": "My Results",
   "start.ranking": "Ranking",
 
+  // Ranking screen. Tabs are calendar-based, not rolling windows (2026-08-13).
+  "ranking.title": "Ranking",
+  "ranking.tab.daily": "Today",
+  "ranking.tab.weekly": "This Week",
+  "ranking.tab.monthly": "This Month",
+  "ranking.tab.total": "All Time",
+  "ranking.rankHeader": "Rank",
+  "ranking.nicknameHeader": "Nickname",
+  "ranking.scoreHeader": "Score",
+  // Must differ from loadFailed - otherwise a DB outage looks like "nobody played".
+  "ranking.empty": "No records yet.",
+  "ranking.loadFailed": "Could not load the ranking. Please try again shortly.",
+  "ranking.loading": "Loading...",
+  "ranking.limitNotice": "Showing the top {limit}.",
+  "ranking.partialNotice": "Too many records - only part of them were counted.",
+  "ranking.closeButton": "Close",
+
   "term.title": "Privacy Notice",
   "term.body":
     "This game collects the following information to run the game and issue coupons.\n\n" +

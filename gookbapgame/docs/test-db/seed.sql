@@ -208,3 +208,93 @@ values
   ('d0000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001',
    'c0000000-0000-4000-8000-000000000001', false, now() - interval '20 days', null, null)
 on conflict (coupon_id) do nothing;
+
+-- ============================================================
+-- 랭킹 시드 (ranking_view 스텁의 원본 테이블)
+-- ============================================================
+--
+-- **날짜는 전부 `now()` 기준 상대값이다.** 고정 문자열로 박으면 며칠 뒤 다시 부었을 때
+-- daily/weekly/monthly 구간이 달라져 시드가 검증 도구로서 쓸모없어진다.
+--
+-- KST 자정을 만들 때 `current_date at time zone 'Asia/Seoul'`을 쓰지 말 것 — 하루 밀린다
+-- (위 `seed_kst_end_of_day` 주석의 함정과 같다). KST 날짜를 먼저 구하고 그 날짜의 시각을
+-- KST로 **지정**하는 순서다.
+create or replace function seed_kst_start_of_day(days_from_today int)
+returns timestamptz
+language sql
+stable
+as $$
+  select (((now() at time zone 'Asia/Seoul')::date + days_from_today)::timestamp
+          at time zone 'Asia/Seoul');
+$$;
+
+-- 멱등성: bigserial PK라 on conflict를 쓸 수 없으므로 시드 블록을 통째로 지우고 다시 넣는다.
+-- 이 테이블은 로컬 픽스처 전용이라 지워도 잃을 것이 없다.
+delete from ranking_plays;
+
+insert into ranking_plays (nickname_first, nickname_last, nickname_number, best_score, gookbap_score, joined_time)
+values
+  -- ── 같은 닉네임의 여러 기록. 최고점(1953) 한 줄로 줄어야 한다 ──
+  ('{"ko":"활기찬","en":"Energetic","ja":"活気ある"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0614', 0, 1200, seed_kst_start_of_day(0) + interval '9 hours'),
+  ('{"ko":"활기찬","en":"Energetic","ja":"活気ある"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0614', 0, 1953, seed_kst_start_of_day(0) + interval '10 hours'),
+  ('{"ko":"활기찬","en":"Energetic","ja":"活気ある"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0614', 0, 800, seed_kst_start_of_day(0) + interval '11 hours'),
+
+  -- ── KST 00:00~09:00 구간. `kstDayStart` 재사용의 9시간 구멍이 정확히 여기를 삼킨다 ──
+  -- 이 두 줄이 daily 탭에서 사라지면 경계 계산이 `Z`로 만들어진 것이다.
+  ('{"ko":"부지런한","en":"Diligent","ja":"勤勉な"}'::jsonb,
+   '{"ko":"국밥","en":"Gookbap","ja":"クッパ"}'::jsonb,
+   '0001', 0, 1900, seed_kst_start_of_day(0) + interval '30 minutes'),
+  ('{"ko":"새벽의","en":"Dawn","ja":"夜明けの"}'::jsonb,
+   '{"ko":"한그릇","en":"One Bowl","ja":"一杯"}'::jsonb,
+   '0002', 0, 1850, seed_kst_start_of_day(0) + interval '8 hours'),
+
+  -- ── 동점 + joined_time 차이. 이른 쪽(#0010)이 위여야 한다 ──
+  ('{"ko":"성실한","en":"Steady","ja":"誠実な"}'::jsonb,
+   '{"ko":"수육","en":"Boiled Pork","ja":"ゆで豚"}'::jsonb,
+   '0010', 0, 1500, seed_kst_start_of_day(0) + interval '3 hours'),
+  ('{"ko":"성실한","en":"Steady","ja":"誠実な"}'::jsonb,
+   '{"ko":"수육","en":"Boiled Pork","ja":"ゆで豚"}'::jsonb,
+   '0011', 0, 1500, seed_kst_start_of_day(0) + interval '7 hours'),
+
+  -- ── 번호가 null인 행 2건. **합쳐지지 않아야 한다** ──
+  -- 단어 조합까지 같으므로, 번호를 빈 문자열로 취급하는 구현에서는 한 줄로 뭉친다.
+  ('{"ko":"무명의","en":"Nameless","ja":"無名の"}'::jsonb,
+   '{"ko":"손님","en":"Guest","ja":"お客"}'::jsonb,
+   null, 0, 1400, seed_kst_start_of_day(0) + interval '4 hours'),
+  ('{"ko":"무명의","en":"Nameless","ja":"無名の"}'::jsonb,
+   '{"ko":"손님","en":"Guest","ja":"お客"}'::jsonb,
+   null, 0, 1300, seed_kst_start_of_day(0) + interval '5 hours'),
+
+  -- ── 번역이 한국어만 있는 프리셋. `formatNickname`이 통째로 한국어로 떨어지는 경로다 ──
+  -- **그래도 ko/en의 그룹 수는 같아야 한다**(키가 로케일과 무관하므로).
+  -- 두 사람 모두 en 번역이 없어서, 표시 문자열을 키로 쓰면 이 둘이 합쳐질 수 있다.
+  ('{"ko":"수줍은"}'::jsonb, '{"ko":"깍두기"}'::jsonb,
+   '0020', 0, 1700, seed_kst_start_of_day(0) + interval '2 hours'),
+  ('{"ko":"수줍은"}'::jsonb, '{"ko":"깍두기"}'::jsonb,
+   '0021', 0, 1600, seed_kst_start_of_day(0) + interval '6 hours'),
+
+  -- ── 기간 경계에 걸친 행 ──
+  -- 어제(daily에는 없고 weekly에는 있다 — 단, 오늘이 월요일이면 weekly에서도 빠진다)
+  ('{"ko":"어제의","en":"Yesterday","ja":"昨日の"}'::jsonb,
+   '{"ko":"국밥","en":"Gookbap","ja":"クッパ"}'::jsonb,
+   '0030', 0, 1990, seed_kst_start_of_day(-1) + interval '12 hours'),
+  -- 이번 달 1일 KST 00:30 (monthly 경계 + 9시간 구멍 조합)
+  ('{"ko":"월초의","en":"Month Start","ja":"月初の"}'::jsonb,
+   '{"ko":"솥밥","en":"Pot Rice","ja":"釜飯"}'::jsonb,
+   '0040', 0, 1980,
+   ((date_trunc('month', (now() at time zone 'Asia/Seoul')::date::timestamp))::timestamp
+    at time zone 'Asia/Seoul') + interval '30 minutes'),
+  -- 지난달 (monthly에는 없고 total에만 있다)
+  ('{"ko":"지난달의","en":"Last Month","ja":"先月の"}'::jsonb,
+   '{"ko":"뚝배기","en":"Earthen Pot","ja":"トゥッペギ"}'::jsonb,
+   '0050', 0, 1995, seed_kst_start_of_day(0) - interval '45 days'),
+  -- 작년 (total에만 있다). 최고점이라 total 1위여야 한다.
+  ('{"ko":"작년의","en":"Last Year","ja":"昨年の"}'::jsonb,
+   '{"ko":"한그릇","en":"One Bowl","ja":"一杯"}'::jsonb,
+   '0060', 0, 1999, seed_kst_start_of_day(0) - interval '400 days');
