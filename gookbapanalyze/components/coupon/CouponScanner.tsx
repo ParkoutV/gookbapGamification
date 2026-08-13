@@ -38,6 +38,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
   // Video Fit state
   const [videoFit, setVideoFit] = useState<'width' | 'height' | 'fill'>('width')
   const [isFlipped, setIsFlipped] = useState(false)
+  const [useMultilingual, setUseMultilingual] = useState(true)
   
   // Track the shutdown promise to prevent race conditions when switching cameras rapidly
   const stopPromiseRef = useRef<Promise<void> | null>(null)
@@ -55,12 +56,19 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
       
     const storedCameraId = localStorage.getItem('coupon_selectedCameraId')
     if (storedCameraId) setSelectedCameraId(storedCameraId)
+      
+    const storedUseMultilingual = localStorage.getItem('coupon_useMultilingual')
+    if (storedUseMultilingual !== null) setUseMultilingual(storedUseMultilingual === 'true')
   }, [])
   
   // Save settings to local storage when they change
   useEffect(() => {
     localStorage.setItem('coupon_keepScreenOn', String(keepScreenOn))
   }, [keepScreenOn])
+  
+  useEffect(() => {
+    localStorage.setItem('coupon_useMultilingual', String(useMultilingual))
+  }, [useMultilingual])
   
   useEffect(() => {
     localStorage.setItem('coupon_isFlipped', String(isFlipped))
@@ -310,7 +318,8 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
     setScannedData({ couponId, langCode })
     setToastStatus('loading')
 
-    const currentLangSetting = languages.find(l => l.lang_code === langCode) || languages.find(l => l.lang_code === 'ko')
+    const displayLang = useMultilingual ? langCode : 'ko'
+    const currentLangSetting = languages.find(l => l.lang_code === displayLang) || languages.find(l => l.lang_code === 'ko')
     const texts: any = currentLangSetting?.coupon_use_text || {}
     
 
@@ -471,7 +480,7 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
   }
 
   // Find texts for target lang
-  const targetLang = scannedData?.langCode || 'ko'
+  const targetLang = (useMultilingual && scannedData?.langCode) ? scannedData.langCode : 'ko'
   const langConfig = languages.find(l => l.lang_code === targetLang)?.coupon_use_text || 
     { use_coupon_question: '{{user_nickname}}님의 {{coupon_effects}}을(를) 사용하시겠습니까?', yes: '예', no: '아니오', used_successfully: '쿠폰이 사용되었습니다.' }
   
@@ -595,6 +604,8 @@ export default function CouponScanner({ isAdmin }: CouponScannerProps) {
           onVideoFitChange={setVideoFit}
           isFlipped={isFlipped}
           onIsFlippedChange={setIsFlipped}
+          useMultilingual={useMultilingual}
+          onUseMultilingualChange={setUseMultilingual}
           onClose={() => { setIsSettingsOpen(false); fetchLanguages(); }} 
         />
       )}
