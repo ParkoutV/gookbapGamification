@@ -51,23 +51,31 @@ test(".game-cue-window height가 .game-cue font-size 상한과 일치한다", ()
 test("변형들이 같은 font-size 상한을 쓴다", () => {
   const base = px(".game-cue", "font-size");
   assert.equal(px(".game-cue--wide", "font-size"), base, "--wide 상한이 기본과 다르다");
-  assert.equal(px(".game-cue--long", "font-size"), base, "--long 상한이 기본과 다르다");
+  assert.equal(px(".game-cue--two-line", "font-size"), base, "--two-line 상한이 기본과 다르다");
 });
 
 /*
  * 계수는 라벨 폭의 역수다 — **넓은 라벨일수록 작아야** 한다. 순서가 뒤집히면 좁은
- * 화면에서 긴 라벨이 창을 넘는다(그때 `overflow: hidden`이 잘라내므로 조용히 깨진다).
+ * 화면에서 긴 라벨이 창을 넘는다.
  *
  * 실측 근거(Galmuri11, 기울임 tan8° 포함):
- *   START 3.391em → 28cqw / CLEAR! 3.721em → 25.5cqw / GAME OVER 6.061em → 15.5cqw
+ *   START 3.391em → 28cqw / CLEAR! 3.721em → 25.5cqw
+ *   GAME(2.83em) + 어긋남 1em → 3.97em → 25cqw
  */
-test("계수가 라벨 폭 순서를 따른다 — 기본 > wide > long", () => {
-  assert.ok(
-    cqw(".game-cue") > cqw(".game-cue--wide"),
-    "기본(START) 계수가 --wide(CLEAR!)보다 크지 않다",
-  );
-  assert.ok(
-    cqw(".game-cue--wide") > cqw(".game-cue--long"),
-    "--wide(CLEAR!) 계수가 --long(GAME OVER)보다 크지 않다",
-  );
+test("계수가 라벨 폭 순서를 따른다 — 기본이 가장 크다", () => {
+  const base = cqw(".game-cue");
+  assert.ok(base > cqw(".game-cue--wide"), "기본(START) 계수가 --wide(CLEAR!)보다 크지 않다");
+  assert.ok(base > cqw(".game-cue--two-line"), "기본 계수가 --two-line보다 크지 않다");
+});
+
+/*
+ * 두 줄 창의 높이는 한 줄 창보다 커야 하되 **두 배보다는 작아야** 한다 — 두 줄이
+ * `margin-top`으로 맞물려 겹치기 때문이다. 두 배 이상이면 위아래 여백이 뜨고,
+ * 한 줄 높이 이하면 둘째 줄이 잘린다.
+ */
+test("두 줄 창 높이가 한 줄과 두 줄 사이에 있다", () => {
+  const one = px(".game-cue-window", "height");
+  const two = px(".game-cue-window--two-line", "height");
+  assert.ok(two > one, `두 줄 창(${two}px)이 한 줄(${one}px)보다 높지 않다`);
+  assert.ok(two < one * 2, `두 줄 창(${two}px)이 한 줄의 2배(${one * 2}px) 이상이다 — 겹침이 반영되지 않았다`);
 });

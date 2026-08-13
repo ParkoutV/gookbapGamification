@@ -847,6 +847,19 @@ body {
   justify-content: center;
 }
 
+/* 두 줄짜리 창(GAME / OVER). 한 줄로는 GAME OVER가 9자라 폭 제약에 걸려 53px까지만
+   커지는데, 그러면 CLEAR!(84px) 옆에서 눈에 띄게 작다 — 창을 92% 채우므로 계수
+   문제가 아니라 한 줄의 물리적 한계다(2026-08-13, 이란토 제보).
+
+   높이는 84px * 2(168px)가 아니라 160px이다. 두 줄이 `margin-top: -0.12em`으로
+   맞물려 겹치는 만큼 빼둔 값이며(84px 기준 약 10px), 아래 `--stack`의 겹침을 바꾸면
+   여기도 같이 조정해야 한다. 실측으로 내용이 158px이라 여유 2px을 뒀다 — 150px로
+   잡았다가 8px 넘쳤다. 창이 내용보다 작으면 잘리고 크면 위아래 여백이 뜬다. */
+.game-cue-window--two-line {
+  height: 160px;
+  flex-direction: column;
+}
+
 .game-cue {
   display: inline-block;
   /* **크기는 여기서 정한다. JS로 실측하지 않는다**(2026-08-13).
@@ -917,8 +930,43 @@ body {
 .game-cue--wide {
   font-size: min(84px, 25.5cqw); /* CLEAR! (3.721em) */
 }
-.game-cue--long {
-  font-size: min(84px, 15.5cqw); /* GAME OVER (6.061em) */
+
+/* 두 줄로 쌓인 GAME / OVER. 줄마다 좌우로 어긋나 있어(`--stack`) 그 몫까지
+   폭에 들어간다: GAME 2.83em + 기울임 0.14 + 어긋남 1.0 = 3.97em → 계수 25.2.
+   여유를 둬 25로 잡았다. `--wide`(CLEAR!)와 거의 같은 값인 것은 우연이 아니다 —
+   4자 + 어긋남이 6자짜리 CLEAR!와 비슷한 폭을 차지한다.
+
+   **`--stack`의 어긋남을 바꾸면 이 계수도 다시 잡을 것.** margin이 폭을 먹는다. */
+.game-cue--two-line {
+  font-size: min(84px, 25cqw);
+}
+
+/* 두 줄을 좌우로 어긋내고 위아래로 맞물린다(2026-08-13, 이란토).
+   어긋남 방향은 기울임(skewX -8deg)과 **같은 왼→오**다 — 반대로 하면 기울기와
+   싸우는 모양이 된다(실물로 비교했다).
+
+   `margin-top: -0.12em`으로 두 줄을 겹치게 붙인다. 떨어뜨려 두면 두 덩어리로
+   읽히는데, 맞물리면 한 덩어리로 보인다. 이 값을 바꾸면 창 높이
+   (`.game-cue-window--two-line`)도 같이 조정해야 한다. */
+/* **줄 쌓기는 자식을 `block`으로 만들어서 한다 — 부모에 `display: flex`를 걸지 말 것.**
+   `.game-cue`가 이미 `display: inline-block`이라, 뒤에서 같은 속성을 다시 선언하면
+   Lightning CSS(Tailwind v4의 번들러)가 중복으로 보고 **규칙째로 지운다** — 소스에는
+   있는데 빌드된 CSS에는 없고, 브라우저는 `display: block`인 채로 두 줄을 나란히
+   늘어놓는다(2026-08-13에 실제로 겪었다: `OVER`가 패널 밖으로 나갔다).
+   자식이 block이면 부모가 inline-block이어도 줄이 나뉘므로 flex가 필요 없다.
+
+   각 줄의 폭이 달라(GAME 2.83em / OVER 2.67em) `text-align: center`로 가운데를 맞추고,
+   좌우 어긋남은 margin이 만든다. */
+.game-cue--stack > span {
+  display: block;
+  text-align: center;
+}
+.game-cue--stack > span:first-child {
+  margin-right: 1em;
+}
+.game-cue--stack > span:last-child {
+  margin-left: 1em;
+  margin-top: -0.12em;
 }
 
 /* 카운트다운(3-2-1-START): 통째로 확대되며 등장. 한 칸당 한 번만 돈다. */
