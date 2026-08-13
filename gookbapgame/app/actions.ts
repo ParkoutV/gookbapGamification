@@ -789,6 +789,41 @@ export type RankingFetchResult = {
  *
  * 기간 탭도 같은 정렬을 붙인다 — 손님이 몰린 하루가 상한을 넘길 수 있다.
  */
+/**
+ * 내 최고 점수. 기록이 없거나 조회에 실패하면 null이다.
+ *
+ * **순위는 함께 돌려주지 않는다**(2026-08-13, 이란토). `ranking_view`에 `participant_id`가
+ * 없어서 랭킹 목록에서 내 줄을 확실히 특정할 수 없다 — 닉네임으로 맞춰볼 수는 있지만,
+ * 두 단어 중 하나만 번역된 프리셋이 통째로 한국어로 폴백하는 규칙 때문에 **서로 다른
+ * 사람이 같은 문자열이 될 수 있다**(`rankingRows.ts`의 그룹 키 주석과 같은 사정이다).
+ * 틀린 줄을 "내 기록"으로 강조하는 쪽이 아무것도 안 하는 것보다 나쁘다.
+ *
+ * `game_score_logs`는 직접 SELECT가 막혀 있어 RPC를 써야 한다(analyze/AGENTS.md).
+ * 이 RPC는 **내 기록만** 돌려주므로 `participant_id`가 밖으로 새지 않는다.
+ *
+ * 여기서는 `best_score`가 아니라 `gookbap_score`를 본다 — 랭킹과 **같은 컬럼이어야**
+ * "내 점수"와 목록의 점수가 같은 척도가 된다(`rankingRows.ts`의 컬럼 주석 참고).
+ */
+export async function fetchMyBestScore(): Promise<number | null> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { data, error } = await supabase.rpc("get_my_score_logs", { p_id: participantId });
+    if (error) {
+      console.error("[fetchMyBestScore] get_my_score_logs 실패:", error);
+      return null;
+    }
+
+    const scores = ((data ?? []) as { gookbap_score: number | null }[])
+      .map((row) => row.gookbap_score)
+      .filter((score): score is number => typeof score === "number");
+
+    return scores.length === 0 ? null : Math.max(...scores);
+  } catch (error) {
+    console.error("[fetchMyBestScore] 예기치 못한 예외:", error);
+    return null;
+  }
+}
+
 export async function fetchRanking(period: RankingPeriod): Promise<RankingFetchResult> {
   try {
     let query = supabase

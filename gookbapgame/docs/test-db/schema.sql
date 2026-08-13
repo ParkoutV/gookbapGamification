@@ -291,3 +291,45 @@ create or replace view ranking_view as
 -- 그 절은 이 뷰보다 앞에 있어서 "relation does not exist"로 죽는다(같은 파일의
 -- survey_questions GRANT 주석과 같은 함정이다).
 grant select on public.ranking_view to anon;
+
+-- ============================================================
+-- 11. game_score_logs + get_my_score_logs 스텁
+-- ============================================================
+--
+-- **반환 컬럼 모양만 맞춘 스텁이다**(`get_my_coupons`·`ranking_view`와 같은 방침).
+-- 프로덕션 RPC 본문은 볼 수 없다.
+--
+-- 왜 필요한가: 랭킹 화면의 "내 최고점"이 이 RPC로 온다(`fetchMyBestScore`). 없으면
+-- 그 줄이 조용히 사라지고 — 기록 없음·조회 실패를 둘 다 "안 띄운다"로 처리하기
+-- 때문에 — 로컬에서 **구현이 맞는지 확인할 방법이 없다.**
+--
+-- `submitGameScore`가 이 테이블에 직접 insert하므로(anon INSERT 허용) 게임을 한 판
+-- 돌리면 행이 쌓인다. 즉 시드로 미리 넣지 않아도 실기 확인이 가능하다.
+create table if not exists game_score_logs (
+  log_id uuid primary key default gen_random_uuid(),
+  participant_id uuid not null,
+  best_score int not null default 0,
+  gookbap_score int not null default 0,
+  joined_time timestamptz not null default now()
+);
+
+create or replace function get_my_score_logs(p_id uuid)
+returns table (
+  log_id uuid,
+  participant_id uuid,
+  best_score int,
+  gookbap_score int,
+  joined_time timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select g.log_id, g.participant_id, g.best_score, g.gookbap_score, g.joined_time
+  from game_score_logs g
+  where g.participant_id = p_id
+  order by g.joined_time desc;
+$$;
+
+grant insert on public.game_score_logs to anon;
+grant execute on function get_my_score_logs(uuid) to anon;

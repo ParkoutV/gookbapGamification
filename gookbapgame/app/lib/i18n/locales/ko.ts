@@ -23,6 +23,13 @@ export const ko: Dictionary = {
   "ranking.tab.weekly": "이번 주",
   "ranking.tab.monthly": "이번 달",
   "ranking.tab.total": "전체",
+  /* 내 최고점. **순위는 붙이지 않는다** — ranking_view에 participant_id가 없어서
+     목록에서 내 줄을 확실히 특정할 수 없다(2026-08-13, 이란토). */
+  "ranking.myBestScore": "내 최고점 {score}",
+  // 페이지네이션. 한 페이지 10위, 최대 20위까지.
+  "ranking.pageIndicator": "{current} / {total}",
+  "ranking.prevPageAria": "이전 페이지",
+  "ranking.nextPageAria": "다음 페이지",
   "ranking.rankHeader": "순위",
   "ranking.nicknameHeader": "닉네임",
   "ranking.scoreHeader": "점수",

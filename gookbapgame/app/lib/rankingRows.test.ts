@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toRankingList, type RankingViewRow } from "./rankingRows.ts";
+import {
+  toRankingList,
+  rankingPageCount,
+  rankingPageSlice,
+  type RankingViewRow,
+} from "./rankingRows.ts";
 import { formatNickname } from "./nicknameParts.ts";
 
 const row = (
@@ -210,4 +215,41 @@ test("로케일이 그룹핑에 영향을 주지 않는다 — ko/en에서 그�
       ["0021", 1600],
     ]
   );
+});
+
+// ── 페이지네이션 ──
+
+test("rankingPageCount: 항목이 없어도 1이다 — '1 / 0 페이지'가 되면 안 된다", () => {
+  assert.equal(rankingPageCount(0), 1);
+});
+
+test("rankingPageCount: 경계에서 페이지가 늘지 않는다", () => {
+  assert.equal(rankingPageCount(10), 1, "딱 한 페이지 분량");
+  assert.equal(rankingPageCount(11), 2);
+  assert.equal(rankingPageCount(20), 2, "표시 상한이 20이므로 최대 2페이지다");
+});
+
+test("rankingPageSlice: 페이지별로 10건씩 자른다", () => {
+  const entries = Array.from({ length: 15 }, (_, i) =>
+    row(["가", "나"], String(1000 + i), 100 - i, `2026-08-13T0${i % 10}:00:00Z`)
+  );
+  const list = toRankingList(entries);
+  assert.equal(list.entries.length, 15);
+
+  assert.equal(rankingPageSlice(list.entries, 0).length, 10);
+  assert.equal(rankingPageSlice(list.entries, 1).length, 5);
+});
+
+/*
+ * 범위 보정이 없으면 2페이지를 보다 항목이 적은 탭으로 갈아탈 때 빈 화면이 나온다.
+ * 호출부가 탭 전환 시 page를 0으로 되돌려도, 응답이 늦게 오는 사이에 같은 상황이 생긴다.
+ */
+test("rankingPageSlice: 범위를 벗어난 page는 빈 배열이 아니라 가장 가까운 페이지다", () => {
+  const entries = Array.from({ length: 3 }, (_, i) =>
+    row(["가", "나"], String(2000 + i), 100 - i, `2026-08-13T0${i}:00:00Z`)
+  );
+  const list = toRankingList(entries);
+
+  assert.equal(rankingPageSlice(list.entries, 5).length, 3, "너무 큰 page → 마지막 페이지");
+  assert.equal(rankingPageSlice(list.entries, -1).length, 3, "음수 page → 첫 페이지");
 });

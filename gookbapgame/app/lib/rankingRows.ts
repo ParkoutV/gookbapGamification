@@ -43,6 +43,37 @@ export type RankingEntry = {
 /** 화면에 보여줄 최대 순위. 넘긴 것이 있으면 화면이 그 사실을 알린다(조용히 자르지 않는다). */
 export const RANKING_DISPLAY_LIMIT = 20;
 
+/** 한 페이지에 보여줄 순위 수. 20위까지를 두 페이지로 나눈다(2026-08-13, 이란토). */
+export const RANKING_PAGE_SIZE = 10;
+
+/**
+ * 페이지 수. 항목이 없으면 1이다 — 0을 돌려주면 "1 / 0 페이지"가 되고, 빈 목록에서도
+ * 페이지 표시가 성립해야 한다.
+ */
+export function rankingPageCount(
+  entryCount: number,
+  pageSize: number = RANKING_PAGE_SIZE
+): number {
+  return Math.max(1, Math.ceil(entryCount / pageSize));
+}
+
+/**
+ * `page`(0부터)에 해당하는 구간. **범위를 벗어난 page는 가장 가까운 유효 페이지로 당긴다.**
+ *
+ * 이 보정이 필요한 이유: 2페이지를 보다가 탭을 갈아타면 그 탭의 항목이 10건 이하일 수
+ * 있는데, 그때 `page`를 그대로 쓰면 빈 화면이 나온다. 호출부에서 탭 전환 시 페이지를
+ * 0으로 되돌리더라도, 응답이 늦게 오는 사이에 같은 상황이 생긴다.
+ */
+export function rankingPageSlice(
+  entries: RankingEntry[],
+  page: number,
+  pageSize: number = RANKING_PAGE_SIZE
+): RankingEntry[] {
+  const lastPage = rankingPageCount(entries.length, pageSize) - 1;
+  const safePage = Math.min(Math.max(0, page), lastPage);
+  return entries.slice(safePage * pageSize, safePage * pageSize + pageSize);
+}
+
 /** 한국어 값만 뽑는다. **로케일과 무관한 키**를 만드는 데만 쓴다(아래 주석 참고). */
 function koText(name: LocalizedName | null): string {
   const value = name?.ko;
