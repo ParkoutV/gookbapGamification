@@ -81,6 +81,8 @@ export default function MyCouponsScreen({
               coupon={openCoupon}
               flipped
               canFlip={false}
+              /* canFlip=false면 GatchaCard가 클릭 핸들러를 아예 배선하지 않으므로
+                 이 콜백은 불리지 않는다. prop이 필수라 자리만 채운다. */
               onFlip={() => {}}
               faceRef={faceRef}
               dateLines={dateLines}

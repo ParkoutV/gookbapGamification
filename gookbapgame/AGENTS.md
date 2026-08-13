@@ -300,6 +300,13 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   `<img src="/icons/card-back.webp">`이고 훅 인스턴스는 화면에 **하나**만 두고
   열린 쿠폰(`openCouponId`)에 물린다. 칸마다 저장 버튼을 두려면 칸을 별도 컴포넌트로
   떼야 한다.
+  - **그래서 훅이 쿠폰을 갈아끼운다 — `WheelScreen`에는 없던 경로다**(저쪽은 마운트당
+    draw 결과가 하나다). 미리 굽기 이펙트가 **시작할 때 `imageBlobRef`를 비우는 이유가
+    이것이다**: A를 열고 목록으로 돌아가 B를 연 뒤 B의 굽기가 끝나기 전에 저장을 누르면,
+    비우지 않으면 A의 이미지가 `coupon-B.png`로 나간다 — **다른 쿠폰의 QR과 도장이 찍힌
+    파일**이다. `cancelled` 플래그는 늦은 결과가 덮어쓰는 것만 막고 옛 blob은 남긴다.
+    비워두면 그 탭은 폴백 경로로 떨어져 다시 굽는다(iOS 공유 시트를 한 번 놓칠 수 있지만
+    엉뚱한 쿠폰을 저장하는 쪽이 비교할 수 없이 나쁘다).
   - 격자 칸에 `.gatcha-card`를 쓰지 말 것 — 뒤집기용 perspective·3D·트랜지션을 들고
     있고 격자에 필요한 것은 `aspect-ratio: 1000/1371`뿐이다.
 - **카드는 `flipped={true}`로 마운트한다.** 앨범은 이미 아는 결과를 다시 보는 자리라
