@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { MapPin, Plus, MoreVertical, Edit2, Link as LinkIcon, QrCode, X } from 'lucide-react'
 import { getTracksGrouped, getSupportedLanguages, createTrack, updateTrack, TrackGroup, SupportedLanguage } from './actions'
 import { QRCodeCanvas } from 'qrcode.react'
+import TranslationButton from '@/components/TranslationButton'
 
 export default function TracksListPage() {
   const [tracks, setTracks] = useState<TrackGroup[]>([])
@@ -306,12 +307,29 @@ export default function TracksListPage() {
                   각 언어별 지점 이름을 입력해주세요.
                 </p>
               </div>
-              <button 
-                onClick={() => { setIsCreateModalOpen(false); setEditingTrack(null) }}
-                className="text-gray-400 hover:text-gray-500 dark:hover:text-zinc-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3 relative">
+                <TranslationButton
+                  sourceTexts={{ text: formData['ko'] || '' }}
+                  targetLanguages={languages.map(l => l.lang_code).filter(c => c !== 'ko' && !formData[c])}
+                  onTranslationComplete={(results) => {
+                    setFormData(prev => {
+                      const next = { ...prev }
+                      for (const [lang, translations] of Object.entries(results)) {
+                        if (translations.text && !next[lang]) {
+                          next[lang] = translations.text
+                        }
+                      }
+                      return next
+                    })
+                  }}
+                />
+                <button 
+                  onClick={() => { setIsCreateModalOpen(false); setEditingTrack(null) }}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-zinc-300"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <form onSubmit={handleSubmit} className="p-6">

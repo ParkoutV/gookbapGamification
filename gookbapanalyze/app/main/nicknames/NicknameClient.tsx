@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Plus, Trash2, Save, X } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
+import TranslationButton from '@/components/TranslationButton'
 
 interface Language {
   lang_code: string
@@ -310,7 +311,7 @@ export default function NicknameClient({
                   />
                 </td>
                 {initialLanguages.map((lang, colIndex) => (
-                  <td key={lang.lang_code} className="px-4 py-2">
+                  <td key={lang.lang_code} className="px-4 py-2 relative group">
                     <input
                       ref={el => { inputRefs.current[`${type}-${rowIndex}-${colIndex}`] = el }}
                       type="text"
@@ -320,6 +321,24 @@ export default function NicknameClient({
                       placeholder={lang.lang_code === 'ko' ? (type === 'first_word' ? '예: 든든한' : '예: 국밥') : ''}
                       className="w-full bg-transparent border-none p-2 focus:ring-2 focus:ring-blue-500 rounded outline-none dark:text-white"
                     />
+                    {lang.lang_code === 'ko' && (
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <TranslationButton
+                          compact
+                          sourceTexts={{ text: preset.text['ko'] || '' }}
+                          targetLanguages={initialLanguages
+                            .map(l => l.lang_code)
+                            .filter(c => c !== 'ko' && !preset.text[c])}
+                          onTranslationComplete={(results) => {
+                            let updatedText = { ...preset.text }
+                            for (const [resLang, resObj] of Object.entries(results)) {
+                              if (resObj.text) updatedText[resLang] = resObj.text
+                            }
+                            setPresets(prev => prev.map(p => p.id === preset.id ? { ...p, text: updatedText } : p))
+                          }}
+                        />
+                      </div>
+                    )}
                   </td>
                 ))}
                 <td className="px-4 py-2 text-center">

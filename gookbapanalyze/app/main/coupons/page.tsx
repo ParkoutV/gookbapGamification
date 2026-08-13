@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { createClient } from '@/utils/supabase/client'
 import { SupportedLanguage } from '../tracks/actions'
+import TranslationButton from '@/components/TranslationButton'
 
 interface GatchaSetting {
   id: number
@@ -1122,9 +1123,27 @@ export default function CouponsPage() {
                 <Globe className="w-5 h-5 mr-2 text-blue-500" />
                 다국어 텍스트 편집
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-500">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3 relative">
+                <TranslationButton
+                  sourceTexts={{ name: modalNameData['ko'] || '', desc: modalDescData['ko'] || '' }}
+                  targetLanguages={activeLanguages
+                    .map(l => l.lang_code)
+                    .filter(c => c !== 'ko' && (!modalNameData[c] || !modalDescData[c]))}
+                  onTranslationComplete={(results) => {
+                    const newNames = { ...modalNameData }
+                    const newDescs = { ...modalDescData }
+                    for (const [lang, translations] of Object.entries(results)) {
+                      if (translations.name && !newNames[lang]) newNames[lang] = translations.name
+                      if (translations.desc && !newDescs[lang]) newDescs[lang] = translations.desc
+                    }
+                    setModalNameData(newNames)
+                    setModalDescData(newDescs)
+                  }}
+                />
+                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div className="p-5 overflow-y-auto max-h-[60vh] space-y-4">
@@ -1205,9 +1224,24 @@ export default function CouponsPage() {
                 <Globe className="w-5 h-5 mr-2 text-blue-500" />
                 구간명 다국어 편집
               </h3>
-              <button onClick={() => setIsCaseModalOpen(false)} className="text-gray-400 hover:text-gray-500">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3 relative">
+                <TranslationButton
+                  sourceTexts={{ name: caseModalNameData['ko'] || '' }}
+                  targetLanguages={activeLanguages
+                    .map(l => l.lang_code)
+                    .filter(c => c !== 'ko' && !caseModalNameData[c])}
+                  onTranslationComplete={(results) => {
+                    const newNames = { ...caseModalNameData }
+                    for (const [lang, translations] of Object.entries(results)) {
+                      if (translations.name && !newNames[lang]) newNames[lang] = translations.name
+                    }
+                    setCaseModalNameData(newNames)
+                  }}
+                />
+                <button onClick={() => setIsCaseModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div className="p-5 overflow-y-auto max-h-[60vh] space-y-4">

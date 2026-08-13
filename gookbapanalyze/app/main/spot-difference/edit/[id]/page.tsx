@@ -13,6 +13,7 @@ import 'cropperjs/dist/cropper.css'
 import { Save, ArrowLeft, Plus, Minus, Image as ImageIcon, Trash2, X, Move, Maximize, Target, Upload, ChevronDown, ChevronUp, Edit } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
+import TranslationButton from '@/components/TranslationButton'
 
 const ZoomControls = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) => {
   const { zoomIn, zoomOut, setTransform } = useControls()
@@ -757,6 +758,23 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           <div className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">이름 수정</h3>
+              <div className="flex items-center gap-3 relative">
+                <TranslationButton
+                  sourceTexts={{ text: nameModalData['ko'] || '' }}
+                  targetLanguages={supportedLanguages.map(l => l.lang_code).filter(c => c !== 'ko' && !nameModalData[c])}
+                  onTranslationComplete={(results) => {
+                    setNameModalData(prev => {
+                      const next = { ...prev }
+                      for (const [lang, translations] of Object.entries(results)) {
+                        if (translations.text && !next[lang]) {
+                          next[lang] = translations.text
+                        }
+                      }
+                      return next
+                    })
+                  }}
+                />
+              </div>
             </div>
             <div className="p-4 bg-gray-50 dark:bg-zinc-950 space-y-4">
               {supportedLanguages.map(lang => (

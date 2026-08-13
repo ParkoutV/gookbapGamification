@@ -423,9 +423,9 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
      ```
 
 4. **선택 질문 노출 기록 처리 (`optional_survey_records`)**
-   - 클라이언트에서 선택 질문이 포함된 화면을 띄웠을 때, 해당 질문들이 이후 다시 나타나지 않도록 기록합니다.
-   - ✅ `supabase.rpc('record_optional_survey_shown', { p_participant_id: id, p_question_ids: ['uuid-1', 'uuid-2'] })`
-   - **반환 예시:** 반환값 없음 (void)
+   - ⚠️ **(자동 처리로 변경됨)** 이제 프론트엔드에서 명시적으로 기록 함수를 호출할 필요가 없습니다.
+   - `check_pending_survey` RPC 함수 내부에서, `survey_settings.optional_survey_once` 값이 `true`일 경우 조회되는 목록 내의 선택형 질문들을 식별하여 **자동으로 백그라운드 기록**합니다.
+   - 단, 프론트엔드가 설문 목록을 조회(Prefetch 포함)하는 즉시 노출된 것으로 간주되므로 유의해야 합니다.
 
 5. **내 웹 쿠폰 목록 조회 (`web_coupons`)**
    - ❌ `supabase.from('web_coupons').select('*').eq('participant_id', id)`
@@ -777,3 +777,12 @@ await supabase.rpc('update_track_log_action', {
 localStorage.setItem('track_last_active', now.toString());
 ```
 
+
+# Troubleshooting & Known Issues
+## 404 Error During 
+pm run dev (Turbopack)
+Next.js 16 (Turbopack) 환경에서 
+pm run dev로 구동 중일 때, 정상적으로 존재하는 페이지(예: /main/surveys)에 접근 시 404 Not Found 에러가 지속적으로 발생하는 경우가 있습니다.
+이 현상은 주로 **라우트 트리를 공유하는 인접한 컴포넌트나 레이아웃에 치명적인 문법 오류(예: 변수 다중 선언, Duplicate Import 등)**가 발생했을 때 나타납니다.
+Turbopack은 앱 디렉터리를 병렬로 컴파일하는 과정에서 특정 컴포넌트의 문법 오류로 인해 모듈 그래프 파싱에 실패하면, 라우트 탐색(Route Discovery) 자체에 실패하여 존재하는 라우트임에도 404 에러를 반환할 수 있습니다.
+- **해결책:** 404 에러가 발생하는 원인이 다른 컴포넌트의 문법 오류 때문인지 먼저 확인하고 오류를 수정해야 합니다 (예: 중복 Import 수정). 문제가 해결되지 않는 경우, .next 디렉터리를 삭제 후 개발 서버를 재시작하세요.

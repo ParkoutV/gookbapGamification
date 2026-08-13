@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { v4 as uuidv4 } from 'uuid'
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2, Save, Eye, EyeOff, Image as ImageIcon, X } from 'lucide-react'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
+import TranslationButton from '@/components/TranslationButton'
 
 interface Language {
   lang_code: string
@@ -439,13 +440,57 @@ export default function SurveyManager({
                           필수 응답
                         </label>
 
-                        <button 
-                          onClick={() => updateQuestion(q.question_id, { is_active: !q.is_active })}
-                          className={`p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors ${!q.is_active ? 'text-red-500' : ''}`}
-                          title={q.is_active ? '활성화됨 (클릭하여 숨김)' : '숨겨짐 (클릭하여 활성화)'}
-                        >
-                          {q.is_active ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                        </button>
+                        <div className="flex items-center gap-2 relative">
+                          <TranslationButton
+                            compact
+                            sourceTexts={{
+                              questionText: q.question_text?.['ko'] || '',
+                              ...((q.options || []).reduce((acc, opt, idx) => {
+                                if (q.question_type !== 2 || idx === 0) {
+                                  acc[`option_${idx}`] = opt['ko'] || ''
+                                }
+                                return acc
+                              }, {} as Record<string, string>))
+                            }}
+                            targetLanguages={activeLanguages
+                              .map(l => l.lang_code)
+                              .filter(c => c !== 'ko' && (
+                                !q.question_text?.[c] ||
+                                (q.question_type !== 2 ? (q.options || []).some(o => !o[c]) : !(q.options || [])[0]?.[c])
+                              ))
+                            }
+                            onTranslationComplete={(results) => {
+                              let newQText = { ...(q.question_text || {}) }
+                              let newOptions = [...(q.options || [])].map(o => ({ ...o }))
+                              
+                              for (const [lang, translations] of Object.entries(results)) {
+                                if (translations.questionText && !newQText[lang]) {
+                                  newQText[lang] = translations.questionText
+                                }
+                                if (q.question_type !== 2) {
+                                  newOptions.forEach((opt, idx) => {
+                                    if (translations[`option_${idx}`] && !opt[lang]) {
+                                      opt[lang] = translations[`option_${idx}`]
+                                    }
+                                  })
+                                } else {
+                                  if (translations['option_0']) {
+                                    if (!newOptions[0]) newOptions[0] = {}
+                                    if (!newOptions[0][lang]) newOptions[0][lang] = translations['option_0']
+                                  }
+                                }
+                              }
+                              updateQuestion(q.question_id, { question_text: newQText, options: newOptions })
+                            }}
+                          />
+                          <button 
+                            onClick={() => updateQuestion(q.question_id, { is_active: !q.is_active })}
+                            className={`p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors ${!q.is_active ? 'text-red-500' : ''}`}
+                            title={q.is_active ? '활성화됨 (클릭하여 숨김)' : '숨겨짐 (클릭하여 활성화)'}
+                          >
+                            {q.is_active ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

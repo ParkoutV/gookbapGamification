@@ -5,6 +5,7 @@ import { Ticket, Plus, Trash2, Save, Globe, X, Upload, FileSpreadsheet, RefreshC
 import { createClient } from '@/utils/supabase/client'
 import { SupportedLanguage } from '../tracks/actions'
 import * as XLSX from 'xlsx'
+import TranslationButton from '@/components/TranslationButton'
 
 interface WebCoupon {
   id: string
@@ -597,9 +598,27 @@ export default function WebCouponsPage() {
                 <Globe className="w-5 h-5 mr-2 text-blue-500" />
                 웹 쿠폰 기본 제목/설명 설정
               </h3>
-              <button onClick={() => setIsLangModalOpen(false)} className="text-gray-400 hover:text-gray-500">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3 relative">
+                <TranslationButton
+                  sourceTexts={{ name: modalNameData['ko'] || '', desc: modalDescData['ko'] || '' }}
+                  targetLanguages={activeLanguages
+                    .map(l => l.lang_code)
+                    .filter(c => c !== 'ko' && (!modalNameData[c] || !modalDescData[c]))}
+                  onTranslationComplete={(results) => {
+                    const newNames = { ...modalNameData }
+                    const newDescs = { ...modalDescData }
+                    for (const [lang, translations] of Object.entries(results)) {
+                      if (translations.name && !newNames[lang]) newNames[lang] = translations.name
+                      if (translations.desc && !newDescs[lang]) newDescs[lang] = translations.desc
+                    }
+                    setModalNameData(newNames)
+                    setModalDescData(newDescs)
+                  }}
+                />
+                <button onClick={() => setIsLangModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div className="p-5 overflow-y-auto max-h-[60vh] space-y-4">
