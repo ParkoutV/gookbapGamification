@@ -4,8 +4,6 @@ import { useEffect, useRef } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { gameEndLabel, GameEndReason } from "../lib/gameEnd";
-import { useFitText } from "../hooks/useFitText";
-import { GAME_CUE_MAX_PX } from "../lib/gameCue";
 import { playSfx, SFX } from "../lib/sfx";
 
 interface GameEndScreenProps {
@@ -44,7 +42,6 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
   const label = gameEndLabel(reason);
   const cleared = reason === "cleared";
   const letters = [...label];
-  const { containerRef, textRef, fontSize } = useFitText(label, GAME_CUE_MAX_PX);
 
   /*
    * 결과 멜로디. 마운트할 때 한 번만 낸다.
@@ -63,7 +60,7 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <PixelPanel size="card" className="max-w-sm w-full mx-4 text-center">
-        <div className="game-cue-window" ref={containerRef}>
+        <div className="game-cue-window">
           {cleared ? (
             /*
              * 글자를 쪼개면 스크린리더가 "C, L, E, A, R"처럼 낱자로 읽는다.
@@ -75,10 +72,10 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
               <span className="sr-only" aria-live="assertive">
                 {label}
               </span>
+              {/* CLEAR!는 START보다 넓어(3.721em vs 3.391em) --wide를 쓴다. */}
               <span
-                ref={textRef}
-                className="game-cue game-cue--letters"
-                style={{ fontFamily: "var(--font-pixel)", fontSize }}
+                className="game-cue game-cue--wide game-cue--letters"
+                style={{ fontFamily: "var(--font-pixel)" }}
                 aria-hidden="true"
               >
                 {letters.map((ch, i) => (
@@ -102,10 +99,11 @@ export default function GameEndScreen({ reason, onNext }: GameEndScreenProps) {
               </span>
             </>
           ) : (
+            /* GAME OVER는 9자라 기본 84px로는 창을 넘는다 — --long이 그 몫이다.
+               CLEAR!는 위 분기라 여기 오지 않는다(붙일 이유가 없다). */
             <span
-              ref={textRef}
-              className="game-cue game-cue--fade"
-              style={{ fontFamily: "var(--font-pixel)", fontSize }}
+              className="game-cue game-cue--fade game-cue--long"
+              style={{ fontFamily: "var(--font-pixel)" }}
               aria-live="assertive"
             >
               {label}

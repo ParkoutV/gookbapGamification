@@ -1,5 +1,3 @@
-import { INDICATOR_SLOT_CAP } from "./stageConfig.ts";
-
 /**
  * 남은 시간이 이 값 이하면 경고 표시로 바뀐다.
  *
@@ -10,32 +8,27 @@ import { INDICATOR_SLOT_CAP } from "./stageConfig.ts";
  */
 export const TIME_CRITICAL_SEC = 30;
 
-export type IndicatorCell = "filled" | "empty" | "hidden";
+export type IndicatorCell = "filled" | "empty";
 
 /**
- * 문항 인디케이터의 칸별 상태.
+ * 문항 인디케이터의 칸별 상태. **실제 문항 수만큼만** 돌려준다.
  *
- * 기본은 `cap`개를 그리고 문항 수를 넘는 칸을 `hidden`으로 둔다 — 칸 수를 실제로
- * 늘렸다 줄이면 단계마다 레이아웃 폭이 출렁이기 때문이다. 그래서 호출부는
- * `hidden`을 `display: none`이 아니라 `opacity: 0`으로 그려야 한다(자리는 유지).
+ * 예전에는 항상 9칸(`INDICATOR_SLOT_CAP`)을 그리고 문항 수를 넘는 칸을 `hidden`으로
+ * 둔 뒤 호출부가 `opacity: 0`으로 감췄다 — 단계마다 인디케이터 폭이 출렁이는 것을
+ * 막으려는 것이었다. 그런데 감춘 칸이 자리를 그대로 차지하는데 컨테이너가
+ * `flex-start`라, 5문항 단계에서는 **보이는 5칸이 왼쪽으로 쏠려** 가운데 정렬로
+ * 보이지 않았다(2026-08-13 실기 확인, 이란토). 주석은 "가운데 정렬"이라고 적혀
+ * 있었지만 `justify-content`가 없었다.
  *
- * **문항이 `cap`을 넘으면 잘라내지 않고 실제 개수만큼 돌려준다.** 이때만 폭이
- * 달라지는데, 조용히 잘려서 사용자가 원 개수를 목표로 삼았다가 "다 채웠는데
- * 안 끝나는" 상황이 되는 것보다 낫다.
+ * 폭 출렁임과 쏠림 중 후자가 실제로 눈에 걸렸으므로 감춘 칸을 없애고 가운데
+ * 정렬(`justify-center`)에 맡긴다. 단계가 넘어갈 때 인디케이터 폭이 달라지지만
+ * 중심이 고정이라 좌우로 균등하게 자란다.
  */
-export function resolveIndicatorCells(
-  total: number,
-  found: number,
-  cap: number = INDICATOR_SLOT_CAP
-): IndicatorCell[] {
-  const visible = Math.max(0, total);
-  const length = Math.max(cap, visible);
-  const filled = Math.min(Math.max(0, found), visible);
+export function resolveIndicatorCells(total: number, found: number): IndicatorCell[] {
+  const length = Math.max(0, total);
+  const filled = Math.min(Math.max(0, found), length);
 
-  return Array.from({ length }, (_, i) => {
-    if (i >= visible) return "hidden";
-    return i < filled ? "filled" : "empty";
-  });
+  return Array.from({ length }, (_, i) => (i < filled ? "filled" : "empty"));
 }
 
 /** 타이머 게이지 채움 비율(0~1). limitSec이 0 이하면 0. */

@@ -385,13 +385,18 @@ export default function GameScreen({
 
           {/* 문항 인디케이터. 세로 배치에서는 그림 위(order -1)에 가운데 정렬,
               가로 배치에서는 그림 아래 왼쪽 정렬로 돌아간다.
-              hidden 칸도 자리를 차지해야 하므로 display가 아니라 opacity로 감춘다.
+
+              **`justify-center`가 빠져 있어 실제로는 왼쪽 정렬이었다**(2026-08-13
+              실기 확인, 이란토). 당시엔 문항 수를 넘는 칸을 `opacity: 0`으로 감추면서
+              자리는 남겨뒀는데, 그 여백이 전부 오른쪽에 몰려 5문항 단계에서 마커가
+              왼쪽으로 쏠려 보였다. 여분 칸은 없앴고(`resolveIndicatorCells`) 정렬은
+              여기서 지정한다 — 주석이 말하던 동작을 코드가 따라온 것이다.
 
               오답 카운터와 같은 방식으로 마커 이미지를 그대로 쓴다(2026-08-10, 이란토) —
               한쪽만 원형 도트면 같은 줄에 놓인 두 지표가 다른 체계로 보인다.
-              찾은 칸은 불투명, 남은 칸은 opacity-20으로 흐리게 (오답 쪽과 동일). */}
+              찾은 칸은 불투명, 남은 칸은 opacity-35로 흐리게 (오답 쪽과 동일). */}
           <div
-            className="flex items-center gap-1 order-first md:order-none md:self-start"
+            className="flex items-center justify-center gap-1 order-first md:order-none md:justify-start md:self-start"
             role="img"
             aria-label={t("game.remainingCount", {
               found: totalDifferences - foundSlots.size,
@@ -407,9 +412,7 @@ export default function GameScreen({
                 /* 미발견 칸의 opacity는 배경 밝기에 종속된다. 어두운 테마 시절엔
                    0.2로도 윤곽이 보였지만, 밝은 데스크톱 배경에서는 마커의 흰 halo가
                    배경과 밝기가 비슷해 통째로 사라진다(2026-08-11). */
-                className={`w-5 h-5 ${
-                  cell === "hidden" ? "opacity-0" : cell === "filled" ? "opacity-100" : "opacity-35"
-                }`}
+                className={`w-5 h-5 ${cell === "filled" ? "opacity-100" : "opacity-35"}`}
               />
             ))}
           </div>

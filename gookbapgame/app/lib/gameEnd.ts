@@ -20,9 +20,10 @@ export type GameEndReason = "cleared" | "wrongTouchExhausted" | "timeout";
  * 언젠가 누가 번역해 넣는다. 같은 이유로 CountdownOverlay의 START도 함께
  * 하드코딩했다.
  *
- * 참고로 라벨이 길어져도 창 밖으로 넘치지는 않는다 — GameEndScreen이 실제
- * 렌더 폭을 재서 font-size를 줄인다(`useFitText`). 다만 그건 넘침 방지일 뿐
- * 번역 경로를 되살릴 근거는 아니다.
+ * **라벨을 바꾸면 크기를 다시 재야 한다.** 글자 크기는 CSS가 px으로 갖고 있고
+ * (`globals.css`의 `.game-cue` / `.game-cue--long`), 자동으로 맞춰주는 장치가
+ * 없다 — 실측 계산은 2026-08-13에 걷어냈다. `max-width: 100%`가 창을 뚫는 것만
+ * 막아줄 뿐이므로, 긴 라벨을 넣으면 잘린다.
  */
 export function gameEndLabel(reason: GameEndReason): string {
   return reason === "cleared" ? "CLEAR!" : "GAME OVER";

@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
-import { useFitText } from "../hooks/useFitText";
-import { GAME_CUE_MAX_PX } from "../lib/gameCue";
 import { playSfx, SFX } from "../lib/sfx";
 
 interface CountdownOverlayProps {
@@ -75,7 +73,6 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
    * 로고성 표시다.
    */
   const label = step >= LAST_STEP ? "START" : String(LAST_STEP - step);
-  const { containerRef, textRef, fontSize } = useFitText(label, GAME_CUE_MAX_PX);
 
   return (
     // pointer-events-auto: 카운트다운 중 클릭이 뒤 게임판에 닿으면 오답으로 처리된다.
@@ -86,14 +83,14 @@ export default function CountdownOverlay({ onDone }: CountdownOverlayProps) {
       aria-atomic="true"
     >
       <PixelPanel size="card" className="max-w-sm w-full mx-4">
-        <div className="game-cue-window" ref={containerRef}>
-          {/* key로 칸마다 요소를 갈아치워야 애니메이션이 매번 다시 돈다. */}
-          <span
-            key={step}
-            ref={textRef}
-            className="game-cue game-cue--pop"
-            style={{ fontFamily: "var(--font-pixel)", fontSize }}
-          >
+        <div className="game-cue-window">
+          {/* key로 칸마다 요소를 갈아치워야 애니메이션이 매번 다시 돈다.
+              **크기는 CSS가 정한다** — 예전에는 useFitText가 실측해 인라인으로 넣었는데,
+              이 화면은 라벨(3·2·1·START)이 전부 크기 상한에 걸리는 것들이라 그 훅의
+              버그를 통째로 맞았다: 상한과 같은 값을 set하면 React가 커밋을 건너뛰어
+              훅이 지운 인라인 스타일이 복원되지 않고 글자가 16px로 떴다(2026-08-13,
+              이란토 제보). 근거는 globals.css의 `.game-cue`와 AGENTS.md에 있다. */}
+          <span key={step} className="game-cue game-cue--pop" style={{ fontFamily: "var(--font-pixel)" }}>
             {label}
           </span>
         </div>
