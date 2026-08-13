@@ -17,7 +17,7 @@ import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
 import SoundToggle from "./components/SoundToggle";
 import TermNotice from "./components/TermNotice";
-import { useGameProgress } from "./hooks/useGameProgress";
+import { useGameProgress, type GamePhase } from "./hooks/useGameProgress";
 import { useCouponFlow } from "./hooks/useCouponFlow";
 import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
@@ -234,10 +234,27 @@ export default function Home({ searchParams }: PageProps) {
     await enterSurveyFlow();
   }, [enterSurveyFlow]);
 
-  const openMyCoupons = useCallback(async () => {
-    await refreshCoupons();
-    goToPhase("myCoupons");
-  }, [goToPhase, refreshCoupons]);
+  /**
+   * 앨범을 닫을 때 돌아갈 화면.
+   *
+   * **`fromStartScreen`을 재사용하지 않는다.** 그것은 뽑기 흐름 전용이고
+   * (`leaveDrawFlow`가 소비하며 그 안에서 false로 되돌린다), 앨범 안에 뽑기 진입이
+   * 생긴 지금은 두 흐름이 겹친다 — 시작 화면 → 앨범 → 뽑기로 들어가면 한 플래그가
+   * 두 복귀 지점을 동시에 뜻해야 해서 반드시 한쪽이 틀린다.
+   *
+   * 기본값이 `dailyResult`가 아니라 `start`인 이유: 앨범은 이제 시작 화면에서도
+   * 열리고, 그쪽이 훨씬 잦은 경로다. 결과 흐름에서 열 때만 명시적으로 지정한다.
+   */
+  const [myCouponsReturnPhase, setMyCouponsReturnPhase] = useState<GamePhase>("start");
+
+  const openMyCoupons = useCallback(
+    async (returnTo: GamePhase = "start") => {
+      setMyCouponsReturnPhase(returnTo);
+      await refreshCoupons();
+      goToPhase("myCoupons");
+    },
+    [goToPhase, refreshCoupons]
+  );
 
   return (
     <div className="min-h-dvh bg-black">
@@ -256,7 +273,10 @@ export default function Home({ searchParams }: PageProps) {
           onStart={handleStart}
           onOpenTutorial={openTutorialReview}
           onOpenRanking={() => goToPhase("ranking")}
-          onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
+          /* 뽑기 진입은 이제 앨범 안에 있다 — 여기서는 red-dot 조건만 넘긴다
+             (2026-08-13, 이란토). */
+          onOpenMyCoupons={() => void openMyCoupons("start")}
+          hasPendingDraw={showDrawEntry}
           trackId={trackId}
         />
       )}
@@ -368,8 +388,19 @@ export default function Home({ searchParams }: PageProps) {
           dailyResult로 돌아가는 것과 다르다 — 그쪽은 결과 흐름 안의 화면이다). */}
       {game.phase === "ranking" && <RankingScreen onClose={() => goToPhase("start")} />}
 
+      {/* 닫으면 **열었던 곳으로** 돌아간다(`myCouponsReturnPhase`) — 시작 화면과 결과
+          화면 양쪽에서 열리므로 한쪽으로 고정할 수 없다.
+
+          뽑기 진입은 기회가 남았을 때만 넘긴다. `enterDrawFromStart`를 그대로 쓰는
+          이유: 앨범을 시작 화면에서 열었다면 그 이름 그대로 맞고, 결과 화면에서 열었어도
+          `leaveDrawFlow`가 `scoreBreakdown` 유무를 함께 보므로 복귀가 어긋나지 않는다
+          (그쪽 주석 참고). */}
       {game.phase === "myCoupons" && (
-        <MyCouponsScreen coupons={coupon.coupons} onClose={() => goToPhase("dailyResult")} />
+        <MyCouponsScreen
+          coupons={coupon.coupons}
+          onClose={() => goToPhase(myCouponsReturnPhase)}
+          onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
+        />
       )}
 
       {game.phase === "dailyResult" && game.scoreBreakdown && game.gukbapTier && (
@@ -381,7 +412,7 @@ export default function Home({ searchParams }: PageProps) {
           /* 거절한 사람에게만 준다. DailyResultScreen은 이 prop이 없으면
              버튼을 렌더하지 않는다(옵셔널 prop + 가드). */
           onSurveyAgain={declinedSurvey ? handleSurveyAgain : undefined}
-          onOpenMyCoupons={openMyCoupons}
+          onOpenMyCoupons={() => void openMyCoupons("dailyResult")}
         />
       )}
     </div>

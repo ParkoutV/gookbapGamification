@@ -140,6 +140,7 @@ export const ja: Partial<Dictionary> = {
   "wheel.error": "現在サーバーに接続できません。しばらくしてからお試しください。",
   "start.goToDrawButton": "クーポンを引きに行く",
   "start.inviteButton": "友だちを招待する",
+  "start.drawAvailableNotice": "引けるクーポンがあります",
   "start.invitePromo": "クッパマスターは誰だ？\n〈1953 眼力対決〉に参加して、1953 兄弟豚クッパのクーポンをゲットしよう！🍲",
   "start.inviteCopied": "招待リンクをコピーしました！",
   "start.inviteFailed": "コピーできませんでした。しばらくしてからもう一度お試しください。",

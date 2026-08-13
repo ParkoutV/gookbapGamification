@@ -31,9 +31,12 @@ import { couponDateLines } from "../lib/couponDates";
 export default function MyCouponsScreen({
   coupons,
   onClose,
+  onGoToDraw,
 }: {
   coupons: IssuedCoupon[];
   onClose: () => void;
+  /** 뽑기 기회가 남았을 때만 넘어온다. undefined면 버튼을 띄우지 않는다. */
+  onGoToDraw?: () => void;
 }) {
   const { locale, t } = useLocale();
   const [openCouponId, setOpenCouponId] = useState<string | null>(null);
@@ -102,6 +105,24 @@ export default function MyCouponsScreen({
         <h1 className="text-2xl font-extrabold mb-6 text-ink text-center">
           {t("coupon.myCouponsTitle")}
         </h1>
+
+        {/* 뽑기 진입. **첫 화면이 아니라 여기 있다**(2026-08-13, 이란토) — 첫 화면에
+            조건부로 나타나고 사라지는 항목이 있으면 레이아웃이 흔들리고, 뽑기와 쿠폰
+            목록은 같은 자리에 있는 편이 자연스럽다. 첫 화면에서는 '내 쿠폰' 버튼의
+            red-dot이 기회가 남았다는 것만 알린다.
+
+            카드를 열었을 때는 감춘다 — 지금 보고 있는 카드와 무관한 행동이라, 저장·목록
+            버튼 사이에 끼면 어느 것이 이 카드에 대한 것인지 흐려진다.
+
+            쿠폰이 하나도 없을 때도 띄운다. 그때가 뽑기가 가장 필요한 상황이다. */}
+        {!openCoupon && onGoToDraw && (
+          <button
+            onClick={onGoToDraw}
+            className="pixel-mask-btn-solid w-full py-3 px-6 mb-4 bg-accent text-accent-ink font-bold transition-opacity active:scale-95"
+          >
+            {t("start.goToDrawButton")}
+          </button>
+        )}
 
         {coupons.length === 0 && <p className="text-muted text-center mb-6">{t("coupon.empty")}</p>}
 

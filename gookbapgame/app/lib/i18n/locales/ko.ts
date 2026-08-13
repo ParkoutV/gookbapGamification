@@ -156,6 +156,9 @@ export const ko: Dictionary = {
   "wheel.error": "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.",
   "start.goToDrawButton": "쿠폰 뽑으러 가기",
   "start.inviteButton": "친구 초대하기",
+  /* '내 쿠폰' 버튼의 red-dot을 스크린리더에 알리는 문장. 점은 aria-hidden이라
+     이것이 없으면 뽑기 기회가 남은 것을 전혀 알 수 없다. */
+  "start.drawAvailableNotice": "뽑을 수 있는 쿠폰이 있어요",
   "start.invitePromo": "국밥 마스터의 주인공은 누구?\n<1953 눈썰미 대결>에 참여하고, 1953 형제돼지국밥 쿠폰도 받자! 🍲",
   "start.inviteCopied": "초대 링크를 복사했어요!",
   "start.inviteFailed": "복사에 실패했어요. 잠시 후 다시 시도해주세요.",

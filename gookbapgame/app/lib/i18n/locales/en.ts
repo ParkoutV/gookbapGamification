@@ -138,6 +138,7 @@ export const en: Partial<Dictionary> = {
   "wheel.error": "We can't reach the server right now. Please try again later.",
   "start.goToDrawButton": "Go draw your coupon",
   "start.inviteButton": "Invite a friend",
+  "start.drawAvailableNotice": "You have a coupon draw available",
   "start.invitePromo": "Who's the true Gookbap Master?\nJoin the <1953 Spot-the-Difference Challenge> and grab a 1953 Brother Pork Gookbap coupon! 🍲",
   "start.inviteCopied": "Invite link copied!",
   "start.inviteFailed": "Couldn't copy. Please try again in a moment.",
