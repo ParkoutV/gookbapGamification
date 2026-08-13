@@ -139,6 +139,11 @@ export default function MyCouponsScreen({
               </button>
             </div>
             {saveError && <p className="text-error text-xs">{t("card.saveError")}</p>}
+            {/* 유실 주의문. 뽑기 화면과 달리 "'내 쿠폰'에서 다시 볼 수 있다"는 문장은
+                빼고 유실 주의만 남긴다 — 여기가 이미 그 '내 쿠폰'이다. */}
+            <p className="text-muted text-xs text-center leading-snug">
+              {t("card.saveRecommendNoticeShort")}
+            </p>
           </div>
         ) : (
           /* 2열 격자. `max-w-sm` 패널 안쪽에서 칸이 약 140px이 되어 아래 쿠폰명이

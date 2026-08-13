@@ -123,6 +123,10 @@ export const en: Partial<Dictionary> = {
   "card.saveButton": "Save as image",
   "card.saving": "Saving...",
   "card.saveError": "Couldn't save the image. Please try again later.",
+  "card.saveRecommendNotice":
+    "You can find it again under \"My Coupons\". Records may be lost depending on your browsing environment, so saving the image is recommended.",
+  "card.saveRecommendNoticeShort":
+    "Records may be lost depending on your browsing environment, so saving the image is recommended.",
 
   "sound.muteAria": "Mute sound",
   "sound.unmuteAria": "Unmute sound",

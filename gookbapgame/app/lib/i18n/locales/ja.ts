@@ -125,6 +125,10 @@ export const ja: Partial<Dictionary> = {
   "card.saveButton": "画像として保存",
   "card.saving": "保存中...",
   "card.saveError": "保存に失敗しました。しばらくしてからお試しください。",
+  "card.saveRecommendNotice":
+    "「自分のクーポン」から再度ご確認いただけます。ただしご利用環境によって記録が消える場合がありますので、画像として保存されることをおすすめします。",
+  "card.saveRecommendNoticeShort":
+    "ご利用環境によって記録が消える場合がありますので、画像として保存されることをおすすめします。",
 
   "sound.muteAria": "音を消す",
   "sound.unmuteAria": "音を出す",
