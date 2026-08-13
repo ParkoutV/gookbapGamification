@@ -27,10 +27,12 @@ interface CouponSettingsModalProps {
   onVideoFitChange: (val: 'width' | 'height' | 'fill') => void
   isFlipped: boolean
   onIsFlippedChange: (val: boolean) => void
+  useMultilingual: boolean
+  onUseMultilingualChange: (val: boolean) => void
   onClose: () => void
 }
 
-export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, onKeepScreenOnChange, videoFit, onVideoFitChange, isFlipped, onIsFlippedChange, onClose }: CouponSettingsModalProps) {
+export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, onKeepScreenOnChange, videoFit, onVideoFitChange, isFlipped, onIsFlippedChange, useMultilingual, onUseMultilingualChange, onClose }: CouponSettingsModalProps) {
   const [activeTab, setActiveTab] = useState(languages.length > 0 ? languages[0].lang_code : 'ko')
   
   // Clone language config into state for editing
@@ -129,6 +131,22 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
               <input type="checkbox" className="sr-only peer" checked={isFlipped} onChange={(e) => onIsFlippedChange(e.target.checked)} />
               <div className="w-14 h-7 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-500"></div>
             </label>
+          </div>
+
+          {/* Multilingual Toggle Setting */}
+          <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl mb-4 border border-zinc-700/50">
+            <div>
+              <h3 className="font-bold text-white mb-1">사용자 언어로 표시</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                켜져있으면 스캔된 QR코드의 언어에 맞춰 쿠폰 화면이 다국어로 나옵니다. 끄면 무조건 한국어로만 표시됩니다.
+              </p>
+            </div>
+            <button 
+              onClick={() => onUseMultilingualChange(!useMultilingual)}
+              className={`w-14 h-8 rounded-full p-1 transition-colors duration-200 ease-in-out ${useMultilingual ? 'bg-blue-500' : 'bg-zinc-700'}`}
+            >
+              <div className={`w-6 h-6 rounded-full bg-white transition-transform duration-200 ease-in-out ${useMultilingual ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
           </div>
 
           {/* Video Fit Settings */}
