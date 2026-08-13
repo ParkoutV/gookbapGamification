@@ -3,7 +3,7 @@ import type { Locale } from "./i18n/types.ts";
 import { DATE_LOCALES } from "./i18n/dateLocales.ts";
 
 /**
- * 카드 앞면에 들어가는 날짜 줄들을 조립한다.
+ * 쿠폰의 사용 가능 기간 줄을 조립한다.
  *
  * **화면(`GatchaCard`)과 저장 이미지(`cardImage.ts`)가 같은 배열을 쓴다.** 두 곳이
  * 각자 날짜를 만들면 한쪽만 고쳤을 때 화면과 저장본이 조용히 달라진다 — 카드 앞면
@@ -28,29 +28,42 @@ function formatDate(iso: string, locale: Locale): string | null {
 }
 
 /**
- * 발급일 → 시작일 → 사용기한 순서로, **값이 있는 줄만** 담아 돌려준다.
+ * 사용 가능 기간을 **한 줄로** 돌려준다. 값이 없으면 빈 배열이다.
  *
- * `validFrom`은 아직 `get_my_coupons`가 돌려주지 않아 대개 비어 있다(2026-08-12).
- * 서버가 컬럼을 추가하면 이 코드를 고치지 않아도 그 줄이 자동으로 나타난다 —
- * 그래서 없을 때 자리를 비우는 대신 줄 자체를 생략한다.
+ * **발급일은 넣지 않는다**(2026-08-13, 이란토 확인). 한때 발급일·시작일·사용기한
+ * 3줄을 나열했는데(2026-08-12 기획 요청) 매장 카운터에서 발급일을 쓰지 않고,
+ * 손님에게 의미가 있는 것은 "언제부터 언제까지 쓸 수 있나" 하나였다. 세로 3줄이
+ * 카드 안에서 QR과 무게를 다투는 문제도 함께 사라진다.
+ * - 곁가지 효과: 3줄 시절엔 발급일·시작일에만 라벨이 있고 사용기한은 `{date}까지`로
+ *   라벨이 없어서, 셋 중 정작 중요한 줄을 못 알아볼 여지가 있었다. 한 줄이면 그
+ *   비대칭이 생기지 않는다.
+ * - **발급일을 되살리려면 매장 쪽 요구를 먼저 확인할 것.** 카드 공간이 좁아 줄을
+ *   늘리면 상품명이 자동 축소 바닥(30px)에 더 빨리 닿는다.
+ *
+ * 배열을 돌려주는 형태는 유지한다 — 호출부(`GatchaCard` / `cardImage.ts` /
+ * `MyCouponsScreen`)가 줄 목록을 받는 구조이고, 나중에 줄이 늘 여지도 있다.
+ *
+ * 시작일이 없으면 사용기한만 있는 줄로 떨어진다. `valid_from`은 `get_my_coupons`가
+ * 실제로 주지만(2026-08-13 확인) 옛 쿠폰에는 비어 있고, `expired_at`도 null로 온
+ * 시기가 있었다(AGENTS.md 참고) — 양쪽 다 없으면 줄 자체가 없다.
  */
 export function couponDateLines(
-  coupon: Pick<IssuedCoupon, "issuedAt" | "validFrom" | "expiredAt">,
+  coupon: Pick<IssuedCoupon, "validFrom" | "expiredAt">,
   locale: Locale,
   t: (key: string, vars?: Record<string, string>) => string
 ): CouponDateLine[] {
-  const lines: CouponDateLine[] = [];
+  // 파싱 실패한 값은 없는 것으로 친다 — "Invalid Date"를 띄우지 않는다.
+  const from = coupon.validFrom == null ? null : formatDate(coupon.validFrom, locale);
+  const until = coupon.expiredAt == null ? null : formatDate(coupon.expiredAt, locale);
 
-  const push = (key: string, iso: string | null | undefined, messageKey: string) => {
-    if (iso == null) return;
-    const date = formatDate(iso, locale);
-    if (date == null) return; // 파싱 실패한 값은 조용히 생략한다 — "Invalid Date"를 띄우지 않는다.
-    lines.push({ key, text: t(messageKey, { date }) });
-  };
-
-  push("issued", coupon.issuedAt, "coupon.issuedAt");
-  push("valid", coupon.validFrom, "coupon.validFrom");
-  push("expiry", coupon.expiredAt, "coupon.expiresAt");
-
-  return lines;
+  if (from != null && until != null) {
+    return [{ key: "period", text: t("coupon.validPeriod", { from, until }) }];
+  }
+  if (until != null) {
+    return [{ key: "period", text: t("coupon.expiresAt", { date: until }) }];
+  }
+  if (from != null) {
+    return [{ key: "period", text: t("coupon.validFrom", { date: from }) }];
+  }
+  return [];
 }

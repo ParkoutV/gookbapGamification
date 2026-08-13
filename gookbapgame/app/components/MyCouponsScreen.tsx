@@ -49,15 +49,15 @@ export default function MyCouponsScreen({
                 )}
                 {/* 날짜는 카드 앞면과 **같은 헬퍼**로 만든다 — 여기만 기기 시간대로
                     렌더하면 같은 쿠폰이 화면마다 다른 날짜로 뜬다(KST 23:59:59 만료가
-                    서쪽 기기에서 하루 앞당겨진다). 이 목록은 사용기한 줄만 쓴다. */}
+                    서쪽 기기에서 하루 앞당겨진다).
+                    예전에는 `key === "expiry"`로 사용기한 줄만 골랐는데, 헬퍼가 기간을
+                    한 줄로 합치면서(2026-08-13) 골라낼 것이 없어졌다. */}
                 {!unusable &&
-                  couponDateLines(coupon, locale, t)
-                    .filter((line) => line.key === "expiry")
-                    .map((line) => (
-                      <p key={line.key} className="text-xs text-muted">
-                        {line.text}
-                      </p>
-                    ))}
+                  couponDateLines(coupon, locale, t).map((line) => (
+                    <p key={line.key} className="text-xs text-muted">
+                      {line.text}
+                    </p>
+                  ))}
 
                 {!unusable && (
                   <button
