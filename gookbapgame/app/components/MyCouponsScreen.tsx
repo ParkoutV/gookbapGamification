@@ -6,7 +6,8 @@ import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import PixelPanel from "./PixelPanel";
 import GatchaCard from "./GatchaCard";
 import { useCardImageSave } from "../hooks/useCardImageSave";
-import type { IssuedCoupon } from "../actions";
+import type { IssuedCoupon, WebCoupon, WebCouponSettings } from "../actions";
+import WebCouponTicket from "./WebCouponTicket";
 import { isCouponExpired } from "../lib/couponUsability";
 import { resolveCouponRemaining } from "../lib/couponRemaining";
 import { couponDateLines } from "../lib/couponDates";
@@ -30,10 +31,19 @@ import { couponDateLines } from "../lib/couponDates";
  */
 export default function MyCouponsScreen({
   coupons,
+  webCoupons = [],
+  webCouponSettings = null,
   onClose,
   onGoToDraw,
 }: {
   coupons: IssuedCoupon[];
+  /**
+   * 온라인몰 쿠폰. **매장 쿠폰과 별도 배열로 받는다** — 한 배열에 섞으면 화면이
+   * 필드 유무로 종류를 판정하게 되는데 그건 타입이 할 일이다(`webCoupons.ts` 주석).
+   */
+  webCoupons?: WebCoupon[];
+  /** 티켓 문구(`web_coupon_settings`). 없으면 로케일 파일 기본값으로 떨어진다. */
+  webCouponSettings?: WebCouponSettings | null;
   onClose: () => void;
   /** 뽑기 기회가 남았을 때만 넘어온다. undefined면 버튼을 띄우지 않는다. */
   onGoToDraw?: () => void;
@@ -124,7 +134,12 @@ export default function MyCouponsScreen({
           </button>
         )}
 
-        {coupons.length === 0 && <p className="text-muted text-center mb-6">{t("coupon.empty")}</p>}
+        {/* **두 목록이 모두 비었을 때만** 빈 상태다. 매장 쿠폰만 보면, 설문만 하고
+            뽑기를 안 한 사람(온라인몰 쿠폰만 가진 사람)에게 티켓과 "쿠폰이 없어요"가
+            함께 뜬다. */}
+        {coupons.length === 0 && webCoupons.length === 0 && (
+          <p className="text-muted text-center mb-6">{t("coupon.empty")}</p>
+        )}
 
         {openCoupon ? (
           <div className="flex flex-col items-center gap-4 mb-6 w-full">
@@ -170,6 +185,18 @@ export default function MyCouponsScreen({
           /* 2열 격자. `max-w-sm` 패널 안쪽에서 칸이 약 140px이 되어 아래 쿠폰명이
              한두 줄로 앉는다 — 3열은 이름이 들어갈 폭이 없다. */
           <div className="grid grid-cols-2 gap-3 mb-6">
+            {/* 온라인몰 쿠폰은 **한 행을 통째로 쓴다**(`col-span-2`, 2026-08-13 이란토).
+                가로로 긴 티켓 형태라 세로로 긴 카드 칸(1000/1371)에 넣으면 위아래
+                여백이 크게 남고, 칸마다 비율이 다르면 격자가 들쭉날쭉해진다 —
+                이름 블록을 `h-14`로 고정한 것과 같은 이유다.
+
+                맨 위에 두는 것은 **누를 필요 없이 코드가 바로 보이는 유일한 항목**이라
+                아래 카드 격자에 섞이면 흐름이 끊기기 때문이다. 카드는 눌러야 열린다. */}
+            {webCoupons.map((webCoupon) => (
+              <div key={webCoupon.code} className="col-span-2">
+                <WebCouponTicket coupon={webCoupon} settings={webCouponSettings} />
+              </div>
+            ))}
             {coupons.map((coupon) => {
               const unusable = coupon.isUsed || isCouponExpired(coupon);
               const status = statusLineFor(coupon);

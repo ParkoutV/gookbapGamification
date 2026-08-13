@@ -164,6 +164,23 @@ export const ko: Dictionary = {
   "start.inviteFailed": "복사에 실패했어요. 잠시 후 다시 시도해주세요.",
   "wheel.nextButton": "다음",
 
+  /* 온라인몰 전용 쿠폰(2026-08-13). 매장 QR 쿠폰과 달리 평문 코드를 복사해
+     공식 온라인몰에 등록하는 것이라, 문구가 '어디서 쓰는지'를 분명히 해야 한다 —
+     매장에서 이 코드를 내밀면 스캐너가 읽지 못한다. */
+  /* **기본 문구다 — 평소에는 화면에 뜨지 않는다.** 티켓 이름은 DB
+     (`web_coupon_settings.title`)에서 오고 운영자가 대시보드에서 적는다
+     ("1원 할인 쿠폰" 등). 이 키는 그 조회가 실패했거나 값이 비었을 때만 쓰인다 —
+     혜택 내용을 여기 적지 말 것. */
+  "webCoupon.label": "온라인몰 쿠폰",
+  "webCoupon.copyButton": "복사",
+  "webCoupon.copied": "코드를 복사했어요!",
+  "webCoupon.copyFailed": "복사에 실패했어요. 코드를 직접 입력해주세요.",
+  // 설문 직후 발급 안내 팝업.
+  "webCoupon.grantedTitle": "온라인몰 쿠폰을 받았어요!",
+  "webCoupon.grantedBody":
+    "공식 온라인몰에서 아래 코드를 등록하면 사용할 수 있어요.\n'내 쿠폰'에서 다시 확인할 수 있습니다.",
+  "webCoupon.grantedConfirm": "확인",
+
   "coupon.myCouponsButton": "내 쿠폰 보기",
   "coupon.myCouponsTitle": "내 쿠폰",
   "coupon.empty": "아직 받은 쿠폰이 없어요.",
