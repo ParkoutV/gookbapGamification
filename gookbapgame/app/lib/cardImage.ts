@@ -176,9 +176,12 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const dateBlockHeight =
     input.dateTexts.length > 0 ? input.dateTexts.length * dateLineHeight + GAP : 0;
 
-  // 날짜가 3줄로 늘면서 상품명이 쓸 수 있는 높이가 그만큼 줄었다. 긴 상품명은
-  // 아래 루프에서 30px 바닥에 더 빨리 닿아 잘리는 줄이 생길 수 있다 — 지금은
-  // 허용하고, 문제가 되면 날짜 폰트를 줄이는 쪽을 먼저 검토한다.
+  // 날짜는 기간 한 줄이다(2026-08-13에 3줄에서 합쳤다). 3줄 시절에는 상품명이 쓸 수
+  // 있는 높이가 그만큼 줄어 긴 이름이 아래 루프의 30px 바닥에 빨리 닿았는데, 한 줄로
+  // 돌아오면서 여유가 생겼다. **줄을 다시 늘리려면 그 제약을 먼저 볼 것.**
+  //
+  // 날짜 문구에 비ASCII 글리프를 넣지 말 것 — 여기는 sans-serif라 안전하지만, 화면
+  // 쪽과 픽셀 폰트 서브셋이 로케일 파일 전체 문자를 훑는다(`couponDates.ts` 참고).
   const availableHeight =
     bottom - top - (input.qrSvg ? qrSize + GAP : 0) - dateBlockHeight;
 
