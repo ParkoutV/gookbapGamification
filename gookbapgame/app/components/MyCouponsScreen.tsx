@@ -169,8 +169,15 @@ export default function MyCouponsScreen({
                   />
                   {/* 이름·상태를 고정 높이 블록에 담는다. 이름 길이가 1줄/2줄로 갈리면
                       행마다 칸 높이가 달라져 격자가 들쭉날쭉해진다(실물로 확인).
-                      2줄(leading-tight 기준 약 2rem) + 상태 한 줄이 들어가는 크기다. */}
-                  <span className="flex flex-col items-center justify-start h-12 gap-0.5">
+
+                      **높이 예산이 빡빡하다.** 최악의 경우(이름 2줄 + 상태 한 줄)가
+                      `text-xs leading-tight` 기준 30 + 2 + 15 = 47px이고 h-14는 56px이다
+                      (2026-08-13 실측: 영어 "3,000 KRW off boiled pork" + "3 days left").
+                      h-12(48px)로도 딱 맞아 잘리지는 않았지만 여유가 1px뿐이라, 폰트나
+                      문구가 조금만 길어져도 조용히 겹친다 — 남은 일수 표시가 붙으면서
+                      **모든** 쿠폰이 상태 줄을 갖게 되어 이 최악의 경우가 흔한 경우가 됐다.
+                      글자 크기나 줄 수를 늘리려면 여기 높이를 먼저 올릴 것. */}
+                  <span className="flex flex-col items-center justify-start h-14 gap-0.5">
                     <span className="text-xs font-bold text-ink text-center leading-tight line-clamp-2">
                       {resolveLocalizedName(coupon.couponType, locale)}
                     </span>
