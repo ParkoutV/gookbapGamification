@@ -43,14 +43,23 @@ export default function NicknameClient({
   const [exclusions, setExclusions] = useState<Exclusion[]>(initialExclusions)
   const [digitLength, setDigitLength] = useState<number>(initialDigitLength)
   const [isSaving, setIsSaving] = useState(false)
+  const [hasSaved, setHasSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<'first_word' | 'last_word'>('first_word')
 
-  const isDirty = 
+  const isDirty = !hasSaved && (
     JSON.stringify(presets) !== JSON.stringify(initialPresets) ||
     JSON.stringify(exclusions) !== JSON.stringify(initialExclusions) ||
     digitLength !== initialDigitLength
+  )
 
   useUnsavedChanges(isDirty)
+
+  // Wait for React to flush hasSaved state and update the hook before reloading
+  useEffect(() => {
+    if (hasSaved) {
+      window.location.reload()
+    }
+  }, [hasSaved])
 
   // Modals state
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -255,11 +264,10 @@ export default function NicknameClient({
       await supabase.rpc('reassign_invalid_nicknames')
 
       alert('저장되었습니다.')
-      window.location.reload()
+      setHasSaved(true)
     } catch (error) {
       console.error(error)
       alert('저장 중 오류가 발생했습니다.')
-    } finally {
       setIsSaving(false)
     }
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -22,6 +22,9 @@ export default function SpotDifferenceListPage() {
   const [images, setImages] = useState<BaseImage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Sorting state
+  const [sortOrder, setSortOrder] = useState<'newest' | 'ko_asc' | 'level_asc' | 'level_desc'>('newest')
   
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -187,6 +190,24 @@ export default function SpotDifferenceListPage() {
     }
   }
 
+  const sortedImages = useMemo(() => {
+    const list = [...images]
+    list.sort((a, b) => {
+      if (sortOrder === 'ko_asc') {
+        const titleA = typeof a.title === 'string' ? a.title : (a.title?.ko || '')
+        const titleB = typeof b.title === 'string' ? b.title : (b.title?.ko || '')
+        return titleA.localeCompare(titleB, 'ko-KR')
+      } else if (sortOrder === 'level_asc') {
+        return (a.level || 0) - (b.level || 0)
+      } else if (sortOrder === 'level_desc') {
+        return (b.level || 0) - (a.level || 0)
+      } else { // 'newest'
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+    })
+    return list
+  }, [images, sortOrder])
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       <div className="flex items-center justify-between mb-8">
@@ -199,13 +220,25 @@ export default function SpotDifferenceListPage() {
             게임에 사용될 대표 그림을 업로드하고 편집합니다.
           </p>
         </div>
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          이미지 추가
-        </button>
+        <div className="flex items-center space-x-3">
+          <select 
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as any)}
+            className="bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-zinc-300 font-medium py-2 px-3 rounded-lg text-sm shadow-sm outline-none hover:border-blue-400 focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+          >
+            <option value="newest">최신등록순</option>
+            <option value="ko_asc">가나다순</option>
+            <option value="level_asc">레벨 오름차순</option>
+            <option value="level_desc">레벨 내림차순</option>
+          </select>
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            이미지 추가
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -218,7 +251,7 @@ export default function SpotDifferenceListPage() {
         <div className="flex justify-center items-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      ) : images.length === 0 ? (
+      ) : sortedImages.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-zinc-900 rounded-xl border border-dashed border-gray-300 dark:border-zinc-700">
           <ImageIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">등록된 이미지가 없습니다</h3>
@@ -226,7 +259,7 @@ export default function SpotDifferenceListPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {images.map((image) => (
+          {sortedImages.map((image) => (
             <div key={image.id} className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-sm ring-1 ring-gray-200 dark:ring-zinc-800 transition-all hover:shadow-md relative group">
               <div className="aspect-video relative overflow-hidden bg-gray-100 dark:bg-zinc-800">
                 <Image 
