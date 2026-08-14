@@ -34,8 +34,8 @@ export const zh: Partial<Dictionary> = {
   // 랭킹 화면. 탭은 달력 기준이다(롤링 윈도우가 아니다, 2026-08-13).
   "ranking.title": "排行榜",
   "ranking.tab.daily": "今天",
-  "ranking.tab.weekly": "本周",
-  "ranking.tab.monthly": "本月",
+  "ranking.tab.weekly": "最近7天",
+  "ranking.tab.monthly": "最近30天",
   "ranking.tab.total": "总榜",
   "ranking.myBestScore": "我的最高分 {score}",
   "ranking.pageIndicator": "{current} / {total}",

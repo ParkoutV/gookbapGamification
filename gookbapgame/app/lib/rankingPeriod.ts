@@ -1,6 +1,14 @@
 /**
- * 랭킹 탭의 기간 경계. **롤링 윈도우가 아니라 달력 기준이다**(2026-08-13, 이란토) —
- * "이번 주 1위"가 집계하기도 쿠폰 지급하기도 직관적이어서 매장 운영에 맞는다.
+ * 랭킹 탭의 기간 경계. **달력 기준이 아니라 롤링 윈도우다**(2026-08-14, 이란토).
+ *
+ * 2026-08-13에는 달력 기준이었다 — "이번 주 1위"가 집계·쿠폰 지급에 직관적이라는
+ * 이유였다. 뒤집은 근거는 **빈 랭킹**이다: 주 경계로 자르면 월요일 오전과 매월 1일에
+ * 주간·월간 탭이 통째로 비고, 매장 QR로 막 들어온 사람이 첫 화면에서 그걸 본다.
+ * 게임이 죽은 것처럼 보이는 데다 하필 주의 시작이라 그 상태가 오래 간다.
+ * 롤링이면 창이 하루씩 밀려 항상 채워져 있다.
+ *
+ * 그래서 탭 이름도 "이번 주/이번 달"이 아니라 **"최근 7일/최근 30일"**이다 —
+ * 한쪽만 바꾸면 표시와 집계가 어긋난다(달력 기준으로 되돌린다면 문구도 함께 되돌릴 것).
  *
  * 이 값은 `joined_time`을 서버에서 거르는 데 쓴다(`.gte()`). 기간 필터를 클라이언트로
  * 가져오면 PostgREST 행 상한에 걸려 **오류 없이** 랭킹이 틀어진다(`rankingRows.ts` 주석).
@@ -37,17 +45,6 @@ function kstMidnight(ymd: string): Date {
   return new Date(`${ymd}T00:00:00+09:00`);
 }
 
-/**
- * YYYY-MM-DD의 **KST 요일**. 0=일 … 6=토.
- *
- * `new Date(ymd).getDay()`를 쓰면 기기 시간대로 해석돼 경계 근처에서 하루 어긋난다.
- * 날짜 문자열까지 내려오면 요일은 시간대와 무관하므로 UTC 자정으로 읽어 `getUTCDay()`를
- * 쓰는 것이 안전하다 — 기기 시간대가 개입할 자리가 없다.
- */
-function ymdWeekday(ymd: string): number {
-  return new Date(`${ymd}T00:00:00Z`).getUTCDay();
-}
-
 /** YYYY-MM-DD에서 n일을 뺀 YYYY-MM-DD. 날짜 칸끼리 계산하므로 시간대가 개입하지 않는다. */
 function ymdMinusDays(ymd: string, days: number): string {
   const shifted = new Date(`${ymd}T00:00:00Z`);
@@ -67,19 +64,13 @@ export function rankingPeriodStart(period: RankingPeriod, now: Date = new Date()
 
   if (period === "daily") return kstMidnight(today);
 
-  if (period === "monthly") {
-    // 날짜 문자열의 일(day) 자리만 01로 갈아끼운다. 월·연 넘김을 직접 계산하지 않으므로
-    // 12월·윤년에 틀릴 자리가 없다.
-    return kstMidnight(`${today.slice(0, 7)}-01`);
-  }
-
   /*
-   * 주 시작은 월요일이다. `getDay()`는 일요일이 0이므로 그대로 빼면 일요일에 다음 주
-   * 월요일로 건너뛴다 — `(day + 6) % 7`이 월요일 기준 오프셋이다(월=0 … 일=6).
+   * **오늘을 포함해** 세므로 하루를 덜 뺀다 — "최근 7일"은 오늘 + 지난 6일이다.
+   * 그대로 7을 빼면 8일치가 잡힌다.
    *
    * 뺄셈은 **시점이 아니라 날짜 칸**에서 한다. 시점에서 밀리초를 빼면 그 사이에 낀
    * 일광절약시간이 개입할 수 있는데, KST는 DST가 없어도 이쪽이 읽기 쉽고 틀릴 자리가 없다.
    */
-  const offset = (ymdWeekday(today) + 6) % 7;
-  return kstMidnight(ymdMinusDays(today, offset));
+  const days = period === "weekly" ? 7 : 30;
+  return kstMidnight(ymdMinusDays(today, days - 1));
 }

@@ -19,8 +19,8 @@ export const en: Partial<Dictionary> = {
   // Ranking screen. Tabs are calendar-based, not rolling windows (2026-08-13).
   "ranking.title": "Ranking",
   "ranking.tab.daily": "Today",
-  "ranking.tab.weekly": "This Week",
-  "ranking.tab.monthly": "This Month",
+  "ranking.tab.weekly": "7 Days",
+  "ranking.tab.monthly": "30 Days",
   "ranking.tab.total": "All Time",
   "ranking.myBestScore": "Your best {score}",
   "ranking.pageIndicator": "{current} / {total}",

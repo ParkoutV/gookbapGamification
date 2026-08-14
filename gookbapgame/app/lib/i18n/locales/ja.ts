@@ -21,8 +21,8 @@ export const ja: Partial<Dictionary> = {
   // ランキング画面。タブは暦基準(ローリングウィンドウではない、2026-08-13)。
   "ranking.title": "ランキング",
   "ranking.tab.daily": "今日",
-  "ranking.tab.weekly": "今週",
-  "ranking.tab.monthly": "今月",
+  "ranking.tab.weekly": "直近7日",
+  "ranking.tab.monthly": "直近30日",
   "ranking.tab.total": "全体",
   "ranking.myBestScore": "自己最高 {score}",
   "ranking.pageIndicator": "{current} / {total}",
