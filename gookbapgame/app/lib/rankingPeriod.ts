@@ -15,8 +15,18 @@
  */
 export type RankingPeriod = "daily" | "weekly" | "monthly" | "total";
 
-/** 탭 순서. 화면과 테스트가 같은 배열을 쓴다. */
-export const RANKING_PERIODS: readonly RankingPeriod[] = ["daily", "weekly", "monthly", "total"];
+/**
+ * 탭 순서. 화면과 테스트가 같은 배열을 쓴다.
+ *
+ * **'total'이 맨 앞이다**(2026-08-14, 이란토). 320px에서 넷을 한 줄에 두면 칸이
+ * 54px뿐이라 라벨이 접히므로 '전체'가 자기 줄을 통째로 쓰고 기간 3개가 아랫줄에
+ * 나란히 선다(`RankingScreen` 참고). 시각 순서와 DOM 순서를 일치시켜야 키보드
+ * 탭 이동이 화면과 어긋나지 않으므로, CSS `order`가 아니라 이 배열을 재배열한다.
+ *
+ * 기본 선택은 이 배열이 아니라 `RankingScreen`의 `useState("daily")`가 정한다 —
+ * 순서를 바꿔도 처음 열리는 탭은 '오늘' 그대로다.
+ */
+export const RANKING_PERIODS: readonly RankingPeriod[] = ["total", "daily", "weekly", "monthly"];
 
 const KST = "Asia/Seoul";
 

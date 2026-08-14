@@ -21,10 +21,12 @@ export const ko: Dictionary = {
   // 본다(2026-08-14, 이란토). 근거와 계산은 `rankingPeriod.ts`에.
   // **이름을 "이번 주/이번 달"로 되돌리려면 그쪽 계산도 함께 되돌릴 것** —
   // 한쪽만 바꾸면 표시와 집계가 조용히 어긋난다.
+  // '최근'을 뗀 것은 320px 폭 예산 때문이다(`RankingScreen` 주석). 옆에 '오늘'·'전체'가
+  // 있어 기간이라는 것이 문맥으로 읽힌다 — 도로 붙이면 그 칸이 두 줄로 접힌다.
   "ranking.title": "랭킹",
   "ranking.tab.daily": "오늘",
-  "ranking.tab.weekly": "최근 7일",
-  "ranking.tab.monthly": "최근 30일",
+  "ranking.tab.weekly": "7일",
+  "ranking.tab.monthly": "30일",
   "ranking.tab.total": "전체",
   /* 내 최고점. **순위는 붙이지 않는다** — ranking_view에 participant_id가 없어서
      목록에서 내 줄을 확실히 특정할 수 없다(2026-08-13, 이란토). */
