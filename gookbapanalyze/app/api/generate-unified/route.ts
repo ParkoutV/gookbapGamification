@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         acc[key] = comb.imageSlots[key].toString()
         return acc
       }, {} as Record<string, string>)
-      return { baseImageId: comb.baseImageId, imageSlots: sortedSlotsJson }
+      return { baseImageId: Number(comb.baseImageId), imageSlots: sortedSlotsJson }
     })
 
     // 3. Cache Bulk Check
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       const { baseImageId, imageSlots } = comb
       
       const existingRow = existingUnified?.find(row => {
-        if (row.base_image_id !== baseImageId) return false
+        if (Number(row.base_image_id) !== baseImageId) return false
         const dbSlots = row.image_slots as Record<string, string>
         const dbKeys = Object.keys(dbSlots).sort()
         const reqKeys = Object.keys(imageSlots).sort()
@@ -96,31 +96,32 @@ export async function POST(req: NextRequest) {
 
     if (toGenerate.length > 0) {
       const generatedResults = await Promise.all(toGenerate.map(async (comb) => {
-        const { baseImageId, imageSlots } = comb
-        
-        // Find base image from master data
-        const baseImage = masterData.base_images.find((b: any) => b.id === baseImageId)
-        if (!baseImage) return { error: `Base image ${baseImageId} not found` }
+        try {
+          const { baseImageId, imageSlots } = comb
+          
+          // Find base image from master data
+          const baseImage = masterData.base_images.find((b: any) => Number(b.id) === baseImageId)
+          if (!baseImage) return { error: `Base image ${baseImageId} not found` }
 
         const slots = baseImage.slots
         const categories = masterData.categories || []
-        const partIds = Object.values(imageSlots).map(id => parseInt(id, 10))
+        const partIds = Object.values(imageSlots).map(id => parseInt(id as string, 10))
         
         const allParts: any[] = []
         categories.forEach((cat: any) => {
           if (cat.parts) allParts.push(...cat.parts)
         })
         
-        const parts = allParts.filter(p => partIds.includes(p.id))
+        const parts = allParts.filter(p => partIds.includes(Number(p.id)))
 
         if (parts.length === 0) return { error: 'Parts not found' }
 
         // Prepare overlays
         const overlays = parts.map(part => {
-          const category = categories.find((c: any) => c.parts.some((p: any) => p.id === part.id))
+          const category = categories.find((c: any) => c.parts.some((p: any) => Number(p.id) === Number(part.id)))
           if (!category) return null
           
-          const slot = slots.find((s: any) => s.category_id === category.id)
+          const slot = slots.find((s: any) => Number(s.category_id) === Number(category.id))
           if (!slot) return null
           
           return {
@@ -156,13 +157,16 @@ export async function POST(req: NextRequest) {
         
         const newImageUrl = publicUrlData.publicUrl
 
-        newDbRows.push({
-          base_image_id: baseImageId,
-          unified_image_url: newImageUrl,
-          image_slots: imageSlots
-        })
+          newDbRows.push({
+            base_image_id: baseImageId,
+            unified_image_url: newImageUrl,
+            image_slots: imageSlots
+          })
 
-        return { baseImageId, imageSlots, url: newImageUrl }
+          return { baseImageId, imageSlots, url: newImageUrl }
+        } catch (e: any) {
+          return { error: e.message || 'Failed to process combination' }
+        }
       }))
 
       generatedResults.forEach(res => {
