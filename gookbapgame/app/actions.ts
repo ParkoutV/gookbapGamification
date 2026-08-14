@@ -4,7 +4,12 @@ import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
 import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
-import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
+import {
+  getPartSilhouette,
+  mapSilhouetteToSlot,
+  pickPolygonSource,
+  type Point,
+} from "./lib/hitPolygon";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { nicknameFromParticipantRows } from "./lib/existingNickname";
@@ -76,23 +81,22 @@ async function computeSlotPolygons(
   const rightHull =
     rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.image_url);
 
-  const leftHitPolygon = leftHull
-    ? mapSilhouetteToSlot(leftHull, {
-        offsetX: leftPart.offset_x,
-        offsetY: leftPart.offset_y,
-        partScale: leftPart.scale,
-        slotScale,
-      })
-    : null;
+  // 투명 파트(= "없는 쪽")는 실루엣이 null이다. 규칙과 이유는 `pickPolygonSource`에.
+  const leftSource = pickPolygonSource(leftHull, rightHull, leftPart, rightPart);
+  const rightSource = pickPolygonSource(rightHull, leftHull, rightPart, leftPart);
 
-  const rightHitPolygon = rightHull
-    ? mapSilhouetteToSlot(rightHull, {
-        offsetX: rightPart.offset_x,
-        offsetY: rightPart.offset_y,
-        partScale: rightPart.scale,
-        slotScale,
-      })
-    : null;
+  const toPolygon = (source: typeof leftSource) =>
+    source
+      ? mapSilhouetteToSlot(source.hull, {
+          offsetX: source.placement.offset_x,
+          offsetY: source.placement.offset_y,
+          partScale: source.placement.scale,
+          slotScale,
+        })
+      : null;
+
+  const leftHitPolygon = toPolygon(leftSource);
+  const rightHitPolygon = toPolygon(rightSource);
 
   return { leftHitPolygon, rightHitPolygon };
 }
