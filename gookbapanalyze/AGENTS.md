@@ -520,35 +520,65 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 - 프로젝트 관리를 위해 작성되는 `.mjs` 및 `.js` 형태의 유틸리티/관리 스크립트(DB 스키마 확인, RLS 셋업 스크립트 등)는 루트 폴더가 아닌 **`scripts/`** 폴더에 모아서 관리합니다.
 - 단, `eslint.config.mjs`, `postcss.config.mjs` 등 프레임워크 구동을 위한 필수 환경 설정 파일은 루트 폴더에 유지합니다.
 
-# Unified Image Generation API Guide
-게임 클라이언트에서 퍼즐(다른그림찾기) 이미지를 요청할 때 사용하는 온디맨드 렌더링 API 명세입니다.
-이 API는 CORS가 허용되어 있어 외부 게임 클라이언트에서도 안전하게 호출할 수 있습니다. 
-내부적으로 캐싱을 수행하며 캐시가 없을 경우에만 합성합니다 (Lazy Loading).
+# JIT 이미지 합성 API 가이드 (`/api/generate-unified`)
+대시보드 또는 클라이언트가 동적으로 특정 조합의 파츠를 합성한 이미지가 필요할 때 호출하는 백엔드 API입니다. 
+최근 업데이트로 **벌크(다중) 처리 및 캐시 최적화**가 적용되어 수십 개의 이미지를 한 번에 초고속으로 요청할 수 있습니다.
 
+### 1. 단일 이미지 요청 (Legacy 호환 포맷)
+하나의 이미지 조합만 생성할 때 사용합니다.
 - **Endpoint**: `POST /api/generate-unified`
 - **Headers**: `Content-Type: application/json`
 - **Request Body (JSON)**:
   ```json
   {
-    "baseImageId": 1,
+    "baseImageId": 14,
     "imageSlots": {
-      "1": 2, // "카테고리ID": "요청할 파츠ID"
-      "2": 5,
-      "3": 12
+      "46": 112,
+      "47": 115
     }
   }
   ```
-- **Response (Success - 200 OK)**:
+- **Response**
   ```json
   {
     "success": true,
-    "url": "https://[SUPABASE_PROJECT].supabase.co/storage/v1/object/public/game_assets/unified_cache/base1_uuid.webp"
+    "url": "https://.../unified_cache/base14_abc.webp"
   }
   ```
-- **Response (Error - 400/404/500)**:
+
+### 2. 다중(벌크) 이미지 요청 (권장)
+최대 수십 개의 파츠 조합을 한 번에 요청합니다. 병렬 처리 및 RPC 마스터 데이터 캐싱을 통해 압도적으로 빠른 속도로 이미지를 반환받을 수 있습니다.
+- **Request Body (JSON)**:
   ```json
   {
-    "error": "오류 메세지"
+    "combinations": [
+      {
+        "baseImageId": 14,
+        "imageSlots": { "46": 112, "47": 115 }
+      },
+      {
+        "baseImageId": 15,
+        "imageSlots": { "48": 120 }
+      }
+    ]
+  }
+  ```
+- **Response**
+  ```json
+  {
+    "success": true,
+    "results": [
+      {
+        "baseImageId": 14,
+        "imageSlots": { "46": "112", "47": "115" },
+        "url": "https://.../unified_cache/base14_abc.webp"
+      },
+      {
+        "baseImageId": 15,
+        "imageSlots": { "48": "120" },
+        "url": "https://.../unified_cache/base15_def.webp"
+      }
+    ]
   }
   ```
 
@@ -890,4 +920,5 @@ localStorage.setItem('track_last_active', now.toString());
   ]
 }
 ```
+
 

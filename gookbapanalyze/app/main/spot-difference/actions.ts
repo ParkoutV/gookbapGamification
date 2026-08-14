@@ -464,14 +464,27 @@ export async function saveGameData(
       }).filter(Boolean) as string[]
 
       if (pathsToDelete.length > 0) {
-        // chunk deletion if necessary (Supabase limit is usually 100 per request, but we'll just try all for now)
-        // If there are many, we should chunk it. For safety, chunk by 100
-        for (let i = 0; i < pathsToDelete.length; i += 100) {
-          const chunk = pathsToDelete.slice(i, i + 100)
-          await supabaseAdmin.storage.from('game_assets').remove(chunk)
-        }
+        const headersList = await headers()
+        const host = headersList.get('host') || 'localhost:3000'
+        const protocol = headersList.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+        const appUrl = `${protocol}://${host}`
+        
+        const cookieStore = await cookies()
+        const allCookies = cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+        
+        after(async () => {
+          await fetch(`${appUrl}/api/cleanup-storage`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Cookie': allCookies
+            },
+            body: JSON.stringify({ paths: pathsToDelete })
+          }).catch(e => console.error('Failed to trigger storage cleanup:', e))
+        })
       }
     }
+    
     await supabaseAdmin.from('unified_images').delete().eq('base_image_id', baseImageId)
 
     // 7. Generate a single Preview Image (Smallest part IDs)

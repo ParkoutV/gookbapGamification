@@ -17,45 +17,42 @@ export async function generateUnifiedImageBuffer(
   const CANVAS_WIDTH = 1200;
   const CANVAS_HEIGHT = 800;
 
-  // 1. Fetch base image
-  const baseRes = await fetch(baseImageUrl);
-  if (!baseRes.ok) throw new Error(`Failed to fetch base image: ${baseRes.statusText}`);
-  const baseBuffer = await baseRes.arrayBuffer();
+  // 1 & 2. Fetch base image and ALL parts concurrently
+  const [baseBuffer, ...partBuffers] = await Promise.all([
+    fetch(baseImageUrl).then(async res => {
+      if (!res.ok) throw new Error(`Failed to fetch base image: ${res.statusText}`);
+      return Buffer.from(await res.arrayBuffer());
+    }),
+    ...parts.map(part => fetch(part.imageUrl).then(async res => {
+      if (!res.ok) throw new Error(`Failed to fetch part image: ${res.statusText}`);
+      return Buffer.from(await res.arrayBuffer());
+    }))
+  ]);
 
-  const resizedBase = await sharp(Buffer.from(baseBuffer))
+  const resizedBasePromise = sharp(baseBuffer)
     .resize(CANVAS_WIDTH, CANVAS_HEIGHT, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
     .toBuffer();
 
-  const composites: OverlayOptions[] = [];
-
-  // 3. Prepare each part overlay
-  for (const part of parts) {
-    const partRes = await fetch(part.imageUrl);
-    if (!partRes.ok) throw new Error(`Failed to fetch part image: ${partRes.statusText}`);
-    const partBuffer = Buffer.from(await partRes.arrayBuffer());
+  // 3. Prepare each part overlay concurrently
+  const overlayPromises = parts.map(async (part, index) => {
+    const partBuffer = partBuffers[index];
 
     const W = 100 * part.slotScale;
     const H = 100 * part.slotScale;
     const S = part.partScale;
     
-    // In CSS, object-contain is applied within the WxH slot, then transformed
-    // We will resize the part to fit inside W*S x H*S
     const finalW = Math.round(W * S);
     const finalH = Math.round(H * S);
     
-    if (finalW <= 0 || finalH <= 0) continue;
+    if (finalW <= 0 || finalH <= 0) return null;
 
-    // CSS transform logic:
-    // translate(tx, ty) scale(S)
-    // Center remains the same.
+    // CSS transform logic
     const left = Math.round(part.slotX + part.offsetX + (W - finalW) / 2);
     const top = Math.round(part.slotY + part.offsetY + (H - finalH) / 2);
 
-    // To avoid sharp's "Image to composite must have same dimensions or smaller" error,
-    // we must pre-crop the overlay so it strictly fits within the 1200x800 canvas.
     let cropLeft = 0;
     let cropTop = 0;
     let cropW = finalW;
@@ -80,7 +77,7 @@ export async function generateUnifiedImageBuffer(
       cropH = CANVAS_HEIGHT - drawTop;
     }
 
-    if (cropW <= 0 || cropH <= 0) continue;
+    if (cropW <= 0 || cropH <= 0) return null;
 
     const croppedPart = await sharp(partBuffer)
       .resize(finalW, finalH, {
@@ -90,12 +87,19 @@ export async function generateUnifiedImageBuffer(
       .extract({ left: cropLeft, top: cropTop, width: cropW, height: cropH })
       .toBuffer();
 
-    composites.push({
+    return {
       input: croppedPart,
       left: drawLeft,
       top: drawTop
-    });
-  }
+    } as OverlayOptions;
+  });
+
+  const [resizedBase, ...compositesRaw] = await Promise.all([
+    resizedBasePromise,
+    ...overlayPromises
+  ]);
+
+  const composites = compositesRaw.filter(Boolean) as OverlayOptions[];
 
   // 4. Composite all
   // 4. Composite all and export as PNG to ensure 100% correct RGBA alpha rasterization
