@@ -39,16 +39,16 @@ export const ja: Partial<Dictionary> = {
   "ranking.partialNotice": "記録が多いため一部のみ集計しました。",
   "ranking.closeButton": "閉じる",
 
-  "term.title": "個人情報の取り扱いについて",
-  "term.body":
-    "このゲームでは、ゲームの運営とクーポン発行のために以下の情報を収集します。\n\n" +
-    "· 匿名識別用のクッキー（氏名・連絡先など個人を特定する情報は収集しません）\n" +
-    "· ゲームのスコアおよびプレイ記録\n" +
-    "· アンケートの回答内容\n" +
-    "· クーポンの発行・利用履歴\n\n" +
-    "収集した情報はゲームの運営とクーポン発行の目的にのみ使用し、イベント終了後に破棄します。",
-  "term.agreeNotice": "「確認」を押すと、上記の内容に同意したものとみなします。",
-  "term.confirmButton": "確認",
+  "legal.title": "利用規約およびプライバシーポリシー",
+  "legal.tab.terms": "利用規約",
+  "legal.tab.privacy": "個人情報",
+  "couponGuide.title": "クーポンのご利用案内",
+  "couponGuide.openButton": "クーポンのご利用案内",
+  "legal.agreeNotice": "「確認」を押すと、上記の内容に同意したものとみなします。",
+  "legal.confirmButton": "確認",
+  "legal.closeAria": "閉じる",
+  "legal.openButton": "利用規約・プライバシーポリシー",
+  "legal.originalNotice": "本文書の原文は韓国語です。翻訳は参考用であり、本文は英語で表示されます。",
 
   "tutorial.openButton": "遊び方",
   "tutorial.progress": "{current} / {total}",
@@ -145,6 +145,15 @@ export const ja: Partial<Dictionary> = {
   "start.inviteCopied": "招待リンクをコピーしました！",
   "start.inviteFailed": "コピーできませんでした。しばらくしてからもう一度お試しください。",
   "wheel.nextButton": "次へ",
+
+  "webCoupon.label": "オンラインストアクーポン",
+  "webCoupon.copyButton": "コピー",
+  "webCoupon.copied": "コードをコピーしました！",
+  "webCoupon.copyFailed": "コピーできませんでした。コードを直接入力してください。",
+  "webCoupon.grantedTitle": "オンラインストアクーポンを獲得しました！",
+  "webCoupon.grantedBody":
+    "公式オンラインストアで下記のコードを登録するとご利用いただけます。\n「自分のクーポン」から再度ご確認いただけます。",
+  "webCoupon.grantedConfirm": "確認",
 
   "coupon.myCouponsButton": "自分のクーポンを見る",
   "coupon.myCouponsTitle": "自分のクーポン",

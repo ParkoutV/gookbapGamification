@@ -764,6 +764,118 @@ body {
   right: 0;
 }
 
+/* 온라인몰 쿠폰 티켓 (2026-08-13).
+ *
+ * **이미지 애셋을 만들지 않았다.** 이 티켓은 배경 위에 코드 텍스트를 얹는 구조라
+ * 그림으로 구우면 코드 자리를 비워두고 그 위에 절대배치해야 하는데, 그건 카드
+ * 앞면에서 화면과 저장본이 반복해서 어긋난 바로 그 구조다(`cardImage.ts` 절 참고).
+ * 형태가 단순한 직사각형이라 CSS로 그리는 편이 짧고, 색이 테마 변수를 그대로 탄다.
+ *
+ * 계단식 모서리는 **옛 `.pixel-mask-btn-solid`의 기법을 그대로 가져왔다** — px 고정
+ * 폴리곤이라 요소가 커져도 계단이 3px 격자를 유지한다(비율 기반 SVG 마스크가
+ * 요소 크기에 따라 계단까지 확대돼 실패했던 것을 그때 이렇게 풀었다).
+ *
+ * 카드 모서리에서는 이 기법이 폐기됐지만(2026-08-11, 베벨 2px이 계단을 덮어
+ * 보이지도 않으면서 27점짜리 폴리곤 비용만 냈다) **여기서는 사정이 다르다**:
+ * 티켓은 베벨이 없고 면이 넓어 계단이 실제로 보인다. 되살린 것이 아니라
+ * 조건이 다른 자리에 쓴 것이다.
+ *
+ * 좌우 중앙의 반원 노치도 계단으로 판다. 실제 티켓의 절취 구멍 자리이며,
+ * 이것이 "쿠폰"임을 한눈에 알리는 유일한 형태 신호다(다른 장식이 없다).
+ */
+.web-coupon-ticket {
+  position: relative;
+  background: var(--accent);
+  color: var(--accent-ink);
+  /* 노치는 중심에서 위아래 9px, 안쪽으로 7px 들어온다. **좌표를 커스텀 속성으로
+     빼지 말 것** — 아래 값들은 `calc(50% - 9px)`처럼 %와 px이 섞여 있어 변수로
+     묶으면 오히려 읽기 어려워지고, 계단마다 3px씩 다른 값이라 하나로 뭉뚱그릴 수도
+     없다. 크기를 바꾸려면 9/6/3과 7을 함께 조정한다(좌우가 대칭이라 8군데다). */
+  clip-path: polygon(
+    /* 상단 변: 좌상단 계단 → 우상단 계단 */
+    3px 0,
+    calc(100% - 3px) 0,
+    calc(100% - 3px) 1px,
+    calc(100% - 2px) 1px,
+    calc(100% - 2px) 2px,
+    calc(100% - 1px) 2px,
+    calc(100% - 1px) 3px,
+    100% 3px,
+    /* 오른쪽 변: 중앙까지 내려와 노치를 계단으로 파고 다시 나간다 */
+    100% calc(50% - 9px),
+    calc(100% - 3px) calc(50% - 9px),
+    calc(100% - 3px) calc(50% - 6px),
+    calc(100% - 6px) calc(50% - 6px),
+    calc(100% - 6px) calc(50% - 3px),
+    calc(100% - 7px) calc(50% - 3px),
+    calc(100% - 7px) calc(50% + 3px),
+    calc(100% - 6px) calc(50% + 3px),
+    calc(100% - 6px) calc(50% + 6px),
+    calc(100% - 3px) calc(50% + 6px),
+    calc(100% - 3px) calc(50% + 9px),
+    100% calc(50% + 9px),
+    /* 우하단 계단 */
+    100% calc(100% - 3px),
+    calc(100% - 1px) calc(100% - 3px),
+    calc(100% - 1px) calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 1px),
+    calc(100% - 3px) calc(100% - 1px),
+    calc(100% - 3px) 100%,
+    /* 하단 변 → 좌하단 계단 */
+    3px 100%,
+    3px calc(100% - 1px),
+    2px calc(100% - 1px),
+    2px calc(100% - 2px),
+    1px calc(100% - 2px),
+    1px calc(100% - 3px),
+    0 calc(100% - 3px),
+    /* 왼쪽 변: 오른쪽과 대칭인 노치 */
+    0 calc(50% + 9px),
+    3px calc(50% + 9px),
+    3px calc(50% + 6px),
+    6px calc(50% + 6px),
+    6px calc(50% + 3px),
+    7px calc(50% + 3px),
+    7px calc(50% - 3px),
+    6px calc(50% - 3px),
+    6px calc(50% - 6px),
+    3px calc(50% - 6px),
+    3px calc(50% - 9px),
+    0 calc(50% - 9px),
+    /* 좌상단 계단으로 닫는다 */
+    0 3px,
+    1px 3px,
+    1px 2px,
+    2px 2px,
+    2px 1px,
+    3px 1px
+  );
+}
+
+/* 절취선. 노치와 노치를 잇는 세로 점선이다.
+ *
+ * `border-left: dashed`가 아니라 gradient인 것은 **점선의 칸 크기를 px로 고정**하기
+ * 위해서다 — CSS `dashed`는 길이를 브라우저가 정해서 기기마다 다르게 보이고, 도트
+ * 컨셉에서는 그 불규칙이 눈에 띈다. 4px 칠하고 4px 비우면 격자와 리듬이 맞는다.
+ *
+ * 노치 안쪽에서 시작·끝나도록 위아래를 12px씩 띄운다. 노치까지 닿으면 clip-path에
+ * 잘려 선이 뭉툭해 보인다. */
+.web-coupon-ticket__perforation {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    currentColor 0,
+    currentColor 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  opacity: 0.5;
+}
+
 /* 가챠 카드. 비율은 애셋 원본(card-back.webp) 1000x1371 그대로다 — 어긋나면
    object-contain이 여백을 만들어 앞뒤 면의 크기가 달라 보인다.
    높이 기준으로 잡고 너비를 vw로 제한해, 좁은 화면에서도 카드가 잘리지 않는다. */
@@ -1169,4 +1281,24 @@ body {
 }
 .ranking-nickname::-webkit-scrollbar {
   display: none;
+}
+
+/* 법률 문서 본문 영역(`LegalNotice`). 긴 문서를 스크롤해 읽는 자리라, 90s 데스크톱
+   컨셉의 "창 안에 놓인 흰 문서"로 만든다(2026-08-14, 이란토).
+
+   **패널 배경(--surface #F2F4F6)이 아니라 순백이다.** 문서 영역이 창 크롬과 같은
+   색이면 어디까지가 읽을 내용인지 경계가 없다 — 카드 앞면(#F2F2F2)이 패널 배경에
+   묻혔던 것과 같은 문제이며, 여기서는 베벨이 아니라 색으로 가른다.
+
+   **베벨 방향은 눌린 면(음각)이다** — .gatcha-loading__bar 트랙, .pixel-frame-inner와
+   같은 방향(왼쪽·위가 dark). 스크롤되는 내용 영역은 창 안에 파인 홈이지 튀어나온
+   버튼이 아니다. 방향을 뒤집으면 누를 수 있는 것처럼 보인다. */
+.legal-doc-body {
+  background: #FFFFFF;
+  box-shadow:
+    inset 2px 2px 0 0 var(--bevel-dark),
+    inset -2px -2px 0 0 var(--bevel-light);
+  /* 베벨 두께만큼 안쪽 여백. 로딩 바 트랙 주석과 같은 이유로, 글자가 홈에 닿아
+     베벨을 덮으면 파인 느낌이 사라진다. 좌우는 읽기 여백을 겸해 더 준다. */
+  padding: 0.5rem 0.75rem;
 }

@@ -8,8 +8,13 @@ import type { Dictionary } from "../types.ts";
 // 값이 없는 키는 en → ko 순으로 폴백된다.
 //
 // **초벌 번역이다 — 이란토 검수 대기 중**(2026-08-13). 원어민 감수 전이므로
-// 문구가 어색할 수 있다. 특히 `start.invitePromo`(홍보 문구)와 `term.body`(개인정보
-// 안내)는 톤과 법적 표현이 걸린 자리라 그대로 배포하지 말 것.
+// 문구가 어색할 수 있다. 특히 `start.invitePromo`(홍보 문구)는 톤이 걸린 자리라
+// 그대로 배포하지 말 것.
+//
+// **법률 본문은 여기 없다**(2026-08-14). 약관·개인정보처리방침·쿠폰안내는
+// `app/lib/legalDocs.ts`에 ko/en 2종만 두고, zh 사용자는 en 본문을 본다 —
+// 개인정보보호법 조문 인용이 들어간 문서라 오역이 곧 법적 리스크다.
+// 여기 있는 `legal.*`는 탭 이름·버튼 같은 UI 껍데기뿐이다.
 export const zh: Partial<Dictionary> = {
   "meta.title": "找不同 - 汤饭",
   "meta.description": "以汤饭套餐为主题的找不同游戏",
@@ -48,16 +53,16 @@ export const zh: Partial<Dictionary> = {
   "ranking.partialNotice": "记录较多，仅统计了一部分。",
   "ranking.closeButton": "关闭",
 
-  "term.title": "个人信息处理须知",
-  "term.body":
-    "本游戏为顺利运营及发放优惠券，将收集以下信息。\n\n" +
-    "· 匿名识别用的 Cookie（不收集姓名、联系方式等可识别个人身份的信息）\n" +
-    "· 游戏分数及游玩记录\n" +
-    "· 问卷的回答内容\n" +
-    "· 优惠券的发放及使用记录\n\n" +
-    "所收集的信息仅用于游戏运营与优惠券发放，活动结束后将予以销毁。",
-  "term.agreeNotice": "点击「确认」即视为您同意以上内容。",
-  "term.confirmButton": "确认",
+  "legal.title": "使用条款及个人信息处理须知",
+  "legal.tab.terms": "使用条款",
+  "legal.tab.privacy": "个人信息",
+  "couponGuide.title": "优惠券使用须知",
+  "couponGuide.openButton": "优惠券使用须知",
+  "legal.agreeNotice": "点击「确认」即视为您同意以上内容。",
+  "legal.confirmButton": "确认",
+  "legal.closeAria": "关闭",
+  "legal.openButton": "使用条款·隐私政策",
+  "legal.originalNotice": "本文件原文为韩语，译文仅供参考，正文以英文显示。",
 
   "tutorial.openButton": "游戏玩法",
   "tutorial.progress": "{current} / {total}",
@@ -159,6 +164,15 @@ export const zh: Partial<Dictionary> = {
   "start.inviteCopied": "已复制邀请链接！",
   "start.inviteFailed": "复制失败，请稍后再试。",
   "wheel.nextButton": "下一步",
+
+  "webCoupon.label": "网上商城优惠券",
+  "webCoupon.copyButton": "复制",
+  "webCoupon.copied": "已复制优惠码！",
+  "webCoupon.copyFailed": "复制失败，请手动输入优惠码。",
+  "webCoupon.grantedTitle": "您获得了网上商城优惠券！",
+  "webCoupon.grantedBody":
+    "在官方网上商城登记下方的优惠码即可使用。\n您可以在「我的优惠券」中再次查看。",
+  "webCoupon.grantedConfirm": "确认",
 
   "coupon.myCouponsButton": "查看我的优惠券",
   "coupon.myCouponsTitle": "我的优惠券",

@@ -15,6 +15,9 @@ import { requestGatchaDraw } from "./lib/gatchaApi";
 import { resolveInviteTrackId } from "./lib/inviteLink";
 import { sortByIssuedAt, toIssuedCoupon, type IssuedCouponRow } from "./lib/issuedCoupons";
 import type { IssuedCoupon } from "./lib/issuedCoupons";
+import { requestWebCouponAssign } from "./lib/webCouponApi";
+import { sortByAssignedAt, toWebCoupons, type WebCouponRow } from "./lib/webCoupons";
+import type { WebCoupon, WebCouponSettings } from "./lib/webCoupons";
 
 /**
  * 화면들이 `actions`에서 가져다 쓰던 타입이라 여기서도 계속 내보낸다.
@@ -26,6 +29,8 @@ import type { IssuedCoupon } from "./lib/issuedCoupons";
  * 죽어 닉네임이 빈 채로 떴다). `from`을 붙여 원본에서 직접 re-export해야 지워진다.
  */
 export type { IssuedCoupon } from "./lib/issuedCoupons";
+/** 같은 이유로 `from`을 붙여 원본에서 직접 re-export한다(위 주석 참고). */
+export type { WebCoupon, WebCouponSettings } from "./lib/webCoupons";
 import { rankingPeriodStart, type RankingPeriod } from "./lib/rankingPeriod";
 import type { RankingViewRow } from "./lib/rankingRows";
 import { toSurveyFetchResult, type SurveyFetchResult } from "./lib/surveyFetchResult";
@@ -682,6 +687,123 @@ export async function fetchMyCoupons(): Promise<IssuedCoupon[]> {
     console.error("[fetchMyCoupons] 예기치 못한 예외:", error);
     return [];
   }
+}
+
+/**
+ * 내 온라인몰 쿠폰 목록. `web_coupons` 직접 SELECT는 RLS로 막혀 있어 RPC가 필수다
+ * (`gookbapanalyze/AGENTS.md`의 12번 절 — anon에게는 정책이 아예 없고 관리자 전용이다).
+ *
+ * **매장 쿠폰과 합치지 않는다.** 두 목록을 하나로 이어 붙이면 화면이 종류를 판정하려고
+ * 필드 유무(`code`가 있나 `couponId`가 있나)를 보게 되는데, 그건 타입이 할 일이다.
+ * 앨범이 두 배열을 따로 받아 각자 그린다.
+ */
+export async function fetchMyWebCoupons(): Promise<WebCoupon[]> {
+  try {
+    const participantId = await resolveParticipantId();
+    const { data, error } = await supabase.rpc("get_my_web_coupons", { p_id: participantId });
+    if (error) {
+      console.error("[fetchMyWebCoupons] get_my_web_coupons 실패:", error);
+      return [];
+    }
+    return sortByAssignedAt(toWebCoupons((data ?? []) as WebCouponRow[]));
+  } catch (error) {
+    console.error("[fetchMyWebCoupons] 예기치 못한 예외:", error);
+    return [];
+  }
+}
+
+/**
+ * 온라인몰 쿠폰 문구(`web_coupon_settings`). 운영자가 대시보드에서 적는 값이며
+ * **혜택 내용이 여기 문장으로 들어간다** — 할인율을 담는 숫자 컬럼은 없다.
+ *
+ * `Everyone: SELECT`라 직접 읽는다(RPC 불필요, `coupon_effects`와 같은 사정).
+ * 단일 행이므로 `id = 1`을 집는다.
+ *
+ * **`coupon_effects.coupon_type`과 달리 `JSON.parse`가 필요 없다.** 그쪽은 컬럼 타입이
+ * `text`라 다국어 맵이 JSON 문자열로 들어 있지만, 이 두 컬럼은 실제 `jsonb`라
+ * Supabase가 객체로 돌려준다(2026-08-13 실물 확인).
+ *
+ * 조회 실패는 null이다 — 화면이 로케일 파일의 기본 문구로 떨어진다. 문구 하나 때문에
+ * 쿠폰을 못 보여주는 쪽이 나쁘다.
+ */
+export async function fetchWebCouponSettings(): Promise<WebCouponSettings | null> {
+  try {
+    const { data, error } = await supabase
+      .from("web_coupon_settings")
+      .select("title, description")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) {
+      console.error("[fetchWebCouponSettings] 조회 실패:", error);
+      return null;
+    }
+    return (data as WebCouponSettings | null) ?? null;
+  } catch (error) {
+    console.error("[fetchWebCouponSettings] 예기치 못한 예외:", error);
+    return null;
+  }
+}
+
+/**
+ * 온라인몰 쿠폰 발급. 설문(phase 1) 최초 응답자에게 100% 확정 지급된다.
+ *
+ * **자격 판정은 전부 서버가 한다.** `/api/web-coupons/assign`이 설문 완료 여부를
+ * 검증하고 미배정 코드를 원자적으로 집어준다 — 클라이언트가 "설문했으니 받을 수 있다"고
+ * 판단해서 부르는 것이 아니라, **일단 부르고 서버 판정을 따른다.**
+ *
+ * `drawCoupon`과 달리 **중복 호출이 안전하다.** 이미 받은 사람에게 서버가 무엇을
+ * 돌려주는지(같은 코드인지 거절인지)는 실기로 확인되지 않았지만, 어느 쪽이든
+ * 화면이 하는 일은 "목록을 다시 읽는다"로 같다. 그래서 앨범 진입 시 보완 발급을
+ * 걸 수 있다(아래 `ensureWebCoupon`).
+ *
+ * 로컬 폴백을 만들지 말 것 — `drawCoupon`과 같은 이유다. 코드는 서버 `web_coupons`에
+ * 실재해야만 온라인몰에서 등록된다.
+ */
+export async function assignWebCoupon(): Promise<{ ok: boolean }> {
+  const apiUrl = process.env.WEB_COUPON_ASSIGN_API_URL;
+  if (!apiUrl) {
+    console.error("[assignWebCoupon] WEB_COUPON_ASSIGN_API_URL 미설정");
+    return { ok: false };
+  }
+
+  try {
+    const participantId = await resolveParticipantId();
+    const result = await requestWebCouponAssign(apiUrl, participantId);
+    if (!result.ok) {
+      /* 거절(4xx)은 정상 경로다 — 설문 미완료이거나 재고가 없다. 실패를 삼키는
+         이유는 KPI 액션들과 같다: 온라인몰 쿠폰을 못 받는 것이 게임 진행이나
+         매장 쿠폰 발급을 막아서는 안 된다. */
+      console[result.rejected ? "warn" : "error"](
+        `[assignWebCoupon] 발급 실패(rejected=${result.rejected}):`,
+        result.error
+      );
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error("[assignWebCoupon] 예기치 못한 예외:", error);
+    return { ok: false };
+  }
+}
+
+/**
+ * 온라인몰 쿠폰을 확보한 뒤 목록을 돌려준다.
+ *
+ * **설문 직후 발급이 실패한 사람을 위한 보완 경로다.** `useCouponFlow`의
+ * `submitAnswers`는 이미 제출한 사람이면 **서버를 부르지 않고 곧장 true를 리턴하므로**
+ * (localStorage 기반 재제출 차단), 거기서 한 번 실패하면 다시 시도할 기회가 영영 없다.
+ * 그래서 앨범을 열 때 목록이 비어 있으면 한 번 더 부른다.
+ *
+ * 자격 없는 사람이 눌러도 **서버가 403으로 거절**하므로 안전하다. 그 판정을 여기서
+ * 흉내내지 말 것 — 설문 완료 여부의 진실은 `survey_responses`이고 localStorage가 아니다.
+ */
+export async function ensureWebCoupons(): Promise<WebCoupon[]> {
+  const existing = await fetchMyWebCoupons();
+  if (existing.length > 0) return existing;
+
+  const assigned = await assignWebCoupon();
+  if (!assigned.ok) return existing;
+  return fetchMyWebCoupons();
 }
 
 /**

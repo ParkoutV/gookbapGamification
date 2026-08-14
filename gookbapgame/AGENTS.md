@@ -509,6 +509,96 @@ iOS Firefox 실기에서 게임판이 잘려 **위아래로 스크롤하며 플�
   - 종료 멜로디는 `playedRef` 가드가 있다. 빈 의존성 이펙트는 StrictMode에서 두 번
     돌고, 1~3초짜리 멜로디는 겹치면 바로 들린다(짧은 효과음과 다르다).
 
+# 온라인몰 쿠폰 (`app/components/WebCouponTicket.tsx`, `app/lib/webCoupons.ts`)
+
+**매장 쿠폰과 별개의 물건이다**(2026-08-13 추가, 이란토). 매장 쿠폰은 QR을 스캐너에
+보여주는 것이고, 이쪽은 평문 코드(`7FB6E68B838F4` 형식)를 공식 온라인몰에 **붙여넣어**
+등록한다. 그래서 QR도 사용기한도 사용 여부도 없다.
+
+- **`IssuedCoupon`과 타입을 합치지 말 것.** 겹치는 필드가 사실상 없어서, 합치면 한쪽에
+  늘 `undefined`인 칸이 생기고 화면이 그 `undefined`로 종류를 판정하게 된다. 앨범이
+  두 배열(`coupons` / `webCoupons`)을 따로 받아 각자 그린다. 컴포넌트도 분리했다 —
+  `GatchaCard`는 뒤집기·QR·기간·도장·저장 이미지를 들고 있고 여기엔 하나도 없다.
+- **발급은 설문(phase 1) 최초 응답 직후, 100% 확정이다.** 카드 뽑기와 무관하며 확률이
+  없다. `POST /api/web-coupons/assign`이 설문 완료를 **서버에서 검증**하므로 클라이언트가
+  자격을 판정하지 않는다 — 일단 부르고 403이면 따른다.
+  - **`submitAnswers`의 재제출 가드 뒤에 붙어 있다.** 그 함수는 이미 제출한 사람이면
+    서버를 부르지 않고 곧장 리턴하므로(localStorage 기반), 거기서 한 번 실패하면 다시
+    시도할 자리가 없다. 그래서 앨범 진입 시 `ensureWebCoupons`가 **목록이 비어 있으면
+    한 번 더 발급을 시도한다.** 이 보완 경로를 지우면 네트워크가 불안정한 매장에서
+    유실자가 생긴다.
+- **혜택 내용은 DB에서 온다 — 화면에 하드코딩하지 말 것.** `web_coupons`에는 할인율·금액을
+  담는 컬럼이 **없고**(`coupon_code`/`participant_id`/`assigned_at`/`created_at`뿐),
+  운영자가 `web_coupon_settings.title`에 문장으로 적는다(실제 값: `"1원 할인 쿠폰
+  (쿠폰삭제 필수)"`). 로케일 파일의 `webCoupon.label`은 **조회 실패 시 기본값일 뿐이다.**
+  - 이 테이블은 `Everyone: SELECT`라 anon이 직접 읽는다(RPC 불필요).
+  - **`JSON.parse`가 필요 없다.** `coupon_effects.coupon_type`은 컬럼 타입이 `text`라
+    다국어 맵이 JSON 문자열이지만, 이 두 컬럼은 진짜 `jsonb`다(2026-08-13 실물 확인).
+  - 실제 데이터가 `ja: ""`, `zh` 키 없음이라 **폴백이 늘 걸리는 경로다** — 그 두 로케일
+    사용자는 en(`"Web Coupon"`)을 본다. `description`은 현재 전부 비어 있고, 비면 줄
+    자체를 그리지 않는다.
+- **코드 컬럼 이름이 테이블과 RPC에서 다르다.** 테이블은 `coupon_code`, `get_my_web_coupons`
+  반환 예시는 `code`다. 한쪽만 읽으면 **에러 없이** 코드가 빈칸으로 뜬다(상품명이 "—"로
+  떨어진 2026-08-07 사고와 같은 구조). `toWebCoupons`가 둘 다 받는다.
+- **발급 API 응답은 껍데기가 두 겹이다**: `{ success, data: { success, code } }`.
+  바깥에서 `code`를 읽으면 `undefined`가 되어 성공했는데 실패로 처리된다.
+  `webCouponApi.test.ts`가 이 회귀를 잡는다.
+- **티켓 애셋을 만들지 않았다 — CSS clip-path로 그린다**(`.web-coupon-ticket`).
+  배경 위에 코드 텍스트를 얹는 구조라 그림으로 구우면 코드 자리를 비워두고 절대배치해야
+  하는데, 그게 카드 앞면에서 화면·저장본이 반복해서 어긋난 그 구조다.
+  - 계단은 **옛 `.pixel-mask-btn-solid`의 기법**이다(px 고정 폴리곤이라 요소가 커져도
+    3px 격자를 유지한다). 카드 모서리에서는 2026-08-11에 폐기됐지만 — 베벨 2px이 덮어
+    보이지도 않으면서 비용만 냈다 — **여기는 베벨이 없고 면이 넓어 계단이 실제로 보인다.**
+    되살린 것이 아니라 조건이 다른 자리에 쓴 것이다.
+  - 좌우 노치 좌표를 커스텀 속성으로 빼지 말 것(%와 px이 섞여 있고 계단마다 값이 다르다).
+  - **복사 버튼만 예외적으로 베벨을 쓰지 않는다**(2026-08-13, 이란토). 티켓은 깎아낸
+    한 장의 종이라 입체 버튼을 얹으면 별개 부품처럼 보인다. `border-current`로 얇은
+    테두리만 두른다.
+- **격자에서 한 행을 통째로 쓴다**(`col-span-2`). 가로로 긴 티켓이라 세로 카드 칸
+  (1000/1371)에 넣으면 여백이 남고, 칸마다 비율이 다르면 격자가 들쭉날쭉해진다.
+- **빈 상태는 두 목록이 모두 비었을 때만이다.** 매장 쿠폰만 보면 설문만 하고 뽑기를
+  안 한 사람에게 티켓과 "쿠폰이 없어요"가 함께 뜬다.
+- `WEB_COUPON_ASSIGN_API_URL` 미설정이면 발급만 조용히 건너뛴다 — 설문·뽑기 흐름은
+  그대로 진행된다(`GATCHA_DRAW_API_URL`과 달리 흐름을 막지 않는다).
+
+# 랭킹 (`app/components/RankingScreen.tsx`, `actions.ts`의 `fetchRanking`)
+
+구현 스펙은 `docs/client/20260813-ranking-spec.md`에 있다. 여기에는 **실물과 문서가
+어긋난 자리**만 적는다.
+
+- **`ranking_view`에 `nickname_number`가 없다**(2026-08-13 프로덕션 실측).
+  `gookbapanalyze/AGENTS.md:470`은 반환 컬럼에 그것을 포함한다고 적어놨지만 실제
+  뷰 정의(`pg_get_viewdef`)의 SELECT 목록에 없다 — `participants`를 이미 조인해
+  놓고 그 컬럼만 안 꺼냈다. 저쪽 담당자도 있는 줄 알고 있었으므로(테이블에는 있다)
+  **문서·구두 확인만으로 컬럼 존재를 단정하지 말 것.**
+  - 증상은 **랭킹 네 탭 전부 "랭킹을 불러오지 못했어요"**다. PostgREST가 `42703`으로
+    400을 내고 `fetchRanking`이 `ok: false`로 떨어진다. 서버 액션이라 브라우저 콘솔·
+    네트워크에는 **아무 흔적도 남지 않는다** — 실제 에러는 Vercel 함수 로그에만 있다.
+  - **anon 권한을 먼저 의심하지 말 것.** 스펙 7절이 "뷰이므로 grant가 필요하다"고
+    적어둔 탓에 그쪽으로 먼저 갔는데, 실측하니 `anon_can_select`는 true였고 anon으로
+    61행이 읽혔다. 권한과 컬럼 누락은 증상이 같으므로 순서를 잘못 잡으면 헛돈다.
+  - 진단은 이 두 줄이면 끝난다:
+    ```sql
+    select column_name from information_schema.columns
+     where table_schema='public' and table_name='ranking_view';
+    select pg_get_viewdef('public.ranking_view'::regclass, true);
+    ```
+  - **`nickname_number`는 표시용이 아니라 그룹 키의 일부다.** 없다고 select에서 빼면
+    `든든한 국밥 #0023`과 `#4606`이 한 사람으로 합쳐진다(프리셋 조합이 유한해 실제로
+    충돌한다). 컬럼만 지우는 임시 대응은 랭킹을 **조용히 틀리게** 만든다.
+  - 뷰 수정 시 **`create or replace view`는 컬럼을 맨 뒤에 추가할 때만 통한다.**
+    중간에 끼우면 `cannot change name of view column`이 난다. `drop view`로 다시
+    만들면 **GRANT가 날아가므로** `grant select ... to anon, authenticated`를 반드시
+    다시 줄 것 — 안 그러면 같은 증상이 다른 이유로 재발한다.
+- **`gookbap_score`는 `NOT NULL DEFAULT 0`이다**(덤프 `docs/client/20260813_supabase 쿠폰.txt`
+  실물 확인). 그래서 `fetchRanking`의 `nullsFirst: false`는 실제로는 걸리지 않는
+  방어다(주석이 "확인되지 않았다"고 적어둔 것이 이걸로 확인됐다). 해롭지 않으니 둔다.
+  - 같은 이유로 **"내 최고점 0"은 버그가 아니다.** 점수 0인 기록이 실제로 있는 것이며,
+    `fetchMyBestScore`가 실패했다면 `null`이라 줄 자체가 뜨지 않는다.
+- 뷰 원본 정의에 `order by best_score desc, joined_time`이 들어 있지만 **의미가 없다** —
+  `best_score`는 클라이언트가 채우지 않아 전부 0이고(스펙 1절), PostgREST가 `.order()`로
+  덮어쓴다.
+
 # 로케일 (`app/lib/i18n/`)
 
 ko / en / ja / **zh(간체)** 4종. zh는 2026-08-13에 추가했다 — 부산을 찾는 중화권

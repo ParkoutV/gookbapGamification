@@ -156,3 +156,10 @@ print([c for c in set('새 문자들') if ord(c) not in cmap])
 **시드 날짜는 `now()` 기준 상대값으로 쓸 것.** 고정 문자열은 며칠 뒤 다시 부으면 구간이 달라진다. KST 경계를 만들 때 `current_date at time zone 'Asia/Seoul'`을 쓰면 하루 밀린다 — `docs/test-db/seed.sql`의 `seed_kst_end_of_day` 주석 참고.
 
 `ranking_view`는 뷰이므로 `grant select ... to anon`이 필요하다. schema.sql의 GRANT 위치 함정(테이블 생성보다 앞서면 죽는다)도 같은 파일 주석에 있다.
+
+> **추가(2026-08-13, 배포 후):** 위 문장은 **로컬 스텁 이야기이며 프로덕션 진단의 출발점으로 쓰지 말 것.**
+> 배포 직후 랭킹이 네 탭 모두 실패했을 때 이 줄 때문에 anon 권한부터 의심했는데, 실측하니
+> `anon_can_select`는 true였고 anon으로 61행이 읽혔다. 실제 원인은 **`ranking_view`에
+> `nickname_number` 컬럼이 아예 없는 것**이었다(저쪽 문서에는 있다고 적혀 있다).
+> 권한 부족과 컬럼 누락은 화면 증상이 같으므로, `information_schema.columns`와
+> `pg_get_viewdef`를 먼저 볼 것. 자세한 내용은 `AGENTS.md`의 랭킹 절에 있다.
