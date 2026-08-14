@@ -79,11 +79,18 @@ export default function LegalNotice({ firstRun, onClose }: LegalNoticeProps) {
         </div>
 
         {/* 본문. `key`가 탭이라 갈아탈 때 스크롤이 맨 위로 돌아간다 — 없으면 같은
-            DOM이 재사용되어 개인정보처리방침 8항을 읽다 쿠폰 탭으로 옮기면 그
-            문서의 중간부터 보인다. */}
+            DOM이 재사용되어 개인정보처리방침 8항을 읽다 다른 탭으로 옮기면 그
+            문서의 중간부터 보인다.
+
+            **높이 상한은 `vh`가 아니라 `dvh`다**(AGENTS.md "화면 높이" 절). 여기서는
+            특히 위험하다: 최초 고지 경로에는 타이틀바 ✕가 없어서 **'확인' 버튼이
+            유일한 탈출구**인데, 이 모달은 `items-center`로 가운데 정렬만 하고
+            스크롤을 주지 않으므로 패널이 가시 영역을 넘으면 위아래가 함께 잘린다.
+            `vh`는 툴바가 없는 높이로 고정되므로 툴바가 두꺼운 브라우저에서 그
+            버튼이 잘려 **고지를 닫을 방법이 사라진다.** */}
         <div
           key={tab}
-          className="legal-doc-body text-xs text-ink text-left whitespace-pre-line max-h-[45vh] overflow-y-auto mb-4 leading-relaxed"
+          className="legal-doc-body text-xs text-ink text-left whitespace-pre-line max-h-[45dvh] overflow-y-auto mb-4 leading-relaxed"
         >
           {legalDocBody(legalLocale, tab)}
         </div>

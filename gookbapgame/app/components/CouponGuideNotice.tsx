@@ -34,19 +34,17 @@ export default function CouponGuideNotice({ onClose }: { onClose: () => void }) 
         className="max-w-sm w-full"
       >
         <h2 className="text-lg font-bold text-ink mb-3 text-center">{t("couponGuide.title")}</h2>
-        <div className="legal-doc-body text-xs text-ink text-left whitespace-pre-line max-h-[45vh] overflow-y-auto mb-4 leading-relaxed">
+        {/* 높이 상한이 `dvh`인 이유는 `LegalNotice`의 같은 자리 주석 참고. */}
+        <div className="legal-doc-body text-xs text-ink text-left whitespace-pre-line max-h-[45dvh] overflow-y-auto leading-relaxed">
           {couponGuideBody(legalLocale)}
         </div>
         {legalLocale !== "ko" && (
-          <p className="text-[0.65rem] text-muted text-left mb-3">{t("legal.originalNotice")}</p>
+          <p className="text-[0.65rem] text-muted text-left mt-3">{t("legal.originalNotice")}</p>
         )}
-        <button
-          type="button"
-          onClick={onClose}
-          className="pixel-mask-btn-solid w-full py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95"
-        >
-          {t("legal.confirmButton")}
-        </button>
+        {/* **닫기는 타이틀바 ✕뿐이다.** 본문 아래에 '확인'을 또 두지 않는다 —
+            `PixelPanel`의 prop 주석대로 창 컨셉에서 닫기는 타이틀바의 몫이고,
+            여기는 이미 아는 내용을 다시 읽는 열람용이라 동의를 받을 것이 없다
+            (`LegalNotice`의 푸터 열람 경로와 같은 성격이다). */}
       </PixelPanel>
     </div>
   );
