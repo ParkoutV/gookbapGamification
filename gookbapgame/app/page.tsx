@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import StartScreen from "./components/StartScreen";
+import LegalNotice from "./components/LegalNotice";
 import TutorialScreen from "./components/TutorialScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
@@ -16,7 +17,6 @@ import RankingScreen from "./components/RankingScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
 import LanguageToggle from "./components/LanguageToggle";
 import SoundToggle from "./components/SoundToggle";
-import TermNotice from "./components/TermNotice";
 import WebCouponGrantedNotice from "./components/WebCouponGrantedNotice";
 import { useGameProgress, type GamePhase } from "./hooks/useGameProgress";
 import { useCouponFlow } from "./hooks/useCouponFlow";
@@ -84,6 +84,12 @@ export default function Home({ searchParams }: PageProps) {
     markTermAcknowledged();
     setShowTerm(false);
   }, []);
+
+  /* 시작 화면 푸터에서 여는 열람용. **최초 고지(`showTerm`)와 별개의 state다** —
+     합치면 이미 고지받은 사람이 푸터로 열었다 닫을 때 쿠키를 다시 쓰게 되고,
+     반대로 최초 고지에 ✕가 생겨 "거부라는 선택지를 두지 않는다"는 설계가 깨진다
+     (`LegalNotice`의 firstRun 주석). */
+  const [showLegalReview, setShowLegalReview] = useState(false);
 
   // 튜토리얼을 "다시 보기"로 열었는지 구분한다. onboarding이면 완주 시 게임으로,
   // review면 시작 화면으로 돌아가야 하는데 phase만으로는 구분할 수 없다.
@@ -259,7 +265,12 @@ export default function Home({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-dvh bg-black">
-      {showTerm && <TermNotice onAcknowledge={acknowledgeTerm} />}
+      {/* 최초 고지가 열려 있는 동안에는 열람용을 띄우지 않는다 — 겹치면 같은 창이
+          두 겹으로 쌓인다. 최초 고지 쪽이 우선이다(먼저 확인해야 하는 것이므로). */}
+      {showTerm && <LegalNotice firstRun onClose={acknowledgeTerm} />}
+      {!showTerm && showLegalReview && (
+        <LegalNotice firstRun={false} onClose={() => setShowLegalReview(false)} />
+      )}
       {/* 설문 직후 온라인몰 쿠폰 안내. **화면 전환과 무관하게 최상위에 둔다** —
           설문 제출 성공은 곧 `wheel`로 넘어가는 전이를 부르므로(`handleSurveySubmit`),
           특정 phase 안에 두면 그 화면이 언마운트되면서 팝업도 함께 사라진다. */}
@@ -289,6 +300,7 @@ export default function Home({ searchParams }: PageProps) {
           onOpenMyCoupons={() => void openMyCoupons("start")}
           hasPendingDraw={showDrawEntry}
           trackId={trackId}
+          onOpenLegal={() => setShowLegalReview(true)}
         />
       )}
 

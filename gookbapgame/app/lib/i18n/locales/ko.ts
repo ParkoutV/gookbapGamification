@@ -44,16 +44,22 @@ export const ko: Dictionary = {
   "ranking.partialNotice": "기록이 많아 일부만 집계했습니다.",
   "ranking.closeButton": "닫기",
 
-  "term.title": "개인정보 처리 안내",
-  "term.body":
-    "이 게임은 원활한 참여와 쿠폰 발급을 위해 아래 정보를 수집합니다.\n\n" +
-    "· 익명 식별용 쿠키 (이름·연락처 등 개인을 특정하는 정보는 수집하지 않습니다)\n" +
-    "· 게임 점수 및 진행 기록\n" +
-    "· 설문에 응답한 내용\n" +
-    "· 쿠폰 발급 및 사용 내역\n\n" +
-    "수집된 정보는 게임 운영과 쿠폰 지급 목적으로만 사용되며, 행사 종료 후 파기됩니다.",
-  "term.agreeNotice": "확인을 누르면 위 내용에 동의한 것으로 간주합니다.",
-  "term.confirmButton": "확인",
+  /* 법률 문서 창(`LegalNotice`). **본문은 여기 없다** — `app/lib/legalDocs.ts`에
+     ko/en 2종으로 따로 있다(첫 로드 전송량 + 번역 정책, 그 파일 주석 참고).
+     여기 있는 것은 탭 이름·버튼 같은 UI 껍데기뿐이고 이쪽은 로케일 4종을 따른다. */
+  "legal.title": "이용약관 및 개인정보 처리 안내",
+  "legal.tab.terms": "이용약관",
+  "legal.tab.privacy": "개인정보",
+  /* 쿠폰 이용안내는 약관 창의 탭이 아니라 별도 팝업이다(`CouponGuideNotice`) —
+     뽑기 화면과 보관함에서 연다. */
+  "couponGuide.title": "쿠폰 이용안내",
+  "couponGuide.openButton": "쿠폰 이용안내",
+  "legal.agreeNotice": "확인을 누르면 위 내용에 동의한 것으로 간주합니다.",
+  "legal.confirmButton": "확인",
+  "legal.closeAria": "닫기",
+  "legal.openButton": "이용약관·개인정보처리방침",
+  // ko 화면에서는 원문이 한국어인 것이 자명하므로 쓰이지 않는다(`LegalNotice`가 건너뛴다).
+  "legal.originalNotice": "본 문서의 원문은 한국어이며, 번역본은 참고용입니다.",
 
   "tutorial.openButton": "게임 방법",
   "tutorial.progress": "{current} / {total}",

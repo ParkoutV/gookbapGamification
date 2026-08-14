@@ -11,6 +11,7 @@ import WebCouponTicket from "./WebCouponTicket";
 import { isCouponExpired } from "../lib/couponUsability";
 import { resolveCouponRemaining } from "../lib/couponRemaining";
 import { couponDateLines } from "../lib/couponDates";
+import CouponGuideNotice from "./CouponGuideNotice";
 
 /**
  * 내 쿠폰 앨범.
@@ -50,6 +51,7 @@ export default function MyCouponsScreen({
 }) {
   const { locale, t } = useLocale();
   const [openCouponId, setOpenCouponId] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   const openCoupon = coupons.find((c) => c.couponId === openCouponId) ?? null;
 
@@ -256,7 +258,19 @@ export default function MyCouponsScreen({
         >
           {t("coupon.closeButton")}
         </button>
+
+        {/* 쿠폰 이용안내. 사용기한·1회 사용·재발급 불가처럼 **보관함에서 바로 알아야
+            하는** 내용이라 시작 화면 푸터의 약관 창과 따로 둔다(2026-08-14, 이란토). */}
+        <button
+          type="button"
+          onClick={() => setShowGuide(true)}
+          className="mt-3 w-full text-xs text-muted underline underline-offset-2"
+        >
+          {t("couponGuide.openButton")}
+        </button>
       </PixelPanel>
+
+      {showGuide && <CouponGuideNotice onClose={() => setShowGuide(false)} />}
     </div>
   );
 }
