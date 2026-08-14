@@ -146,6 +146,23 @@ export default function NicknameClient({
     }))
   }
 
+  const handleTranslationComplete = (translations: Record<string, Record<string, string>>) => {
+    setPresets(prev => prev.map(p => {
+      let updatedText = { ...p.text }
+      let changed = false
+      Object.keys(translations).forEach(lang => {
+        if (translations[lang] && translations[lang][p.id]) {
+          updatedText[lang] = translations[lang][p.id]
+          changed = true
+        }
+      })
+      if (changed) {
+        return { ...p, text: updatedText }
+      }
+      return p
+    }))
+  }
+
   const handleAddExclusion = () => {
     const firstActive = presets.find(p => p.type === 'first_word')
     const lastActive = presets.find(p => p.type === 'last_word')
@@ -284,11 +301,49 @@ export default function NicknameClient({
 
   const renderTable = (type: 'first_word' | 'last_word') => {
     const filteredPresets = presets.filter(p => p.type === type)
+    const sourceTextsForTranslation = filteredPresets.reduce((acc, p) => {
+      if (p.text['ko'] && p.text['ko'].trim() !== '') {
+        // Find if there's any target language that is empty to avoid translating unnecessarily?
+        // Actually, TranslationButton translates all keys we pass. To save usage, we can only pass keys where at least one target lang is empty.
+        // Wait, the requirement just says "bulk translation". We will just pass all that have 'ko'. 
+        // But to be cost effective, only pass items that miss at least one target language value.
+        const needsTranslation = initialLanguages
+          .filter(l => l.lang_code !== 'ko')
+          .some(l => !p.text[l.lang_code] || p.text[l.lang_code]?.trim() === '')
+          
+        if (needsTranslation) {
+          acc[p.id] = p.text['ko']
+        }
+      }
+      return acc
+    }, {} as Record<string, string>)
+    
+    const targetLangs = initialLanguages.filter(l => l.lang_code !== 'ko').map(l => l.lang_code)
+
+    const existingTranslations = initialLanguages.filter(l => l.lang_code !== 'ko').reduce((acc, lang) => {
+      acc[lang.lang_code] = {};
+      filteredPresets.forEach(p => {
+        acc[lang.lang_code][p.id] = p.text[lang.lang_code] || '';
+      });
+      return acc;
+    }, {} as Record<string, Record<string, string>>);
 
     return (
-      <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg shadow-sm">
-        <table className="w-full text-sm text-left min-w-max whitespace-nowrap">
-          <thead className="bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
+      <div className="space-y-3">
+        {targetLangs.length > 0 && (
+          <div className="flex justify-end">
+            <TranslationButton 
+              sourceTexts={sourceTextsForTranslation}
+              targetLanguages={targetLangs}
+              existingTranslations={existingTranslations}
+              onTranslationComplete={handleTranslationComplete}
+              compact={false}
+            />
+          </div>
+        )}
+        <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg shadow-sm">
+          <table className="w-full text-sm text-left min-w-max whitespace-nowrap">
+            <thead className="bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
             <tr>
               <th className="px-4 py-3 font-semibold w-16">상태</th>
               {initialLanguages.map(lang => (
@@ -321,24 +376,6 @@ export default function NicknameClient({
                       placeholder={lang.lang_code === 'ko' ? (type === 'first_word' ? '예: 든든한' : '예: 국밥') : ''}
                       className="w-full bg-transparent border-none p-2 focus:ring-2 focus:ring-blue-500 rounded outline-none dark:text-white"
                     />
-                    {lang.lang_code === 'ko' && (
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        <TranslationButton
-                          compact
-                          sourceTexts={{ text: preset.text['ko'] || '' }}
-                          targetLanguages={initialLanguages
-                            .map(l => l.lang_code)
-                            .filter(c => c !== 'ko' && !preset.text[c])}
-                          onTranslationComplete={(results) => {
-                            let updatedText = { ...preset.text }
-                            for (const [resLang, resObj] of Object.entries(results)) {
-                              if (resObj.text) updatedText[resLang] = resObj.text
-                            }
-                            setPresets(prev => prev.map(p => p.id === preset.id ? { ...p, text: updatedText } : p))
-                          }}
-                        />
-                      </div>
-                    )}
                   </td>
                 ))}
                 <td className="px-4 py-2 text-center">
@@ -373,6 +410,7 @@ export default function NicknameClient({
               </tr>
             </tbody>
           </table>
+        </div>
       </div>
     )
   }
