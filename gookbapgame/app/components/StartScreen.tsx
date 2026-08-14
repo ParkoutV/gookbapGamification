@@ -78,7 +78,15 @@ export default function StartScreen({
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-md w-full text-center">
-        <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "var(--font-pixel)" }}>
+        {/* `break-keep`(word-break: keep-all)이 없으면 어절 중간에서 끊긴다 —
+            "도전! 1953 틀 / 린그림찾기"처럼(2026-08-14, 320·390px 실측). 한국어는
+            단어 사이 공백이 CJK 줄바꿈 규칙에 밀려 브라우저가 아무 글자에서나 끊는다.
+            `text-wrap: balance`·`pretty` 둘 다 이걸 막지 못한다(실측). 제목이 길어
+            두 줄이 되는 것 자체는 정상이며, 줄 수가 아니라 **끊기는 위치**가 문제다. */}
+        <h1
+          className="text-3xl font-bold mb-2 break-keep"
+          style={{ fontFamily: "var(--font-pixel)" }}
+        >
           {t("start.title")}
         </h1>
         <div className="flex items-center justify-center gap-2 mb-8">

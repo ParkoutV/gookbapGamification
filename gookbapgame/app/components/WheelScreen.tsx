@@ -29,6 +29,9 @@ interface WheelScreenProps {
   isDrawing: boolean;
   onSpin: () => void;
   onNext: () => void;
+  /** 보관함에 쿠폰이 하나라도 있는가. 거절 화면의 안내를 가른다(아래 rejected 분기). */
+  hasCoupons: boolean;
+  onOpenMyCoupons: () => void;
 }
 
 export default function WheelScreen({
@@ -36,6 +39,8 @@ export default function WheelScreen({
   isDrawing,
   onSpin,
   onNext,
+  hasCoupons,
+  onOpenMyCoupons,
 }: WheelScreenProps) {
   const { t, locale } = useLocale();
   const [flipped, setFlipped] = useState(false);
@@ -107,6 +112,15 @@ export default function WheelScreen({
   // 눌리는 것처럼 보이지는 않는다.
   const canFlip = !isDrawing && usesCard;
 
+  /**
+   * 거절당했는데 보관함에 쿠폰이 있는 경우. 하단 버튼을 '내 쿠폰 보기 + →'로 바꾼다.
+   *
+   * `waiting`을 함께 보는 이유: `drawResult`가 도착하기 전에도 `hasCoupons`는 이미
+   * true일 수 있어(이전 화면에서 읽어둔 목록), 응답을 기다리는 동안 이 버튼이 잠깐
+   * 스쳐 지나간다. 결과가 확정된 뒤에만 띄운다.
+   */
+  const showMyCouponsAction = !waiting && drawResult?.status === "rejected" && hasCoupons;
+
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
@@ -152,8 +166,24 @@ export default function WheelScreen({
           </div>
         )}
 
+        {/* 거절. **보관함에 쿠폰이 있으면 그쪽으로 안내한다**(2026-08-14, 이란토).
+            서버는 사유를 셋으로 보내지만(`LIMIT_EXCEEDED`/`PLAY_LIMIT_EXCEEDED`/
+            `SURVEY_REQUIRED`) 화면은 아직 구분하지 않는다 — 사유별 문구는 쿨타임
+            조건이 확정된 뒤로 미뤘고, "게임을 한 판 더 하면 됩니다" 류는 두 제한이
+            AND라서 오해를 만든다(`gatchaApi.ts` 주석 참고).
+
+            대신 **결과가 아니라 다음 행동을 알려준다.** 거절당한 사람은 대개 오늘
+            뽑기를 이미 썼고, 그러면 받은 쿠폰이 보관함에 있다. 기존 문구는
+            "잠시 후 다시 시도해주세요"라 하루치를 다 쓴 사람에게 **틀린 안내**였다.
+
+            **쿠폰이 하나도 없으면 기존 문구를 그대로 쓴다.** 그때는 네트워크·DB 등
+            원인이 여럿이라 단정할 수 없고, 빈 보관함으로 보내면 "이미 발급된 쿠폰이
+            있어요"가 거짓말이 된다. 판정에 쓰는 `hasCoupons`는 `spin()`이 거절
+            직후 이미 읽어둔 목록에서 온다(`useCouponFlow`) — 추가 요청이 없다. */}
         {drawResult?.status === "rejected" && (
-          <p className="text-muted mb-8 text-sm">{t("wheel.rejected")}</p>
+          <p className="text-muted mb-8 text-sm">
+            {hasCoupons ? t("wheel.rejectedHasCoupons") : t("wheel.rejected")}
+          </p>
         )}
 
         {/* 요청이 서버에 닿지 못한 경우다. 발급도 쿨타임 갱신도 일어나지 않았으므로
@@ -201,6 +231,27 @@ export default function WheelScreen({
             <p className="text-muted text-xs text-center leading-snug">
               {t("card.saveRecommendNotice")}
             </p>
+          </div>
+        ) : showMyCouponsAction ? (
+          /* 거절 + 보관함에 쿠폰이 있는 경우. 주 행동이 '내 쿠폰 보기'이므로 저장
+             케이스와 **같은 모양**을 쓴다 — 넓은 주 버튼 + 화살표 '다음'.
+             여기서 '다음'을 막지 않는다: 뽑기가 성립하지 않아 열어볼 카드가 없으므로
+             (그 disabled는 카드를 안 보고 넘어가는 것을 막는 장치다) 보관함을 들르지
+             않고 흐름을 계속할 수 있어야 한다. */
+          <div className="flex w-full gap-2">
+            <button
+              onClick={onOpenMyCoupons}
+              className="pixel-mask-btn-solid flex-1 py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95"
+            >
+              {t("coupon.myCouponsButton")}
+            </button>
+            <button
+              onClick={onNext}
+              aria-label={t("wheel.nextButton")}
+              className="pixel-mask-btn-solid py-3 px-5 bg-surface text-ink font-bold transition-opacity active:scale-95"
+            >
+              <span aria-hidden="true">→</span>
+            </button>
           </div>
         ) : (
           /* 카드가 있는데 아직 안 뒤집었으면 '다음'을 막는다. 열어보지도 않고

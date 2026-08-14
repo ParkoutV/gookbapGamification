@@ -5,6 +5,7 @@ import {
   extractSilhouetteFromRaw,
   getPartSilhouette,
   mapSilhouetteToSlot,
+  pickPolygonSource,
 } from "./hitPolygon.ts";
 
 function makeRawAlpha(
@@ -143,4 +144,47 @@ test("mapSilhouetteToSlot: 박스를 벗어나는 극단값은 0~1로 clamp된�
   const result = mapSilhouetteToSlot(hull, placement);
 
   assert.deepEqual(result, [{ x: 1, y: 0 }]);
+});
+
+/**
+ * "있고 없고" 차이 슬롯의 회귀 테스트(2026-08-14, 을숙도 산책로 제보).
+ *
+ * 없는 쪽 파트는 완전 투명이라 hull이 null인데, 그걸 그대로 흘리면
+ * `resolveHitTargetBox`가 실루엣을 포기하고 슬롯 크기의 정사각형을 만든다.
+ * 납작한 파트일수록 세로로 부풀어 이웃 슬롯을 덮는다.
+ */
+test("pickPolygonSource: 자기 실루엣이 있으면 자기 것을 쓴다", () => {
+  const own = [{ x: 0, y: 0 }];
+  const other = [{ x: 1, y: 1 }];
+  const result = pickPolygonSource(own, other, "ownPlacement", "otherPlacement");
+
+  assert.deepEqual(result, { hull: own, placement: "ownPlacement" });
+});
+
+test("pickPolygonSource: 투명한 면은 반대쪽 실루엣과 배치를 함께 빌려온다", () => {
+  const other = [{ x: 1, y: 1 }];
+  const result = pickPolygonSource(null, other, "ownPlacement", "otherPlacement");
+
+  // 배치까지 반대쪽 것이어야 한다 — 투명 파트의 offset/scale은 화면에 아무것도
+  // 그리지 않아 검증된 적이 없고, 어긋나면 히트 영역이 엉뚱한 자리에 생긴다.
+  assert.deepEqual(result, { hull: other, placement: "otherPlacement" });
+});
+
+test("pickPolygonSource: 양쪽 다 없으면 null — 실루엣 추출이 실제로 실패한 경우다", () => {
+  assert.equal(pickPolygonSource(null, null, "a", "b"), null);
+});
+
+test("pickPolygonSource: 차이 슬롯의 양쪽 면이 같은 실루엣을 갖는다", () => {
+  // 한쪽만 물체가 있는 슬롯(을숙도 산책로). 양쪽 히트 모양이 같아야
+  // 어느 면을 눌러도 같은 자리가 반응한다.
+  const hull = [{ x: 0.1, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.6 }];
+  const placement = { offsetX: 0, offsetY: 0, partScale: 1, slotScale: 1 };
+
+  const left = pickPolygonSource(hull, null, placement, placement);
+  const right = pickPolygonSource(null, hull, placement, placement);
+
+  assert.deepEqual(
+    mapSilhouetteToSlot(left!.hull, left!.placement),
+    mapSilhouetteToSlot(right!.hull, right!.placement)
+  );
 });

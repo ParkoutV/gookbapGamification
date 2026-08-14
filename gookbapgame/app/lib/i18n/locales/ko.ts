@@ -1,27 +1,32 @@
 import type { Dictionary } from "../types.ts";
 
 export const ko: Dictionary = {
-  "meta.title": "다른그림찾기 - 국밥",
-  "meta.description": "국밥 한 상차림 다른그림찾기 게임",
+  "meta.title": "1953 눈썰미 대결!",
+  "meta.description": "틀린그림찾기의 달인을 찾습니다.",
 
   "common.retry": "다시 시도",
 
   // 창 제목 표시줄(90s 데스크톱 컨셉)에 쓰는 브랜드명. 화면 제목과 별개다.
   "window.brand": "1953 형제돼지국밥",
 
-  "start.title": "다른그림찾기",
-  "start.welcome": "{nickname} 님 환영합니다",
-  "start.regenerateNicknameAria": "닉네임 다시 생성",
+  "start.title": "도전! 1953 틀린그림찾기",
+  "start.welcome": "{nickname} 님, 어서오세요",
+  "start.regenerateNicknameAria": "닉네임 바꾸기",
   "start.playButton": "게임 시작",
   "start.myResult": "내 결과",
   "start.ranking": "랭킹",
 
-  // 랭킹 화면. 탭은 **달력 기준**이다(롤링 윈도우가 아니다) — "이번 주 1위"가
-  // 집계하기도 쿠폰 지급하기도 직관적이어서 매장 운영에 맞는다(2026-08-13, 이란토).
+  // 랭킹 화면. 탭은 **롤링 윈도우**다(달력 기준이 아니다) — 주 경계로 자르면
+  // 월요일 오전과 매월 1일에 탭이 통째로 비어, 매장 QR로 막 들어온 사람이 빈 랭킹을
+  // 본다(2026-08-14, 이란토). 근거와 계산은 `rankingPeriod.ts`에.
+  // **이름을 "이번 주/이번 달"로 되돌리려면 그쪽 계산도 함께 되돌릴 것** —
+  // 한쪽만 바꾸면 표시와 집계가 조용히 어긋난다.
+  // '최근'을 뗀 것은 320px 폭 예산 때문이다(`RankingScreen` 주석). 옆에 '오늘'·'전체'가
+  // 있어 기간이라는 것이 문맥으로 읽힌다 — 도로 붙이면 그 칸이 두 줄로 접힌다.
   "ranking.title": "랭킹",
   "ranking.tab.daily": "오늘",
-  "ranking.tab.weekly": "이번 주",
-  "ranking.tab.monthly": "이번 달",
+  "ranking.tab.weekly": "7일",
+  "ranking.tab.monthly": "30일",
   "ranking.tab.total": "전체",
   /* 내 최고점. **순위는 붙이지 않는다** — ranking_view에 participant_id가 없어서
      목록에서 내 줄을 확실히 특정할 수 없다(2026-08-13, 이란토). */
@@ -70,27 +75,34 @@ export const ko: Dictionary = {
   "tutorial.exitAria": "튜토리얼 닫기",
   "tutorial.waiting": "준비 중...",
 
-  "tutorial.what.title": "다른 곳을 찾아라",
+  "tutorial.what.title": "다른 점을 찾아보세요",
   "tutorial.what.body":
-    "좌우 두 그림에서 다른 곳을 찾아 터치하세요.\n" +
-    "총 7단계, 단계마다 5곳씩 숨어 있습니다. 마지막 7단계만 7곳입니다.",
+    "두 그림을 잘 보세요. 서로 다른 점이 분명 있습니다.\n" +
+    "레벨 1부터 7까지 파이팅입니다!",
 
-  "tutorial.limit.title": "시간과 기회",
+  "tutorial.limit.title": "제한 시간과 오답",
   "tutorial.limit.body":
-    "제한시간은 단계별이 아니라 전체 300초입니다.\n" +
-    "한 단계에서 3번 틀리면 그 단계는 거기서 끝나고 다음 단계로 넘어갑니다.\n" +
-    "틀릴 때마다 10점이 깎입니다.",
+    "주어진 시간은 단 '5분'!\n" +
+    "그림에서 정답이 아닌 곳을 누르면 오답 처리되며, 레벨당 3번의 오답 기회가 주어집니다.\n" +
+    "틀릴 때마다 10점이 줄어들고, 오답 기회를 소진하면 다음 레벨로 넘어갑니다.",
 
-  "tutorial.score.title": "점수 올리기",
+  "tutorial.score.title": "점수 발표와 쿠폰 확인",
   "tutorial.score.body":
     "빨리 끝낼수록 시간 보너스가 붙습니다.\n" +
-    "연속으로 맞히면 콤보 보너스가 쌓입니다.\n" +
-    "게임이 끝나면 국밥력 등급이 나오고, 쿠폰 뽑기로 이어집니다.",
+    "연속으로 맞히면 콤보 보너스 처리됩니다.\n" +
+    "게임이 끝나면 국밥력 등급이 나오고, 쿠폰을 확인하실 수 있습니다!",
+
+  /* 뽑기 횟수 제한 고지(2026-08-14). **횟수는 DB에서 온다** — 운영자가 대시보드에서
+     바꾸는 값이라 문구에 숫자를 박지 말 것(`gatchaLimit.ts`). limit_type이 days냐
+     hours냐에 따라 판정 기준이 달라 키가 셋이다. */
+  "tutorial.drawLimitDaily": "쿠폰 뽑기는 하루 {count}회까지 참여하실 수 있어요.",
+  "tutorial.drawLimitDays": "쿠폰 뽑기는 {days}일 동안 {count}회까지 참여하실 수 있어요.",
+  "tutorial.drawLimitHours": "쿠폰 뽑기는 {hours}시간 동안 {count}회까지 참여하실 수 있어요.",
 
   "preload.preparing": "게임 시작 중...",
-  "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
+  "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 접속이 원활하지 않습니다.",
   "preload.levelSessionError": "{level}단계 게임 데이터를 불러오지 못했습니다.",
-  "preload.imageError": "이미지를 불러오는데 실패했습니다. 네트워크 상태를 확인해주세요.",
+  "preload.imageError": "이미지를 불러오는데 실패했습니다. 접속이 원활하지 않습니다.",
 
   "gameResult.title": "게임 결과",
   "gameResult.stageScore": "Stage 점수",
@@ -104,7 +116,7 @@ export const ko: Dictionary = {
 
   // 시작·종료 연출. 세 문자열은 픽셀 폰트로 크게 뜨는 로고성 문구라 세 로케일이
   // 같은 라틴 대문자를 쓴다 — 나중에 「クリア」처럼 갈릴 여지를 남겨 세 파일에 다 넣는다.
-  "gameEnd.nextButton": "결과 확인",
+  "gameEnd.nextButton": "결과 발표!",
 
   "dailyResult.title": "오늘의 결과",
   "dailyResult.nicknameLabel": "오늘의 별명",
@@ -121,7 +133,7 @@ export const ko: Dictionary = {
 
 
   "surveyIntro.title": "설문에 참여하시겠어요?",
-  "surveyIntro.description": "설문에 답하면 쿠폰 카드를 뽑을 수 있어요.",
+  "surveyIntro.description": "감사의 뜻으로 작은 선물을 준비했습니다.",
   "surveyIntro.participateButton": "참여하기",
   "surveyIntro.declineLink": "다음에 할게요",
 
@@ -158,6 +170,7 @@ export const ko: Dictionary = {
   "wheel.wonTitle": "쿠폰에 당첨됐어요!",
   "wheel.missTitle": "아쉽게도 꽝이에요",
   "wheel.missDescription": "다음 기회에 다시 도전해주세요.",
+  "wheel.rejectedHasCoupons": "이미 발급된 쿠폰이 있어요.",
   "wheel.rejected": "지금은 카드를 뽑을 수 없어요. 잠시 후 다시 시도해주세요.",
   "wheel.error": "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.",
   "start.goToDrawButton": "쿠폰 뽑으러 가기",
@@ -165,7 +178,7 @@ export const ko: Dictionary = {
   /* '내 쿠폰' 버튼의 red-dot을 스크린리더에 알리는 문장. 점은 aria-hidden이라
      이것이 없으면 뽑기 기회가 남은 것을 전혀 알 수 없다. */
   "start.drawAvailableNotice": "뽑을 수 있는 쿠폰이 있어요",
-  "start.invitePromo": "국밥 마스터의 주인공은 누구?\n<1953 눈썰미 대결>에 참여하고, 1953 형제돼지국밥 쿠폰도 받자! 🍲",
+  "start.invitePromo": "국밥 마스터의 주인공은 누구?\n<도전! 1953 틀린그림찾기>에 도전하고, 1953 형제돼지국밥 쿠폰도 받자! 🍲",
   "start.inviteCopied": "초대 링크를 복사했어요!",
   "start.inviteFailed": "복사에 실패했어요. 잠시 후 다시 시도해주세요.",
   "wheel.nextButton": "다음",

@@ -132,17 +132,28 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* 탭 4개. **320px에서 넘치지 않아야 한다** — `flex-1` + `min-w-0`으로 폭을 균등
-            분배하고 `text-xs px-1`로 안쪽 여백을 줄였다(2026-08-13 실측: 320px에서 가로
-            넘침 0, 글자 잘림 0).
+        {/* 탭은 **'전체' 한 줄 + 기간 3개**로 나눈다(2026-08-14). 넷을 한 줄에 두면
+            320px에서 칸이 54px뿐이라 긴 라벨이 접히고, flex 행 높이는 함께 오르므로
+            **네 칸이 모두** 32px → 48px이 된다. 셋만 두면 칸이 73px가 되어 전부 한 줄에
+            앉는다(320px 실측).
 
-            영어("This Month")는 칸 안에서 **두 줄로 감긴다**(높이 32px → 48px). 네 칸이
-            같이 커지므로 줄만 늘고 넘치지는 않아, 줄바꿈을 막는 대신 그대로 뒀다 —
-            `whitespace-nowrap`을 걸면 그때부터 실제로 넘친다.
+            **`whitespace-nowrap`으로 막지 말 것** — 접힘은 사라지지만 그때부터 실제로
+            가로가 넘친다. 폭을 만들어 주는 것이 유일한 해결이다.
+
+            라벨에서 '최근'/'Last'를 뗀 것도 같은 예산 문제다. 옆에 '오늘'·'전체'가 있어
+            기간이라는 것이 문맥으로 읽히므로 뜻은 잃지 않는다. ja·zh는 한자라 두 글자
+            (`直近`·`最近`)뿐이어서 붙여 둔다. 라벨을 늘리면 그 로케일만 두 줄이 되고
+            같은 줄의 세 칸이 함께 커진다.
+
+            `flex-1` + `min-w-0`으로 폭을 균등 분배하고 `text-xs px-1`로 안쪽 여백을
+            줄인 것은 그대로다(2026-08-13 실측: 320px에서 가로 넘침 0, 글자 잘림 0).
+
+            순서는 `RANKING_PERIODS`가 갖는다 — 시각 순서와 DOM 순서를 일치시켜야
+            키보드 탭 이동이 화면과 어긋나지 않으므로 CSS `order`를 쓰지 않는다.
 
             `PixelPanel size="btn"`을 쓰지 않는다: 그쪽은 베벨 테두리가 칸마다 붙어
-            네 개를 나란히 두면 폭 예산을 먹고, 선택 상태를 표현할 자리도 없다. */}
-        <div className="flex gap-1 mb-4">
+            나란히 두면 폭 예산을 먹고, 선택 상태를 표현할 자리도 없다. */}
+        <div className="flex flex-wrap gap-1 mb-4">
           {RANKING_PERIODS.map((tab) => (
             <button
               key={tab}
@@ -155,8 +166,11 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
               }}
               aria-pressed={period === tab}
               className={`pixel-mask-btn-solid flex-1 min-w-0 py-2 px-1 text-xs font-bold transition-opacity active:scale-95 ${
-                period === tab ? "bg-accent text-accent-ink" : "bg-surface text-ink"
-              }`}
+                // 'total'만 `basis-full`로 첫 줄을 통째로 차지하고 나머지 셋을
+                // 아랫줄로 밀어낸다. flex-wrap만으로는 넷이 한 줄에 다 들어가
+                // 버려(각 54px) 접힘이 그대로 남는다.
+                tab === "total" ? "basis-full" : ""
+              } ${period === tab ? "bg-accent text-accent-ink" : "bg-surface text-ink"}`}
             >
               {t(`ranking.tab.${tab}`)}
             </button>

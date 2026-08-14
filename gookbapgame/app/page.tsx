@@ -24,6 +24,8 @@ import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
 import { hasSurveySubmitted } from "./lib/surveySubmitted";
+import { fetchGatchaLimit } from "./actions";
+import { gatchaLimitNotice, type GatchaLimitNotice } from "./lib/gatchaLimit";
 import { useButtonClickSfx } from "./hooks/useButtonClickSfx";
 import { useBgm } from "./hooks/useBgm";
 import {
@@ -78,6 +80,24 @@ export default function Home({ searchParams }: PageProps) {
   const [showTerm, setShowTerm] = useState(false);
   useEffect(() => {
     setShowTerm(!hasAcknowledgedTerm());
+  }, []);
+
+  /**
+   * 튜토리얼 마지막 장에 붙일 뽑기 횟수 제한 안내.
+   *
+   * **마운트 시 한 번만 읽는다.** 운영 중에 바뀌는 값이 아니고(운영자가 대시보드에서
+   * 가끔 조정한다), 튜토리얼을 열 때마다 부르면 '게임 방법'을 여닫는 것만으로 요청이
+   * 쌓인다. 실패하면 null로 남아 그 줄이 빠질 뿐이라 흐름을 막지 않는다.
+   */
+  const [drawLimitNotice, setDrawLimitNotice] = useState<GatchaLimitNotice | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchGatchaLimit().then((settings) => {
+      if (!cancelled) setDrawLimitNotice(gatchaLimitNotice(settings));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const acknowledgeTerm = useCallback(() => {
@@ -310,6 +330,7 @@ export default function Home({ searchParams }: PageProps) {
           preloadStatus={game.preloadStatus}
           loadError={game.loadError}
           onRetryPreload={game.retryPreload}
+          drawLimitNotice={drawLimitNotice}
           onFinish={finishTutorial}
           onExit={exitTutorial}
         />
@@ -404,6 +425,13 @@ export default function Home({ searchParams }: PageProps) {
           isDrawing={coupon.state === "drawing"}
           onSpin={spin}
           onNext={leaveDrawFlow}
+          /* 거절당했을 때 보관함으로 안내할지 판정한다(WheelScreen의 rejected 분기).
+             `spin()`이 거절 직후 목록을 이미 읽어 `coupon.coupons`에 담아둔다. */
+          hasCoupons={coupon.coupons.length > 0}
+          /* 돌아올 곳을 'wheel'로 준다 — 여기서 열었으므로 닫으면 이 화면으로
+             되돌아와야 '다음'을 눌러 흐름을 계속 진행할 수 있다. 기본값('start')으로
+             두면 결과 흐름 중간에서 시작 화면으로 튕긴다. */
+          onOpenMyCoupons={() => openMyCoupons("wheel")}
         />
       )}
 

@@ -214,6 +214,28 @@ grant usage, select on all sequences in schema public to anon;
 -- (A 열기 → 목록 → B 열기에서 A의 이미지가 B 이름으로 저장되는 버그).
 --
 -- `valid_from`을 반환에 포함한다 — 프로덕션도 2026-08-13에 주는 것이 확인됐다.
+/*
+ * 뽑기 횟수 제한 설정. 튜토리얼의 "하루 N회" 고지가 이 값을 읽는다
+ * (`fetchGatchaLimit` → `gatchaLimitNotice`).
+ *
+ * 프로덕션에는 운영자가 대시보드에서 관리하는 테이블이 이미 있고, 여기 있는 것은
+ * **로컬에서 흉내낸 것**이다 — 이게 없으면 조회가 `PGRST205`(테이블 없음)로 떨어져
+ * 안내 줄이 조용히 사라지고, 그것이 폴백인지 버그인지 화면만 봐서는 구분되지 않는다.
+ *
+ * `id = 1` 한 줄만 두는 제약도 저쪽과 같다.
+ */
+create table if not exists gatcha_settings (
+  id int primary key check (id = 1),
+  limit_type varchar not null default 'days',
+  limit_n int not null default 1,
+  limit_m int not null default 3
+);
+
+-- 프로덕션의 `Everyone: SELECT` 정책에 해당한다. 없으면 `42501`(permission denied)로
+-- 떨어지는데, 화면에서는 테이블이 없을 때와 **똑같이** 안내 줄이 사라질 뿐이라
+-- 구분되지 않는다 — 실제로 이 순서로 두 번 걸렸다.
+grant select on public.gatcha_settings to anon;
+
 create table if not exists coupon_effects (
   coupon_effect_id uuid primary key default gen_random_uuid(),
   coupon_type text not null,

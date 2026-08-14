@@ -151,6 +151,13 @@ on conflict (question_id) do nothing;
 --
 -- 진짜 uuid는 `select participant_id from participants order by created_at desc limit 1;`
 -- 로 얻는다(게임을 띄우면 `ensureParticipant`가 행을 만든다).
+-- 뽑기 횟수 제한. 프로덕션 기본값(대시보드 select의 기본)과 같은 'days' / 1일 / 3회다.
+-- `limit_type`을 'hours'로 바꾸면 튜토리얼 문구가 "N시간 동안"으로 갈리는 것을
+-- 로컬에서 확인할 수 있다(`gatchaLimitNotice`).
+insert into gatcha_settings (id, limit_type, limit_n, limit_m)
+values (1, 'days', 1, 3)
+on conflict (id) do nothing;
+
 insert into coupon_effects (coupon_effect_id, coupon_type)
 values
   ('c0000000-0000-4000-8000-000000000001',

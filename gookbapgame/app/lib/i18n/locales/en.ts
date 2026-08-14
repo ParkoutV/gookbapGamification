@@ -19,8 +19,8 @@ export const en: Partial<Dictionary> = {
   // Ranking screen. Tabs are calendar-based, not rolling windows (2026-08-13).
   "ranking.title": "Ranking",
   "ranking.tab.daily": "Today",
-  "ranking.tab.weekly": "This Week",
-  "ranking.tab.monthly": "This Month",
+  "ranking.tab.weekly": "7 Days",
+  "ranking.tab.monthly": "30 Days",
   "ranking.tab.total": "All Time",
   "ranking.myBestScore": "Your best {score}",
   "ranking.pageIndicator": "{current} / {total}",
@@ -74,6 +74,10 @@ export const en: Partial<Dictionary> = {
     "Finishing faster earns a time bonus.\n" +
     "Consecutive correct taps build a combo bonus.\n" +
     "When the game ends you get a Gukbap rank, then a coupon draw.",
+
+  "tutorial.drawLimitDaily": "You can draw up to {count} coupon cards per day.",
+  "tutorial.drawLimitDays": "You can draw up to {count} coupon cards every {days} days.",
+  "tutorial.drawLimitHours": "You can draw up to {count} coupon cards every {hours} hours.",
 
   "preload.preparing": "Loading...",
   "preload.sessionError": "Failed to load game data. Please check your network connection.",
@@ -135,6 +139,7 @@ export const en: Partial<Dictionary> = {
   "wheel.wonTitle": "You won a coupon!",
   "wheel.missTitle": "No luck this time",
   "wheel.missDescription": "Please try again next time.",
+  "wheel.rejectedHasCoupons": "You already have a coupon.",
   "wheel.rejected": "You can't draw a card right now. Please try again later.",
   "wheel.error": "We can't reach the server right now. Please try again later.",
   "start.goToDrawButton": "Go draw your coupon",

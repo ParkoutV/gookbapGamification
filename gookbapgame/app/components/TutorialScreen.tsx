@@ -5,6 +5,7 @@ import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import type { PreloadStatus } from "../hooks/useGameProgress";
 import type { LoadError } from "../lib/preloadGame";
+import type { GatchaLimitNotice } from "../lib/gatchaLimit";
 
 // 페이지 순서. 로케일 키의 중간 세그먼트로 쓴다(tutorial.what.title 등).
 const PAGE_KEYS = ["what", "limit", "score"] as const;
@@ -25,6 +26,11 @@ interface TutorialScreenProps {
   onFinish: () => void;
   /** 좌상단 X. 항상 시작 화면으로 돌아간다. */
   onExit: () => void;
+  /**
+   * 뽑기 횟수 제한 안내(마지막 장에 덧붙인다). 조회 실패거나 설정이 비정상이면 null이고
+   * 그때는 줄을 넣지 않는다 — 판단은 `gatchaLimitNotice`가 하고 여기는 받기만 한다.
+   */
+  drawLimitNotice: GatchaLimitNotice | null;
 }
 
 export default function TutorialScreen({
@@ -34,6 +40,7 @@ export default function TutorialScreen({
   onRetryPreload,
   onFinish,
   onExit,
+  drawLimitNotice,
 }: TutorialScreenProps) {
   const { t } = useLocale();
   const [pageIndex, setPageIndex] = useState(0);
@@ -67,6 +74,22 @@ export default function TutorialScreen({
 
         <p className="text-sm text-left whitespace-pre-line mb-6 min-h-[6rem]">
           {t(`tutorial.${pageKey}.body`)}
+          {/* 뽑기 횟수 제한은 **마지막 장(score)에만** 덧붙인다(2026-08-14, 이란토).
+              그 장이 이미 쿠폰 얘기로 끝나므로 맥락이 이어지고, 새 장을 만들지 않아
+              단계 수(3장)와 진행 표시가 그대로다.
+
+              고지하는 이유: 두 번째 판부터는 설문 단계가 사라져 곧장 뽑기로 들어가는데
+              화면이 그 규칙을 어디에서도 알려주지 않았다 — "설문을 안 했는데 카드가
+              뽑힌다"는 제보가 여기서 나왔다.
+
+              **설정을 못 읽으면 줄 자체를 넣지 않는다.** 틀린 횟수를 고지하는 것보다
+              아무 말도 하지 않는 편이 낫다(`gatchaLimitNotice`가 null을 준다). */}
+          {isLastPage && drawLimitNotice && (
+            <>
+              {"\n"}
+              {t(drawLimitNotice.key, drawLimitNotice.params)}
+            </>
+          )}
         </p>
 
         <div className="flex gap-3 w-full">

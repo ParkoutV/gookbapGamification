@@ -34,8 +34,8 @@ export const zh: Partial<Dictionary> = {
   // 랭킹 화면. 탭은 달력 기준이다(롤링 윈도우가 아니다, 2026-08-13).
   "ranking.title": "排行榜",
   "ranking.tab.daily": "今天",
-  "ranking.tab.weekly": "本周",
-  "ranking.tab.monthly": "本月",
+  "ranking.tab.weekly": "最近7天",
+  "ranking.tab.monthly": "最近30天",
   "ranking.tab.total": "总榜",
   "ranking.myBestScore": "我的最高分 {score}",
   "ranking.pageIndicator": "{current} / {total}",
@@ -89,6 +89,10 @@ export const zh: Partial<Dictionary> = {
     "越早完成，时间奖励越高。\n" +
     "连续答对可累积连击奖励。\n" +
     "游戏结束后会显示汤饭力等级，并进入优惠券抽取环节。",
+
+  "tutorial.drawLimitDaily": "优惠券抽卡每天最多可参与{count}次。",
+  "tutorial.drawLimitDays": "优惠券抽卡每{days}天最多可参与{count}次。",
+  "tutorial.drawLimitHours": "优惠券抽卡每{hours}小时最多可参与{count}次。",
 
   "preload.preparing": "正在启动游戏...",
   "preload.sessionError": "游戏数据加载失败，请检查网络状况。",
@@ -153,6 +157,7 @@ export const zh: Partial<Dictionary> = {
   "wheel.wonTitle": "恭喜您中奖了！",
   "wheel.missTitle": "很遗憾，未中奖",
   "wheel.missDescription": "请下次再来挑战。",
+  "wheel.rejectedHasCoupons": "您已经领取过优惠券。",
   "wheel.rejected": "目前无法抽卡，请稍后再试。",
   "wheel.error": "目前连接不畅，请稍后再试。",
   "start.goToDrawButton": "去抽优惠券",
