@@ -311,6 +311,13 @@ export default function TracksListPage() {
                 <TranslationButton
                   sourceTexts={{ text: formData['ko'] || '' }}
                   targetLanguages={languages.map(l => l.lang_code).filter(c => c !== 'ko' && !formData[c])}
+                  existingTranslations={languages.reduce((acc, l) => {
+                    if (l.lang_code === 'ko') return acc;
+                    acc[l.lang_code] = {
+                      text: formData[l.lang_code] || ''
+                    };
+                    return acc;
+                  }, {} as Record<string, Record<string, string>>)}
                   onTranslationComplete={(results) => {
                     setFormData(prev => {
                       const next = { ...prev }

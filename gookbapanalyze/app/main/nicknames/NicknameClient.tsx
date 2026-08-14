@@ -320,6 +320,14 @@ export default function NicknameClient({
     
     const targetLangs = initialLanguages.filter(l => l.lang_code !== 'ko').map(l => l.lang_code)
 
+    const existingTranslations = initialLanguages.filter(l => l.lang_code !== 'ko').reduce((acc, lang) => {
+      acc[lang.lang_code] = {};
+      filteredPresets.forEach(p => {
+        acc[lang.lang_code][p.id] = p.text[lang.lang_code] || '';
+      });
+      return acc;
+    }, {} as Record<string, Record<string, string>>);
+
     return (
       <div className="space-y-3">
         {targetLangs.length > 0 && (
@@ -327,6 +335,7 @@ export default function NicknameClient({
             <TranslationButton 
               sourceTexts={sourceTextsForTranslation}
               targetLanguages={targetLangs}
+              existingTranslations={existingTranslations}
               onTranslationComplete={handleTranslationComplete}
               compact={false}
             />

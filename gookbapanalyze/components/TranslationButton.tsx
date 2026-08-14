@@ -13,6 +13,8 @@ interface TranslationButtonProps {
   onTranslationComplete: (translations: Record<string, Record<string, string>>) => void
   compact?: boolean
   className?: string
+  // (옵션) 이미 채워진 칸은 번역을 건너뛰기 위해 현재 상태값을 전달받습니다. 예: { en: { name: 'Name' } }
+  existingTranslations?: Record<string, Record<string, string>>
 }
 
 export default function TranslationButton({ 
@@ -20,7 +22,8 @@ export default function TranslationButton({
   targetLanguages, 
   onTranslationComplete,
   compact = false,
-  className = ""
+  className = "",
+  existingTranslations = {}
 }: TranslationButtonProps) {
   const { isTranslating, currentUsage, translate } = useTranslator()
   const [translatingLang, setTranslatingLang] = useState<string | null>(null)
@@ -40,16 +43,36 @@ export default function TranslationButton({
     }
 
     setShowCompletionInfo(false); // 기존 알림 숨기기
-    const totalTasks = targetLanguages.length * validEntries.length;
+    
+    // 언어별로 실제 번역이 필요한 빈칸 항목만 추려내기
+    const tasksPerLang: Record<string, [string, string][]> = {};
+    let totalTasks = 0;
+    
+    for (const lang of targetLanguages) {
+      const needsTranslation = validEntries.filter(([key]) => {
+        const existingVal = existingTranslations[lang]?.[key];
+        return !existingVal || existingVal.trim() === '';
+      });
+      if (needsTranslation.length > 0) {
+        tasksPerLang[lang] = needsTranslation;
+        totalTasks += needsTranslation.length;
+      }
+    }
+
+    if (totalTasks === 0) {
+      alert('모든 다국어 빈칸이 이미 채워져 있어 번역을 수행하지 않았습니다.');
+      return;
+    }
+
     let completedTasks = 0;
     setTranslationProgress({ current: 0, total: totalTasks });
 
     const results: Record<string, Record<string, string>> = {};
-    for (const lang of targetLanguages) {
+    for (const lang of Object.keys(tasksPerLang)) {
       setTranslatingLang(lang);
       results[lang] = {};
       try {
-        for (const [key, text] of validEntries) {
+        for (const [key, text] of tasksPerLang[lang]) {
           const translated = await translate(text, lang);
           results[lang][key] = translated;
           completedTasks++;
