@@ -136,6 +136,7 @@ export const ja: Partial<Dictionary> = {
   "wheel.wonTitle": "クーポンが当たりました！",
   "wheel.missTitle": "残念、はずれです",
   "wheel.missDescription": "またの機会にご挑戦ください。",
+  "wheel.rejectedHasCoupons": "すでに発行されたクーポンがあります。",
   "wheel.rejected": "現在カードを引けません。しばらくしてからお試しください。",
   "wheel.error": "現在サーバーに接続できません。しばらくしてからお試しください。",
   "start.goToDrawButton": "クーポンを引きに行く",

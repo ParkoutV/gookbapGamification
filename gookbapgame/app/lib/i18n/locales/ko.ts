@@ -163,6 +163,7 @@ export const ko: Dictionary = {
   "wheel.wonTitle": "쿠폰에 당첨됐어요!",
   "wheel.missTitle": "아쉽게도 꽝이에요",
   "wheel.missDescription": "다음 기회에 다시 도전해주세요.",
+  "wheel.rejectedHasCoupons": "이미 발급된 쿠폰이 있어요.",
   "wheel.rejected": "지금은 카드를 뽑을 수 없어요. 잠시 후 다시 시도해주세요.",
   "wheel.error": "지금은 접속이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.",
   "start.goToDrawButton": "쿠폰 뽑으러 가기",

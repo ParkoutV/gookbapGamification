@@ -29,6 +29,9 @@ interface WheelScreenProps {
   isDrawing: boolean;
   onSpin: () => void;
   onNext: () => void;
+  /** 보관함에 쿠폰이 하나라도 있는가. 거절 화면의 안내를 가른다(아래 rejected 분기). */
+  hasCoupons: boolean;
+  onOpenMyCoupons: () => void;
 }
 
 export default function WheelScreen({
@@ -36,6 +39,8 @@ export default function WheelScreen({
   isDrawing,
   onSpin,
   onNext,
+  hasCoupons,
+  onOpenMyCoupons,
 }: WheelScreenProps) {
   const { t, locale } = useLocale();
   const [flipped, setFlipped] = useState(false);
@@ -152,9 +157,34 @@ export default function WheelScreen({
           </div>
         )}
 
-        {drawResult?.status === "rejected" && (
-          <p className="text-muted mb-8 text-sm">{t("wheel.rejected")}</p>
-        )}
+        {/* 거절. **보관함에 쿠폰이 있으면 그쪽으로 안내한다**(2026-08-14, 이란토).
+            서버는 사유를 셋으로 보내지만(`LIMIT_EXCEEDED`/`PLAY_LIMIT_EXCEEDED`/
+            `SURVEY_REQUIRED`) 화면은 아직 구분하지 않는다 — 사유별 문구는 쿨타임
+            조건이 확정된 뒤로 미뤘고, "게임을 한 판 더 하면 됩니다" 류는 두 제한이
+            AND라서 오해를 만든다(`gatchaApi.ts` 주석 참고).
+
+            대신 **결과가 아니라 다음 행동을 알려준다.** 거절당한 사람은 대개 오늘
+            뽑기를 이미 썼고, 그러면 받은 쿠폰이 보관함에 있다. 기존 문구는
+            "잠시 후 다시 시도해주세요"라 하루치를 다 쓴 사람에게 **틀린 안내**였다.
+
+            **쿠폰이 하나도 없으면 기존 문구를 그대로 쓴다.** 그때는 네트워크·DB 등
+            원인이 여럿이라 단정할 수 없고, 빈 보관함으로 보내면 "이미 발급된 쿠폰이
+            있어요"가 거짓말이 된다. 판정에 쓰는 `hasCoupons`는 `spin()`이 거절
+            직후 이미 읽어둔 목록에서 온다(`useCouponFlow`) — 추가 요청이 없다. */}
+        {drawResult?.status === "rejected" &&
+          (hasCoupons ? (
+            <div className="mb-8">
+              <p className="text-ink font-bold mb-4 text-sm">{t("wheel.rejectedHasCoupons")}</p>
+              <button
+                onClick={onOpenMyCoupons}
+                className="pixel-mask-btn-solid bg-accent text-accent-ink py-2 px-6 text-sm font-bold transition-opacity active:scale-95"
+              >
+                {t("coupon.myCouponsButton")}
+              </button>
+            </div>
+          ) : (
+            <p className="text-muted mb-8 text-sm">{t("wheel.rejected")}</p>
+          ))}
 
         {/* 요청이 서버에 닿지 못한 경우다. 발급도 쿨타임 갱신도 일어나지 않았으므로
             나중에 다시 시도하면 된다 — 전용 재시도 버튼 대신 `markPendingDraw()`가

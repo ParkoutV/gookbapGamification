@@ -404,6 +404,13 @@ export default function Home({ searchParams }: PageProps) {
           isDrawing={coupon.state === "drawing"}
           onSpin={spin}
           onNext={leaveDrawFlow}
+          /* 거절당했을 때 보관함으로 안내할지 판정한다(WheelScreen의 rejected 분기).
+             `spin()`이 거절 직후 목록을 이미 읽어 `coupon.coupons`에 담아둔다. */
+          hasCoupons={coupon.coupons.length > 0}
+          /* 돌아올 곳을 'wheel'로 준다 — 여기서 열었으므로 닫으면 이 화면으로
+             되돌아와야 '다음'을 눌러 흐름을 계속 진행할 수 있다. 기본값('start')으로
+             두면 결과 흐름 중간에서 시작 화면으로 튕긴다. */
+          onOpenMyCoupons={() => openMyCoupons("wheel")}
         />
       )}
 

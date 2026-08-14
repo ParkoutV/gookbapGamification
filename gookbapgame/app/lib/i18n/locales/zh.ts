@@ -153,6 +153,7 @@ export const zh: Partial<Dictionary> = {
   "wheel.wonTitle": "恭喜您中奖了！",
   "wheel.missTitle": "很遗憾，未中奖",
   "wheel.missDescription": "请下次再来挑战。",
+  "wheel.rejectedHasCoupons": "您已经领取过优惠券。",
   "wheel.rejected": "目前无法抽卡，请稍后再试。",
   "wheel.error": "目前连接不畅，请稍后再试。",
   "start.goToDrawButton": "去抽优惠券",

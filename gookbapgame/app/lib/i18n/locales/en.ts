@@ -135,6 +135,7 @@ export const en: Partial<Dictionary> = {
   "wheel.wonTitle": "You won a coupon!",
   "wheel.missTitle": "No luck this time",
   "wheel.missDescription": "Please try again next time.",
+  "wheel.rejectedHasCoupons": "You already have a coupon.",
   "wheel.rejected": "You can't draw a card right now. Please try again later.",
   "wheel.error": "We can't reach the server right now. Please try again later.",
   "start.goToDrawButton": "Go draw your coupon",
