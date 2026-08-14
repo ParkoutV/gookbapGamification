@@ -296,29 +296,38 @@ export default function GameScreen({
    * 자식이 취소할 수 없어서(`[clip-path:none]`도 소용없다), 실루엣 밖으로 나가는
    * 만큼 마커가 잘려 나가고 슬롯마다 크기도 달라 보인다. 마커는 아래
    * renderFoundMarks가 형제 레이어로 그린다 — renderWrongMarks와 같은 구조다.
+   *
+   * **이미 찾은 슬롯은 제외한다** — renderDeadZones와 같은 이유이며, 이쪽이 더
+   * 나쁘다(2026-08-14). `handleSlotClick`은 찾은 슬롯이면 조용히 return하는데
+   * 오버레이는 zIndex 1로 남아 있어서, 그 자리가 **아무 반응도 없는 영역**이 된다.
+   * 히트 영역은 실루엣보다 크므로 이웃 슬롯을 덮을 수 있고, 그러면 아직 못 찾은
+   * 슬롯을 눌러도 먹지 않는다 — "다른 위치를 찍었는데 선택이 안 된다"는 제보가
+   * 이 경로다. 오답으로도 처리되지 않아 플레이어는 왜 안 되는지 알 수 없다.
    */
   const renderClickOverlays = (side: "left" | "right") =>
-    differenceSlots.map((slot) => {
-      const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
-      const slotSizePx = 100 * slot.slotScale * scale;
-      const box = resolveHitTargetBox(slotSizePx, polygon);
+    differenceSlots
+      .filter((slot) => !foundSlots.has(slot.slotId))
+      .map((slot) => {
+        const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
+        const slotSizePx = 100 * slot.slotScale * scale;
+        const box = resolveHitTargetBox(slotSizePx, polygon);
 
-      return (
-        <div
-          key={slot.slotId}
-          className="absolute cursor-pointer"
-          style={{
-            left: `${slot.x * scale - box.offsetX}px`,
-            top: `${slot.y * scale - box.offsetY}px`,
-            width: `${box.width}px`,
-            height: `${box.height}px`,
-            clipPath: box.useClipPath ? buildClipPath(box.polygon) : undefined,
-            zIndex: 1,
-          }}
-          onClick={handleSlotClick(slot.slotId)}
-        />
-      );
-    });
+        return (
+          <div
+            key={slot.slotId}
+            className="absolute cursor-pointer"
+            style={{
+              left: `${slot.x * scale - box.offsetX}px`,
+              top: `${slot.y * scale - box.offsetY}px`,
+              width: `${box.width}px`,
+              height: `${box.height}px`,
+              clipPath: box.useClipPath ? buildClipPath(box.polygon) : undefined,
+              zIndex: 1,
+            }}
+            onClick={handleSlotClick(slot.slotId)}
+          />
+        );
+      });
 
   /**
    * 무판정 구역. 정답 영역 바깥 한 겹으로, 여기를 누르면 **아무 일도 일어나지
@@ -328,34 +337,38 @@ export default function GameScreen({
    * 배경(오답 판정)보다 위, 정답 영역보다 아래에 깔린다. 하는 일은
    * `stopPropagation`으로 클릭이 배경까지 내려가지 않게 막는 것뿐이다.
    *
-   * **이미 찾은 슬롯은 제외한다.** 정답 영역은 `handleSlotClick`이 자체적으로
-   * 걸러내지만 여기까지 남겨두면, 다 맞힌 뒤 그 자리를 눌렀을 때 오답으로도
-   * 처리되지 않는 죽은 영역이 계속 남는다.
+   * **이미 찾은 슬롯도 그린다**(2026-08-14). 예전에는 제외했는데, 그 근거였던
+   * "오답으로도 처리되지 않는 죽은 영역이 남는다"는 실현된 적이 없다 — 정답
+   * 오버레이가 찾은 뒤에도 zIndex 1로 남아 클릭을 먼저 삼켰기 때문이다.
+   * 그 오버레이를 걷어낸 지금 여기서도 빼면 찾은 자리가 배경까지 뚫려
+   * **다 맞힌 슬롯을 누를 때마다 10점 감점 + 오답 1회**가 된다(체크 표시에는
+   * 핸들러가 없어 그것을 눌러도 마찬가지다).
+   *
+   * 무판정 구역은 zIndex 0이라 **이웃 슬롯의 정답 영역을 가리지 않는다** —
+   * 여기 남겨두어도 간섭 문제는 생기지 않는다.
    */
   const renderDeadZones = (side: "left" | "right") =>
-    differenceSlots
-      .filter((slot) => !foundSlots.has(slot.slotId))
-      .map((slot) => {
-        const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
-        const slotSizePx = 100 * slot.slotScale * scale;
-        const { deadZone, useClipPath } = resolveHitTargetBox(slotSizePx, polygon);
+    differenceSlots.map((slot) => {
+      const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
+      const slotSizePx = 100 * slot.slotScale * scale;
+      const { deadZone, useClipPath } = resolveHitTargetBox(slotSizePx, polygon);
 
-        return (
-          <div
-            key={`dead-${slot.slotId}`}
-            className="absolute"
-            style={{
-              left: `${slot.x * scale - deadZone.offsetX}px`,
-              top: `${slot.y * scale - deadZone.offsetY}px`,
-              width: `${deadZone.width}px`,
-              height: `${deadZone.height}px`,
-              clipPath: useClipPath ? buildClipPath(deadZone.polygon) : undefined,
-              zIndex: 0,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        );
-      });
+      return (
+        <div
+          key={`dead-${slot.slotId}`}
+          className="absolute"
+          style={{
+            left: `${slot.x * scale - deadZone.offsetX}px`,
+            top: `${slot.y * scale - deadZone.offsetY}px`,
+            width: `${deadZone.width}px`,
+            height: `${deadZone.height}px`,
+            clipPath: useClipPath ? buildClipPath(deadZone.polygon) : undefined,
+            zIndex: 0,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    });
 
   /**
    * 정답 표시. 슬롯 중심에 고정 크기로 놓는다 — 히트 영역의 clip-path 바깥이라

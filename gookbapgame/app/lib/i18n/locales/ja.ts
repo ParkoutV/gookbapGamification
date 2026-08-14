@@ -21,8 +21,8 @@ export const ja: Partial<Dictionary> = {
   // ランキング画面。タブは暦基準(ローリングウィンドウではない、2026-08-13)。
   "ranking.title": "ランキング",
   "ranking.tab.daily": "今日",
-  "ranking.tab.weekly": "今週",
-  "ranking.tab.monthly": "今月",
+  "ranking.tab.weekly": "直近7日",
+  "ranking.tab.monthly": "直近30日",
   "ranking.tab.total": "全体",
   "ranking.myBestScore": "自己最高 {score}",
   "ranking.pageIndicator": "{current} / {total}",
@@ -75,6 +75,10 @@ export const ja: Partial<Dictionary> = {
     "早く終えるほどタイムボーナスが付きます。\n" +
     "連続で正解するとコンボボーナスが加算されます。\n" +
     "ゲーム終了後はクッパ力ランクが出て、クーポン抽選に進みます。",
+
+  "tutorial.drawLimitDaily": "クーポン抽選は1日{count}回まで参加できます。",
+  "tutorial.drawLimitDays": "クーポン抽選は{days}日間で{count}回まで参加できます。",
+  "tutorial.drawLimitHours": "クーポン抽選は{hours}時間で{count}回まで参加できます。",
 
   "preload.preparing": "ゲームを起動中...",
   "preload.sessionError": "ゲームデータの読み込みに失敗しました。ネットワーク状況をご確認ください。",
@@ -136,6 +140,7 @@ export const ja: Partial<Dictionary> = {
   "wheel.wonTitle": "クーポンが当たりました！",
   "wheel.missTitle": "残念、はずれです",
   "wheel.missDescription": "またの機会にご挑戦ください。",
+  "wheel.rejectedHasCoupons": "すでに発行されたクーポンがあります。",
   "wheel.rejected": "現在カードを引けません。しばらくしてからお試しください。",
   "wheel.error": "現在サーバーに接続できません。しばらくしてからお試しください。",
   "start.goToDrawButton": "クーポンを引きに行く",

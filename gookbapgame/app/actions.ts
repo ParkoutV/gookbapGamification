@@ -4,7 +4,12 @@ import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
 import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
-import { getPartSilhouette, mapSilhouetteToSlot, type Point } from "./lib/hitPolygon";
+import {
+  getPartSilhouette,
+  mapSilhouetteToSlot,
+  pickPolygonSource,
+  type Point,
+} from "./lib/hitPolygon";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { nicknameFromParticipantRows } from "./lib/existingNickname";
@@ -76,23 +81,22 @@ async function computeSlotPolygons(
   const rightHull =
     rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.image_url);
 
-  const leftHitPolygon = leftHull
-    ? mapSilhouetteToSlot(leftHull, {
-        offsetX: leftPart.offset_x,
-        offsetY: leftPart.offset_y,
-        partScale: leftPart.scale,
-        slotScale,
-      })
-    : null;
+  // 투명 파트(= "없는 쪽")는 실루엣이 null이다. 규칙과 이유는 `pickPolygonSource`에.
+  const leftSource = pickPolygonSource(leftHull, rightHull, leftPart, rightPart);
+  const rightSource = pickPolygonSource(rightHull, leftHull, rightPart, leftPart);
 
-  const rightHitPolygon = rightHull
-    ? mapSilhouetteToSlot(rightHull, {
-        offsetX: rightPart.offset_x,
-        offsetY: rightPart.offset_y,
-        partScale: rightPart.scale,
-        slotScale,
-      })
-    : null;
+  const toPolygon = (source: typeof leftSource) =>
+    source
+      ? mapSilhouetteToSlot(source.hull, {
+          offsetX: source.placement.offset_x,
+          offsetY: source.placement.offset_y,
+          partScale: source.placement.scale,
+          slotScale,
+        })
+      : null;
+
+  const leftHitPolygon = toPolygon(leftSource);
+  const rightHitPolygon = toPolygon(rightSource);
 
   return { leftHitPolygon, rightHitPolygon };
 }
@@ -740,6 +744,53 @@ export async function fetchWebCouponSettings(): Promise<WebCouponSettings | null
     return (data as WebCouponSettings | null) ?? null;
   } catch (error) {
     console.error("[fetchWebCouponSettings] 예기치 못한 예외:", error);
+    return null;
+  }
+}
+
+/**
+ * 뽑기 횟수 제한 설정. 튜토리얼에 "1일 3회까지" 같은 규칙을 고지하는 데 쓴다
+ * (2026-08-14, 이란토 — "왜 설문도 안 했는데 또 뽑히지"라는 제보가 규칙을 화면
+ * 어디에서도 알려주지 않은 데서 왔다).
+ *
+ * **횟수를 하드코딩하지 말 것.** 운영자가 대시보드에서 바꾸는 값이라(`gatcha_settings`,
+ * `Everyone: SELECT`라 anon이 직접 읽는다 — `coupon_effects`·`web_coupon_settings`와
+ * 같은 패턴이며 RPC가 필요 없다) 화면이 DB를 따라가야 한다.
+ *
+ * **`limit_type`에 따라 판정 기준이 실제로 다르다**(저쪽 `api/gatcha/draw/route.ts` 실물
+ * 확인). `days`면 KST 자정 기준이라 "1일 3회"·"오늘"이 맞고, `hours`면
+ * `now - N시간`의 롤링 윈도우라 "오늘"이라는 말 자체가 틀린다. 문구를 한쪽으로
+ * 고정하지 말 것 — `gatchaLimitNotice`가 이 값을 보고 가른다.
+ *
+ * **남은 횟수는 여기서 알 수 없다.** 그건 `gatcha_logs`를 세야 하는데 그 테이블은
+ * anon에게 INSERT만 열려 있다(SELECT는 Admin 전용). draw 응답에도 잔여가 없다 —
+ * "2/3 남음" 같은 표시를 하려면 저쪽에 RPC를 요청해야 한다.
+ */
+export type GatchaLimitSettings = {
+  limitType: string;
+  limitN: number;
+  limitM: number;
+};
+
+export async function fetchGatchaLimit(): Promise<GatchaLimitSettings | null> {
+  try {
+    const { data, error } = await supabase
+      .from("gatcha_settings")
+      .select("limit_type, limit_n, limit_m")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) {
+      console.error("[fetchGatchaLimit] 조회 실패:", error);
+      return null;
+    }
+    if (!data) return null;
+    // 값이 깨져 있으면 안내를 띄우지 않는다 — 틀린 횟수를 고지하는 것보다 낫다.
+    const limitN = Number(data.limit_n);
+    const limitM = Number(data.limit_m);
+    if (!Number.isFinite(limitN) || !Number.isFinite(limitM) || limitM <= 0) return null;
+    return { limitType: String(data.limit_type), limitN, limitM };
+  } catch (error) {
+    console.error("[fetchGatchaLimit] 예기치 못한 예외:", error);
     return null;
   }
 }

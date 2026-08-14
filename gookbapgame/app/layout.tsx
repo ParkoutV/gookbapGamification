@@ -31,8 +31,19 @@ const notoEmoji = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "다른그림찾기 - 국밥",
-  description: "국밥 한 상차림 다른그림찾기 게임",
+  /**
+   * **ko의 `meta.title`/`meta.description`과 같은 값으로 유지할 것**(2026-08-14).
+   *
+   * 마운트 후에는 `LocaleContext`가 `document.title`을 로케일 값으로 덮지만, 이쪽은
+   * 서버 렌더 시점의 `<title>`이라 **크롤러와 공유 미리보기가 보는 것은 이 값이다**
+   * (JS 실행 전이라 덮이지 않는다). 초대 링크로 퍼지는 게임이니 실제로 노출되는
+   * 자리다 — 게임 이름을 바꾸면 로케일 파일과 여기를 함께 고쳐야 한다.
+   *
+   * 로케일별로 갈라주지는 않는다. `generateMetadata`로 하려면 요청에서 언어를
+   * 정해야 하는데, 실제 로케일은 localStorage(클라이언트)에 있어 서버가 알 수 없다.
+   */
+  title: "1953 눈썰미 대결!",
+  description: "틀린그림찾기의 달인을 찾습니다.",
   other: {
     /**
      * Darkreader 등 강제 다크모드 확장을 페이지 전체에서 끈다.
