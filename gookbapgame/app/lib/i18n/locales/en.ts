@@ -75,6 +75,10 @@ export const en: Partial<Dictionary> = {
     "Consecutive correct taps build a combo bonus.\n" +
     "When the game ends you get a Gukbap rank, then a coupon draw.",
 
+  "tutorial.drawLimitDaily": "You can draw up to {count} coupon cards per day.",
+  "tutorial.drawLimitDays": "You can draw up to {count} coupon cards every {days} days.",
+  "tutorial.drawLimitHours": "You can draw up to {count} coupon cards every {hours} hours.",
+
   "preload.preparing": "Loading...",
   "preload.sessionError": "Failed to load game data. Please check your network connection.",
   "preload.levelSessionError": "Failed to load game data for stage {level}.",

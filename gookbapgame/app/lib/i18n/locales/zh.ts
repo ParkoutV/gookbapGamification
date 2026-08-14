@@ -90,6 +90,10 @@ export const zh: Partial<Dictionary> = {
     "连续答对可累积连击奖励。\n" +
     "游戏结束后会显示汤饭力等级，并进入优惠券抽取环节。",
 
+  "tutorial.drawLimitDaily": "优惠券抽卡每天最多可参与{count}次。",
+  "tutorial.drawLimitDays": "优惠券抽卡每{days}天最多可参与{count}次。",
+  "tutorial.drawLimitHours": "优惠券抽卡每{hours}小时最多可参与{count}次。",
+
   "preload.preparing": "正在启动游戏...",
   "preload.sessionError": "游戏数据加载失败，请检查网络状况。",
   "preload.levelSessionError": "无法加载第 {level} 关的游戏数据。",

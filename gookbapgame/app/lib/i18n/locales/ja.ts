@@ -76,6 +76,10 @@ export const ja: Partial<Dictionary> = {
     "連続で正解するとコンボボーナスが加算されます。\n" +
     "ゲーム終了後はクッパ力ランクが出て、クーポン抽選に進みます。",
 
+  "tutorial.drawLimitDaily": "クーポン抽選は1日{count}回まで参加できます。",
+  "tutorial.drawLimitDays": "クーポン抽選は{days}日間で{count}回まで参加できます。",
+  "tutorial.drawLimitHours": "クーポン抽選は{hours}時間で{count}回まで参加できます。",
+
   "preload.preparing": "ゲームを起動中...",
   "preload.sessionError": "ゲームデータの読み込みに失敗しました。ネットワーク状況をご確認ください。",
   "preload.levelSessionError": "ステージ{level}のゲームデータを読み込めませんでした。",

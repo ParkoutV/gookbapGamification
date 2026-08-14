@@ -92,6 +92,13 @@ export const ko: Dictionary = {
     "연속으로 맞히면 콤보 보너스 처리됩니다.\n" +
     "게임이 끝나면 국밥력 등급이 나오고, 쿠폰을 확인하실 수 있습니다!",
 
+  /* 뽑기 횟수 제한 고지(2026-08-14). **횟수는 DB에서 온다** — 운영자가 대시보드에서
+     바꾸는 값이라 문구에 숫자를 박지 말 것(`gatchaLimit.ts`). limit_type이 days냐
+     hours냐에 따라 판정 기준이 달라 키가 셋이다. */
+  "tutorial.drawLimitDaily": "쿠폰 뽑기는 하루 {count}회까지 참여하실 수 있어요.",
+  "tutorial.drawLimitDays": "쿠폰 뽑기는 {days}일 동안 {count}회까지 참여하실 수 있어요.",
+  "tutorial.drawLimitHours": "쿠폰 뽑기는 {hours}시간 동안 {count}회까지 참여하실 수 있어요.",
+
   "preload.preparing": "게임 시작 중...",
   "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 접속이 원활하지 않습니다.",
   "preload.levelSessionError": "{level}단계 게임 데이터를 불러오지 못했습니다.",
