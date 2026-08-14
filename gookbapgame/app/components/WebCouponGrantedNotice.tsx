@@ -11,7 +11,7 @@ import type { WebCoupon, WebCouponSettings } from "../lib/webCoupons";
  * **여기서도 티켓을 그대로 띄운다** — 코드를 즉시 복사할 수 있어야 하기 때문이다.
  * 안내만 하고 '내 쿠폰'으로 보내면, 방금 받은 것을 쓰려고 두 단계를 더 거치게 된다.
  *
- * `TermNotice`와 같은 구조지만 별도 컴포넌트다: 저쪽은 닫기 선택지를 두지 않는
+ * `LegalNotice`와 같은 구조지만 별도 컴포넌트다: 저쪽은 닫기 선택지를 두지 않는
  * 의무 고지(거부 버튼이 있으면 동의 게이트가 된다)이고, 이쪽은 그냥 알림이다.
  */
 export default function WebCouponGrantedNotice({

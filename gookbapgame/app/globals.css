@@ -1282,3 +1282,23 @@ body {
 .ranking-nickname::-webkit-scrollbar {
   display: none;
 }
+
+/* 법률 문서 본문 영역(`LegalNotice`). 긴 문서를 스크롤해 읽는 자리라, 90s 데스크톱
+   컨셉의 "창 안에 놓인 흰 문서"로 만든다(2026-08-14, 이란토).
+
+   **패널 배경(--surface #F2F4F6)이 아니라 순백이다.** 문서 영역이 창 크롬과 같은
+   색이면 어디까지가 읽을 내용인지 경계가 없다 — 카드 앞면(#F2F2F2)이 패널 배경에
+   묻혔던 것과 같은 문제이며, 여기서는 베벨이 아니라 색으로 가른다.
+
+   **베벨 방향은 눌린 면(음각)이다** — .gatcha-loading__bar 트랙, .pixel-frame-inner와
+   같은 방향(왼쪽·위가 dark). 스크롤되는 내용 영역은 창 안에 파인 홈이지 튀어나온
+   버튼이 아니다. 방향을 뒤집으면 누를 수 있는 것처럼 보인다. */
+.legal-doc-body {
+  background: #FFFFFF;
+  box-shadow:
+    inset 2px 2px 0 0 var(--bevel-dark),
+    inset -2px -2px 0 0 var(--bevel-light);
+  /* 베벨 두께만큼 안쪽 여백. 로딩 바 트랙 주석과 같은 이유로, 글자가 홈에 닿아
+     베벨을 덮으면 파인 느낌이 사라진다. 좌우는 읽기 여백을 겸해 더 준다. */
+  padding: 0.5rem 0.75rem;
+}

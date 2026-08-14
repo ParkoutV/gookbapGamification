@@ -22,6 +22,8 @@ interface StartScreenProps {
    */
   hasPendingDraw: boolean;
   trackId: string | null;
+  /** 약관·개인정보처리방침·쿠폰안내 창을 연다. 아래 푸터 주석 참고. */
+  onOpenLegal: () => void;
 }
 
 export default function StartScreen({
@@ -34,6 +36,7 @@ export default function StartScreen({
   onOpenMyCoupons,
   hasPendingDraw,
   trackId,
+  onOpenLegal,
 }: StartScreenProps) {
   const { t, locale } = useLocale();
 
@@ -166,6 +169,28 @@ export default function StartScreen({
           </p>
         )}
       </PixelPanel>
+
+      {/* 푸터. **패널 바깥, 패널 바로 아래다** — 뷰포트 바닥에 fixed로 붙이면 이 화면의
+          `justify-center` 세로 중앙 정렬과 싸우게 된다(2026-08-14, 이란토).
+
+          **최초 고지 이후 법률 문서를 다시 볼 수 있는 유일한 진입점이라** 링크를
+          copyright와 함께 둔다. 개인정보처리방침은 언제든 열람할 수 있어야 하는데,
+          첫 실행에만 뜨는 팝업으로 끝내면 그 통로가 없다.
+
+          **회사명은 로케일 파일이 아니라 여기 하드코딩한다.** 4개 파일에 같은 값이
+          들어가면 언젠가 어긋난다 — `LOCALE_LABELS`와 `GAME OVER`/`CLEAR!` 리터럴을
+          로케일에서 뺀 것과 같은 근거다(AGENTS.md 연출 글자 절). 상호는 번역 대상이
+          아니고, 표기는 회사 문서를 따라 '(주)웨이브앤바이브'다. */}
+      <footer className="mt-4 flex flex-col items-center gap-1 text-center">
+        <button
+          type="button"
+          onClick={onOpenLegal}
+          className="text-xs text-muted underline underline-offset-2"
+        >
+          {t("legal.openButton")}
+        </button>
+        <p className="text-[0.65rem] text-muted">Copyright © 2026 (주)웨이브앤바이브</p>
+      </footer>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useCardImageSave } from "../hooks/useCardImageSave";
 import PixelPanel from "./PixelPanel";
 import GatchaCard from "./GatchaCard";
 import GatchaLoading from "./GatchaLoading";
+import CouponGuideNotice from "./CouponGuideNotice";
 import type { DrawCouponResult } from "../actions";
 
 /**
@@ -38,6 +39,7 @@ export default function WheelScreen({
 }: WheelScreenProps) {
   const { t, locale } = useLocale();
   const [flipped, setFlipped] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const coupon = drawResult?.status === "won" ? drawResult.coupon : null;
 
@@ -213,7 +215,23 @@ export default function WheelScreen({
             {t("wheel.nextButton")}
           </button>
         )}
+
+        {/* 쿠폰 이용안내. **당첨 카드를 연 뒤에만 띄운다** — 아직 결과를 모르거나
+            꽝인 사람에게는 안내할 쿠폰이 없다. 사용기한·1회 사용 같은 조건을 받은
+            그 자리에서 알 수 있어야 하므로 시작 화면의 약관 창과 따로 둔다
+            (2026-08-14, 이란토). */}
+        {flipped && coupon && (
+          <button
+            type="button"
+            onClick={() => setShowGuide(true)}
+            className="mt-3 w-full text-xs text-muted underline underline-offset-2"
+          >
+            {t("couponGuide.openButton")}
+          </button>
+        )}
       </PixelPanel>
+
+      {showGuide && <CouponGuideNotice onClose={() => setShowGuide(false)} />}
     </div>
   );
 }

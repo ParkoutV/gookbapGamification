@@ -37,16 +37,17 @@ export const en: Partial<Dictionary> = {
   "ranking.partialNotice": "Too many records - only part of them were counted.",
   "ranking.closeButton": "Close",
 
-  "term.title": "Privacy Notice",
-  "term.body":
-    "This game collects the following information to run the game and issue coupons.\n\n" +
-    "· An anonymous identification cookie (no name, contact details, or other personally identifying information is collected)\n" +
-    "· Game scores and play records\n" +
-    "· Your survey answers\n" +
-    "· Coupon issuance and redemption history\n\n" +
-    "This information is used only to operate the game and issue coupons, and is discarded after the event ends.",
-  "term.agreeNotice": "Tapping Confirm means you agree to the above.",
-  "term.confirmButton": "Confirm",
+  "legal.title": "Terms and Privacy",
+  "legal.tab.terms": "Terms",
+  "legal.tab.privacy": "Privacy",
+  "couponGuide.title": "Coupon Guide",
+  "couponGuide.openButton": "Coupon Guide",
+  "legal.agreeNotice": "Tapping Confirm means you agree to the above.",
+  "legal.confirmButton": "Confirm",
+  "legal.closeAria": "Close",
+  "legal.openButton": "Terms & Privacy Policy",
+  "legal.originalNotice":
+    "The original text of these documents is in Korean; translations are for reference only.",
 
   "tutorial.openButton": "How to Play",
   "tutorial.progress": "{current} / {total}",
