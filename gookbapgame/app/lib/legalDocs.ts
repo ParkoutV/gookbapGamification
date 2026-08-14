@@ -20,10 +20,15 @@
  * - 원본 docx의 표 2개(위탁 / 국외이전)는 `라벨: 값` 줄로 폈다. 표를 그대로
  *   덤프하면 값이 라벨 없이 이어져 읽을 수 없다.
  *
- * ponytail: 담당자명·대표 연락처가 빈칸이라 그 줄을 넣지 않았다(원문의
- * `[담당자명]`·`[대표 연락처]` 자리표시자). 천장 — 개인정보보호법상 처리방침에는
- * 보호담당자 연락처가 있어야 하므로 **대외 배포 전에 반드시 채워야 한다.**
- * 회사에서 값을 받으면 `privacy` 10항과 `terms` 7조에 한 줄씩 추가.
+ * **`[담당자명]`·`[대표 연락처]`는 원문 그대로 남겨둔 자리표시자다**(2026-08-14,
+ * 이란토). 회사에서 아직 값을 주지 않았는데, 그 줄을 빼면 나중에 무엇을 어디에
+ * 채워야 하는지가 문서에서 사라진다 — 원문을 그대로 옮겨두고 배포 시점에 값만
+ * 바꿔 넣는다. `legalDocs.test.ts`가 이 두 개만 허용하고 다른 자리표시자가
+ * 새로 끼어드는 것은 막는다.
+ *
+ * 개인정보보호법상 처리방침에는 보호담당자 연락처가 있어야 하므로 **대외 배포
+ * 전에는 반드시 실제 값으로 채워야 한다.** 채울 곳은 `privacy` 10항과
+ * `terms` 7조, ko·en 양쪽이다.
  */
 
 /**
@@ -59,7 +64,7 @@ const ko: Record<DocId, string> = {
   terms: `이벤트 이용약관
 
 제1조 목적
-본 약관은 (주)웨이브앤바이브(이하 "회사")가 운영하는 「1953 형제돼지국밥 다른 그림 찾기 이벤트」의 이용조건 및 운영기준을 정함을 목적으로 합니다.
+본 약관은 (주)웨이브앤바이브(이하 “회사”)가 운영하는 「1953 형제돼지국밥 다른 그림 찾기 이벤트」의 이용조건 및 운영기준을 정함을 목적으로 합니다.
 
 제2조 참여
 · 이용자는 이벤트 페이지를 통해 자유롭게 참여할 수 있습니다.
@@ -86,11 +91,12 @@ const ko: Record<DocId, string> = {
 회사는 천재지변, 이용자의 단말기 환경 또는 통신 장애 등 회사의 귀책사유가 아닌 사유로 발생한 손해에 대하여 책임을 지지 않습니다.
 
 제7조 문의
-운영사: (주)웨이브앤바이브`,
+운영사: (주)웨이브앤바이브
+문의처: [대표 연락처]`,
 
   privacy: `개인정보처리방침
 
-(주)웨이브앤바이브(이하 "회사")는 「개인정보 보호법」 등 관련 법령을 준수하며, 「1953 형제돼지국밥 이벤트 게임」 운영에 필요한 최소한의 정보만 처리합니다.
+(주)웨이브앤바이브(이하 “회사”)는 「개인정보 보호법」 등 관련 법령을 준수하며, 「1953 형제돼지국밥 이벤트 게임」 운영에 필요한 최소한의 정보만 처리합니다.
 
 본 이벤트는 이름, 휴대전화번호, 이메일 등 이용자를 직접 식별할 수 있는 정보를 수집하지 않습니다. 설문 응답은 게임 기록 및 브라우저 이벤트 식별값과 분리하여 처리하며, 이벤트 분석 및 통계 작성 목적으로만 이용합니다.
 
@@ -184,7 +190,14 @@ const ko: Record<DocId, string> = {
 · 이용자는 브라우저 설정을 통해 LocalStorage에 저장된 이벤트 정보를 직접 삭제할 수 있습니다. 이 경우 기존 게임 기록 및 쿠폰 정보 등을 확인하거나 복구하지 못할 수 있습니다.
 
 10. 개인정보 보호 관련 문의
-운영사: (주)웨이브앤바이브`,
+운영사: (주)웨이브앤바이브
+개인정보 보호담당자: [담당자명]
+이메일: [이메일]
+연락처: [전화번호]
+
+11. 개인정보처리방침의 변경
+본 개인정보처리방침의 내용이 변경되는 경우 이벤트 페이지 등을 통해 변경사항을 안내합니다.
+시행일: [YYYY년 MM월 DD일]`,
 
   coupon: `쿠폰 이용안내
 
@@ -246,7 +259,8 @@ Article 6 (Disclaimer)
 The Company is not liable for damages arising from causes not attributable to the Company, such as natural disasters, the user's device environment, or communication failures.
 
 Article 7 (Contact)
-Operator: Wave&Vibe Co., Ltd.`,
+Operator: Wave&Vibe Co., Ltd.
+Contact: [대표 연락처]`,
 
   privacy: `Privacy Policy
 
@@ -344,7 +358,14 @@ A user who refuses the overseas transfer may stop using the event and delete the
 · Users may delete event information stored in LocalStorage directly through their browser settings. In that case, existing game records and coupon information may no longer be viewable or recoverable.
 
 10. Privacy Inquiries
-Operator: Wave&Vibe Co., Ltd.`,
+Operator: Wave&Vibe Co., Ltd.
+Personal information protection officer: [담당자명]
+Email: [이메일]
+Phone: [전화번호]
+
+11. Changes to This Privacy Policy
+If the contents of this privacy policy change, we will announce the changes through the event page or other means.
+Effective date: [YYYY년 MM월 DD일]`,
 
   coupon: `Coupon Guide
 
