@@ -498,7 +498,7 @@ export async function saveGameData(
       if (freshParts && freshParts.length > 0) {
         // Pick the part with the smallest ID per category
         const previewParts = freshSlots.map(slot => {
-          const slotParts = freshParts.filter(p => p.category_id === slot.category_id)
+          const slotParts = freshParts.filter(p => p.category_id === slot.category_id && p.image_url)
           if (slotParts.length === 0) return null
           // sort by id asc
           slotParts.sort((a, b) => a.id - b.id)
@@ -514,6 +514,7 @@ export async function saveGameData(
           if (!part) return null
           const slot = freshSlots.find(s => s.category_id === part.category_id)
           if (!slot) return null
+          if (!part.image_url) return null
           return {
             imageUrl: part.image_url,
             slotX: slot.x_coordinate,

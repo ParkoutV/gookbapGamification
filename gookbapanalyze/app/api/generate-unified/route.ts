@@ -76,6 +76,8 @@ export async function POST(req: NextRequest) {
       
       const existingRow = existingUnified?.find(row => {
         if (Number(row.base_image_id) !== baseImageId) return false
+        if (!row.unified_image_url) return false // Ignore cache rows with missing images
+        
         const dbSlots = row.image_slots as Record<string, string>
         const dbKeys = Object.keys(dbSlots).sort()
         const reqKeys = Object.keys(imageSlots).sort()
@@ -123,6 +125,8 @@ export async function POST(req: NextRequest) {
           
           const slot = slots.find((s: any) => Number(s.category_id) === Number(category.id))
           if (!slot) return null
+          
+          if (!part.image_url) return null
           
           return {
             imageUrl: part.image_url,
