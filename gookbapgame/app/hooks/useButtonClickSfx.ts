@@ -17,7 +17,17 @@ import { resumeBgm } from "../lib/bgm";
  * 캡처 단계로 듣는다. 버튼 핸들러가 stopPropagation을 부르는 경우가 있는데,
  * 버블 단계였다면 그런 버튼만 조용해진다.
  */
-export function useButtonClickSfx(): void {
+/**
+ * @param onFirstGesture 첫 상호작용에 얹을 추가 동작(데이터 프리워밍). 문서 리스너를
+ *   하나 더 만들지 않고 여기 얹는 이유는 `preloadSfx`를 여기 둔 것과 같다 —
+ *   첫 조작이 버튼이라는 보장이 없다.
+ *
+ *   **이 콜백은 매 pointerdown마다 불린다**(`resumeBgm`처럼 아래 리스너는 한 번만
+ *   등록되고 계속 산다). 한 번만 해야 하는 일이면 호출부가 자기 안에서 막을 것 —
+ *   프리워밍은 `createSessionPrewarm`의 `started` 플래그가 막는다. 안 막으면 탭할
+ *   때마다 서버 합성 14건이 나간다.
+ */
+export function useButtonClickSfx(onFirstGesture?: () => void): void {
   useEffect(() => {
     // 여기서 효과음을 미리 받아 디코드한다. 시작 버튼에 걸면 늦다 — 첫 pointerdown이
     // 시작 버튼이라는 보장이 없고(언어 선택·약관 팝업·소리 토글이 앞선다),
@@ -50,13 +60,16 @@ export function useButtonClickSfx(): void {
      * 버튼이라는 보장이 없고, 여기서 놓치면 다음 버튼을 누를 때까지 무음이다.
      * `resumeBgm`은 이미 재생 중이면 아무것도 하지 않으므로 매번 불려도 된다.
      */
-    const onFirstGesture = () => resumeBgm(isSfxMuted());
+    const onGesture = () => {
+      resumeBgm(isSfxMuted());
+      onFirstGesture?.();
+    };
 
     document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("pointerdown", onFirstGesture, true);
+    document.addEventListener("pointerdown", onGesture, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("pointerdown", onFirstGesture, true);
+      document.removeEventListener("pointerdown", onGesture, true);
     };
-  }, []);
+  }, [onFirstGesture]);
 }

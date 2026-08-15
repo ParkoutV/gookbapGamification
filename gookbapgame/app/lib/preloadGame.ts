@@ -41,9 +41,9 @@ export function loadImageInBrowser(url: string): Promise<void> {
   });
 }
 
-export async function preloadAllStages(
+/** 세션 데이터만 받는다(이미지 다운로드 없음). 프리워밍이 쓰는 절반이다. */
+export async function fetchAllSessions(
   fetchSession: FetchSessionFn,
-  loadImage: LoadImageFn = loadImageInBrowser,
   lastBaseImageIds: LastBaseImageIds = {}
 ): Promise<PreloadResult> {
   let sessions: (GameSession | null)[];
@@ -66,14 +66,58 @@ export async function preloadAllStages(
     };
   }
 
-  const confirmedSessions = sessions as GameSession[];
-  const urls = confirmedSessions.flatMap((s) => [s.leftSceneUrl, s.rightSceneUrl]);
+  return { ok: true, sessions: sessions as GameSession[] };
+}
 
+export async function loadSessionImages(
+  sessions: GameSession[],
+  loadImage: LoadImageFn = loadImageInBrowser
+): Promise<PreloadResult> {
+  const urls = sessions.flatMap((s) => [s.leftSceneUrl, s.rightSceneUrl]);
   try {
     await runWithConcurrencyLimit(urls, PRELOAD_IMAGE_CONCURRENCY, loadImage);
   } catch {
     return { ok: false, key: "preload.imageError" };
   }
-
-  return { ok: true, sessions: confirmedSessions };
+  return { ok: true, sessions };
 }
+
+export async function preloadAllStages(
+  fetchSession: FetchSessionFn,
+  loadImage: LoadImageFn = loadImageInBrowser,
+  lastBaseImageIds: LastBaseImageIds = {}
+): Promise<PreloadResult> {
+  const fetched = await fetchAllSessions(fetchSession, lastBaseImageIds);
+  if (!fetched.ok) return fetched;
+  return loadSessionImages(fetched.sessions, loadImage);
+}
+
+/**
+ * 첫 상호작용 시점에 세션만 미리 받아두는 래치.
+ *
+ * - **결과값이 아니라 in-flight 프로미스를 담는다** — 프리워밍 도중에 시작을 눌러도
+ *   중복 요청 없이 진행 중인 작업을 기다린다.
+ * - **`take()`는 한 번 쓰고 비운다.** 남겨두면 '다시하기'가 같은 세트를 그대로 재생해서
+ *   `43252ed`가 막은 중복(같은 배경·같은 정답 위치)이 되살아난다.
+ * - **`start()`는 페이지 수명당 한 번뿐이다.** 트리거로 쓰는 pointerdown 리스너는
+ *   매 탭마다 불리므로, 이 플래그가 없으면 탭할 때마다 서버 합성 14건이 나간다.
+ */
+export function createSessionPrewarm(fetchSessions: () => Promise<PreloadResult>) {
+  let inFlight: Promise<PreloadResult> | null = null;
+  let started = false;
+  return {
+    start() {
+      if (started) return;
+      started = true;
+      inFlight = fetchSessions();
+    },
+    take(): Promise<PreloadResult> | null {
+      const p = inFlight;
+      inFlight = null;
+      return p;
+    },
+  };
+}
+
+/** `createSessionPrewarm`이 돌려주는 래치의 타입. 훅이 ref 타입으로 쓴다. */
+export type SessionPrewarm = ReturnType<typeof createSessionPrewarm>;
