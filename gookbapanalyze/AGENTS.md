@@ -44,8 +44,9 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`assigned_branch_id`** (`uuid`, Nullable): 해당 관리자가 소속된 지점의 ID입니다. 최고 관리자(`permission: 0`)의 경우 null일 수 있습니다.
   * *제약조건:* `branches(branch_id)`와 외래키 관계이며, 지점 삭제 시 `ON DELETE SET NULL` 처리됩니다.
 
-### 2. `base_images` (기본 게임 이미지)
+### 2. `base_images` (기본 게임 이미지) [RPC: `get_game_master_data`]
 게임(다른그림찾기)의 배경이 되는 원본 이미지를 정의합니다.
+*참고: 게임 클라이언트의 최적화된 초기 로딩을 위해, `get_game_master_data` RPC를 호출하면 `base_images`, `image_slots`, `part_categories`, `parts` 데이터를 중첩된 단일 JSON 형태로 한 번에 조회할 수 있습니다.*
 
 **[RLS Policies]**
 - `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL on base_images)*
@@ -512,41 +513,72 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
    - **레이아웃 배치 원칙**:
      - **단일/개별 필드 번역**: 다국어 입력 폼(예: 제목 입력칸 등)의 **라벨 우측 끝 또는 인풋 박스 상단** 영역에 `compact={true}` 속성을 주어 작은 아이콘 형태로 튀지 않게 배치합니다.
      - **일괄 번역 (Form 전체)**: 여러 다국어 필드를 한 번에 채워야 할 경우, 페이지나 Card 컨테이너의 **우측 상단 액션 바(Action bar)** 영역에 `compact={false}` 기본 버튼으로 배치하여 눈에 띄게 유도합니다.
+   - **리소스 절약 (existingTranslations prop)**: 번역 버튼 호출 시, 이미 번역값이 채워진 칸은 API를 낭비하지 않도록 사전에 차단해야 합니다. 반드시 부모 컴포넌트에서 `existingTranslations` prop으로 현재 다국어 입력 상태를 전달하여, 비어있는 항목만 정확히 번역되도록 최적화해야 합니다.
 
 
 # Script Organization
 - 프로젝트 관리를 위해 작성되는 `.mjs` 및 `.js` 형태의 유틸리티/관리 스크립트(DB 스키마 확인, RLS 셋업 스크립트 등)는 루트 폴더가 아닌 **`scripts/`** 폴더에 모아서 관리합니다.
 - 단, `eslint.config.mjs`, `postcss.config.mjs` 등 프레임워크 구동을 위한 필수 환경 설정 파일은 루트 폴더에 유지합니다.
 
-# Unified Image Generation API Guide
-게임 클라이언트에서 퍼즐(다른그림찾기) 이미지를 요청할 때 사용하는 온디맨드 렌더링 API 명세입니다.
-이 API는 CORS가 허용되어 있어 외부 게임 클라이언트에서도 안전하게 호출할 수 있습니다. 
-내부적으로 캐싱을 수행하며 캐시가 없을 경우에만 합성합니다 (Lazy Loading).
+# JIT 이미지 합성 API 가이드 (`/api/generate-unified`)
+대시보드 또는 클라이언트가 동적으로 특정 조합의 파츠를 합성한 이미지가 필요할 때 호출하는 백엔드 API입니다. 
+최근 업데이트로 **벌크(다중) 처리 및 캐시 최적화**가 적용되어 수십 개의 이미지를 한 번에 초고속으로 요청할 수 있습니다.
 
+### 1. 단일 이미지 요청 (Legacy 호환 포맷)
+하나의 이미지 조합만 생성할 때 사용합니다.
 - **Endpoint**: `POST /api/generate-unified`
 - **Headers**: `Content-Type: application/json`
 - **Request Body (JSON)**:
   ```json
   {
-    "baseImageId": 1,
+    "baseImageId": 14,
     "imageSlots": {
-      "1": 2, // "카테고리ID": "요청할 파츠ID"
-      "2": 5,
-      "3": 12
+      "46": 112,
+      "47": 115
     }
   }
   ```
-- **Response (Success - 200 OK)**:
+- **Response**
   ```json
   {
     "success": true,
-    "url": "https://[SUPABASE_PROJECT].supabase.co/storage/v1/object/public/game_assets/unified_cache/base1_uuid.webp"
+    "url": "https://.../unified_cache/base14_abc.webp"
   }
   ```
-- **Response (Error - 400/404/500)**:
+
+### 2. 다중(벌크) 이미지 요청 (권장)
+최대 수십 개의 파츠 조합을 한 번에 요청합니다. 병렬 처리 및 RPC 마스터 데이터 캐싱을 통해 압도적으로 빠른 속도로 이미지를 반환받을 수 있습니다.
+- **Request Body (JSON)**:
   ```json
   {
-    "error": "오류 메세지"
+    "combinations": [
+      {
+        "baseImageId": 14,
+        "imageSlots": { "46": 112, "47": 115 }
+      },
+      {
+        "baseImageId": 15,
+        "imageSlots": { "48": 120 }
+      }
+    ]
+  }
+  ```
+- **Response**
+  ```json
+  {
+    "success": true,
+    "results": [
+      {
+        "baseImageId": 14,
+        "imageSlots": { "46": "112", "47": "115" },
+        "url": "https://.../unified_cache/base14_abc.webp"
+      },
+      {
+        "baseImageId": 15,
+        "imageSlots": { "48": "120" },
+        "url": "https://.../unified_cache/base15_def.webp"
+      }
+    ]
   }
   ```
 
@@ -784,12 +816,109 @@ await supabase.rpc('update_track_log_action', {
 localStorage.setItem('track_last_active', now.toString());
 ```
 
+# 통합 이미지 조회 가이드 (Client Game Data Parsing Guide)
 
-# Troubleshooting & Known Issues
-## 404 Error During 
-pm run dev (Turbopack)
-Next.js 16 (Turbopack) 환경에서 
-pm run dev로 구동 중일 때, 정상적으로 존재하는 페이지(예: /main/surveys)에 접근 시 404 Not Found 에러가 지속적으로 발생하는 경우가 있습니다.
-이 현상은 주로 **라우트 트리를 공유하는 인접한 컴포넌트나 레이아웃에 치명적인 문법 오류(예: 변수 다중 선언, Duplicate Import 등)**가 발생했을 때 나타납니다.
-Turbopack은 앱 디렉터리를 병렬로 컴파일하는 과정에서 특정 컴포넌트의 문법 오류로 인해 모듈 그래프 파싱에 실패하면, 라우트 탐색(Route Discovery) 자체에 실패하여 존재하는 라우트임에도 404 에러를 반환할 수 있습니다.
-- **해결책:** 404 에러가 발생하는 원인이 다른 컴포넌트의 문법 오류 때문인지 먼저 확인하고 오류를 수정해야 합니다 (예: 중복 Import 수정). 문제가 해결되지 않는 경우, .next 디렉터리를 삭제 후 개발 서버를 재시작하세요.
+외부 게임 클라이언트가 `get_game_master_data` RPC를 통해 전달받은 JSON 데이터를 파싱하여 게임 로직에 적용하는 방법과 각 속성의 상세한 의미는 다음과 같습니다. 클라이언트는 이 데이터를 활용하여 게임 스테이지 구성을 직접 판단한 후, 결정된 데이터 셋을 바탕으로 자체 렌더링 또는 API 호출을 수행합니다.
+
+### 1. `base_images` (기본 배경 및 슬롯 정보)
+이 배열은 게임의 바탕이 되는 원본 이미지들의 목록과, 해당 이미지 위에 파츠가 올라갈 수 있는 좌표(슬롯)들을 포함합니다.
+* **`id`**: 원본 기본 이미지의 고유 식별자입니다. 
+* **`title`**: 이미지의 다국어 제목입니다.
+* **`image_url`**: 원본 배경 이미지의 스토리지 경로(URL)입니다. 클라이언트는 이 원본 이미지를 맨 아래 바탕으로 깔아야 합니다.
+* **`level`**: 이미지의 난이도 레벨(1~9)입니다. 레벨에 따라 게임 스테이지를 구성할 수 있습니다.
+* **`questions_count`**: 이 배경 이미지에서 유저가 찾아야 하는 '다른 그림(차이점)'의 목표 개수입니다. 클라이언트는 이 개수만큼 `slots` 중 일부를 무작위로 선택하여 파츠를 합성해야 합니다.
+* **`slots`**: 이 배경 이미지 전용으로 지정된 파츠 부착 가능 위치(좌표) 목록입니다.
+  * **`id`**: 개별 슬롯의 고유 식별자입니다.
+  * **`category_id`**: 이 위치에 들어갈 수 있는 파츠의 카테고리를 제한합니다. (예: 안경 카테고리만 가능)
+  * **`x_coordinate` / `y_coordinate`**: 기본 이미지 상에서 파츠가 렌더링될 좌표입니다.
+  * **`z_index`**: 여러 요소가 겹칠 경우의 렌더링 우선순위(레이어 겹침 순서)입니다.
+  * **`scale`**: 해당 위치에 파츠가 부착될 때 적용할 크기 배율입니다.
+
+### 2. `categories` (카테고리 및 파츠 옵션 정보)
+이 배열은 슬롯의 `category_id`에 대응하는 실제 파츠 이미지들의 목록을 그룹화하여 포함합니다.
+* **`id`**: 카테고리의 고유 식별자입니다. `base_images` -> `slots` 내의 `category_id`와 매칭하여 사용 가능한 파츠 목록을 찾을 때 사용합니다.
+* **`name`**: 다국어 카테고리 이름 (예: `{"ko": "안경"}`)
+* **`parts`**: 해당 카테고리에 속한 구체적인 파츠들의 목록입니다. 클라이언트는 이 목록 중 하나를 무작위로 선택하여 슬롯에 배치합니다.
+  * **`id`**: 개별 파츠의 고유 식별자입니다. (실제 게임에서 정답 히트박스를 검증하거나 렌더링 정보를 식별할 때 쓰일 수 있습니다.)
+  * **`name`**: 해당 파츠의 다국어 이름입니다.
+  * **`image_url`**: 부착될 파츠 이미지(투명 배경을 가진 다른그림요소 PNG 등)의 스토리지 경로(URL)입니다. 클라이언트는 이 이미지를 슬롯 좌표 위에 그립니다.
+  * **`offset_x` / `offset_y`**: 슬롯의 기본 좌표에서 미세하게 위치를 조정할 필요가 있을 때 사용하는 세부 오프셋 값입니다.
+  * **`scale`**: 파츠 자체의 고유 크기 배율입니다. 렌더링 시 슬롯의 `scale`과 파츠의 `scale`을 곱하여 최종 렌더링 크기를 결정할 수 있습니다.
+
+### 3. 실제 반환 데이터 예시 (JSON)
+다음은 `get_game_master_data` RPC를 호출했을 때 반환되는 실제 응답 구조의 일부를 발췌한 것입니다.
+
+```json
+{
+  "base_images": [
+    {
+      "id": 14,
+      "level": 4,
+      "title": {
+        "en": "Sky Capsule",
+        "ja": "スカイーカプセル",
+        "ko": "스카이캡슐"
+      },
+      // 1) 바탕이 될 가장 기본 캔버스 이미지입니다. (맨 밑에 렌더링)
+      "image_url": "https://pglhlesnyfncaupiwkwz.supabase.co/storage/v1/object/public/game_assets/base_images/base_326b0298-235d-40c5-8933-0ead2fc5e426.webp",
+      // 2) 이 이미지에서 찾아야 하는 정답(다른 점)은 2개입니다.
+      "questions_count": 2,
+      "slots": [
+        {
+          "id": 54,
+          // 3) 파츠가 그려질 중심 좌표(x, y)입니다.
+          "x_coordinate": 111,
+          "y_coordinate": 425,
+          "scale": 1.62,
+          "z_index": 1,
+          // 4) 이 위치에는 'category_id'가 46인(하늘 카테고리) 파츠들만 부착될 수 있습니다.
+          "category_id": 46
+        }
+        // ... (나머지 슬롯 생략)
+      ]
+    }
+    // ... (나머지 기본 이미지 생략)
+  ],
+  "categories": [
+    {
+      "id": 46,
+      "name": {
+        "en": "Sky",
+        "ja": "空",
+        "ko": "하늘"
+      },
+      "parts": [
+        {
+          "id": 112,
+          "name": {
+            "en": "airplane",
+            "ja": "飛行機",
+            "ko": "비행기"
+          },
+          "scale": 1,
+          "offset_x": 0,
+          "offset_y": 0,
+          // 5) 위 슬롯(category_id: 46)에 넣기로 결정했다면, 이 비행기 이미지를 투명 캔버스 좌표 (111, 425)에 부착(렌더링)합니다.
+          "image_url": "https://pglhlesnyfncaupiwkwz.supabase.co/storage/v1/object/public/game_assets/parts/part_5fc001f1-f305-4b22-8b0c-4436b9c3db05.webp"
+        },
+        {
+          "id": 115,
+          "name": {
+            "en": "sky is clear",
+            "ja": "きれい天気",
+            "ko": "맑은 하늘"
+          },
+          "scale": 1,
+          "offset_x": 0,
+          "offset_y": 0,
+          // 6) 무작위 구성에 따라, 비행기 대신 이 맑은 하늘 이미지를 넣을 수도 있습니다.
+          "image_url": "https://pglhlesnyfncaupiwkwz.supabase.co/storage/v1/object/public/game_assets/parts/part_cc34af32-09ef-4886-af87-f65b06a9df84.webp"
+        }
+      ]
+    }
+    // ... (나머지 카테고리 생략)
+  ]
+}
+```
+
+

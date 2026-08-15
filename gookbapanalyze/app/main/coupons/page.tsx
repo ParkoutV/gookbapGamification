@@ -1129,6 +1129,14 @@ export default function CouponsPage() {
                   targetLanguages={activeLanguages
                     .map(l => l.lang_code)
                     .filter(c => c !== 'ko' && (!modalNameData[c] || !modalDescData[c]))}
+                  existingTranslations={activeLanguages.reduce((acc, l) => {
+                    if (l.lang_code === 'ko') return acc;
+                    acc[l.lang_code] = {
+                      name: modalNameData[l.lang_code] || '',
+                      desc: modalDescData[l.lang_code] || ''
+                    };
+                    return acc;
+                  }, {} as Record<string, Record<string, string>>)}
                   onTranslationComplete={(results) => {
                     const newNames = { ...modalNameData }
                     const newDescs = { ...modalDescData }
@@ -1230,6 +1238,13 @@ export default function CouponsPage() {
                   targetLanguages={activeLanguages
                     .map(l => l.lang_code)
                     .filter(c => c !== 'ko' && !caseModalNameData[c])}
+                  existingTranslations={activeLanguages.reduce((acc, l) => {
+                    if (l.lang_code === 'ko') return acc;
+                    acc[l.lang_code] = {
+                      name: caseModalNameData[l.lang_code] || ''
+                    };
+                    return acc;
+                  }, {} as Record<string, Record<string, string>>)}
                   onTranslationComplete={(results) => {
                     const newNames = { ...caseModalNameData }
                     for (const [lang, translations] of Object.entries(results)) {

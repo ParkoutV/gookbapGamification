@@ -19,129 +19,179 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { baseImageId, imageSlots } = await req.json()
+    const body = await req.json()
 
-    if (!baseImageId || !imageSlots || typeof imageSlots !== 'object') {
-      return NextResponse.json({ error: 'Missing or invalid baseImageId or imageSlots' }, { status: 400, headers: corsHeaders })
+    // 1. Normalize Payload (Support legacy single request and new bulk array)
+    let combinations: { baseImageId: number, imageSlots: Record<string, string | number> }[] = []
+    
+    if (body.combinations && Array.isArray(body.combinations)) {
+      combinations = body.combinations
+    } else if (body.baseImageId && body.imageSlots) {
+      combinations = [{ baseImageId: body.baseImageId, imageSlots: body.imageSlots }]
+    }
+
+    if (combinations.length === 0) {
+      return NextResponse.json({ error: 'Missing or invalid combinations payload' }, { status: 400, headers: corsHeaders })
     }
 
     // Initialize Supabase Admin Client with SERVICE_ROLE_KEY to bypass RLS and allow Storage uploads
-    // This is SAFE here because this Serverless Function completely controls WHAT is uploaded (only strictly validated synthesized images)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 1. Sort the keys to ensure consistent JSON matching
-    const sortedSlotsJson = Object.keys(imageSlots).sort().reduce((acc, key) => {
-      acc[key] = imageSlots[key].toString()
-      return acc
-    }, {} as Record<string, string>)
+    // 2. Fetch Master Data using RPC (One query instead of multiple)
+    const { data: masterData, error: masterErr } = await supabaseAdmin.rpc('get_game_master_data')
+    if (masterErr || !masterData) {
+      console.error("Failed to fetch master data via RPC:", masterErr)
+      return NextResponse.json({ error: 'Failed to fetch game master data' }, { status: 500, headers: corsHeaders })
+    }
 
-    // 2. Check if this exact combination already exists in the database
-    // Supabase JSONB contains operator @> can be used, but since we are looking for exact match,
-    // we can query all for this base_image_id and filter in memory, or use JSONB query.
-    // For safety and performance, we'll fetch exact matches if possible.
+    // Process each combination to ensure deterministic slot sorting
+    const processedCombs = combinations.map(comb => {
+      const sortedSlotsJson = Object.keys(comb.imageSlots).sort().reduce((acc, key) => {
+        acc[key] = comb.imageSlots[key].toString()
+        return acc
+      }, {} as Record<string, string>)
+      return { baseImageId: Number(comb.baseImageId), imageSlots: sortedSlotsJson }
+    })
+
+    // 3. Cache Bulk Check
+    const baseImageIds = Array.from(new Set(processedCombs.map(c => c.baseImageId)))
+    
     const { data: existingUnified, error: existingErr } = await supabaseAdmin
       .from('unified_images')
       .select('*')
-      .eq('base_image_id', baseImageId)
-      .contains('image_slots', sortedSlotsJson)
-      
+      .in('base_image_id', baseImageIds)
+
     if (existingErr) {
       console.error("DB Error checking existing unified images:", existingErr)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+      return NextResponse.json({ error: 'Database error' }, { status: 500, headers: corsHeaders })
     }
 
-    // Double check exact match in memory
-    const existingRow = existingUnified?.find(row => {
-      const dbSlots = row.image_slots as Record<string, string>
-      const dbKeys = Object.keys(dbSlots).sort()
-      const reqKeys = Object.keys(sortedSlotsJson).sort()
+    const results: any[] = []
+    const toGenerate: typeof processedCombs = []
+
+    for (const comb of processedCombs) {
+      const { baseImageId, imageSlots } = comb
       
-      if (dbKeys.length !== reqKeys.length) return false
-      return dbKeys.every(k => dbSlots[k] === sortedSlotsJson[k])
-    })
+      const existingRow = existingUnified?.find(row => {
+        if (Number(row.base_image_id) !== baseImageId) return false
+        const dbSlots = row.image_slots as Record<string, string>
+        const dbKeys = Object.keys(dbSlots).sort()
+        const reqKeys = Object.keys(imageSlots).sort()
+        
+        if (dbKeys.length !== reqKeys.length) return false
+        return dbKeys.every(k => dbSlots[k] === imageSlots[k])
+      })
 
-    if (existingRow) {
-      console.log(`[Unified Generator JIT] Cache hit for baseImageId: ${baseImageId}`)
-      return NextResponse.json({ success: true, url: existingRow.unified_image_url })
-    }
-
-    console.log(`[Unified Generator JIT] Cache miss. Generating for baseImageId: ${baseImageId}`)
-
-    // 3. Fetch necessary components to build the image
-    const { data: baseImage } = await supabaseAdmin.from('base_images').select('*').eq('id', baseImageId).single()
-    if (!baseImage) {
-      return NextResponse.json({ error: 'Base image not found' }, { status: 404 })
-    }
-
-    const { data: slots } = await supabaseAdmin.from('image_slots').select('*').eq('base_image_id', baseImageId)
-    if (!slots || slots.length === 0) {
-      return NextResponse.json({ error: 'Slots not found' }, { status: 404 })
-    }
-
-    const partIds = Object.values(sortedSlotsJson).map(id => parseInt(id, 10))
-    const { data: parts } = await supabaseAdmin.from('parts').select('*').in('id', partIds)
-    
-    if (!parts || parts.length === 0) {
-      return NextResponse.json({ error: 'Parts not found' }, { status: 404 })
-    }
-
-    // 4. Prepare overlays
-    const overlays = parts.map(part => {
-      const slot = slots.find(s => s.category_id === part.category_id)
-      if (!slot) return null
-      return {
-        imageUrl: part.image_url,
-        slotX: slot.x_coordinate,
-        slotY: slot.y_coordinate,
-        slotScale: slot.scale,
-        offsetX: part.offset_x,
-        offsetY: part.offset_y,
-        partScale: part.scale,
-        zIndex: slot.z_index
+      if (existingRow) {
+        results.push({ baseImageId, imageSlots, url: existingRow.unified_image_url })
+      } else {
+        toGenerate.push(comb)
       }
-    }).filter(Boolean) as any[]
-    overlays.sort((a: any, b: any) => a.zIndex - b.zIndex)
-
-    // 5. Generate image
-    const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
-    if (!buffer) {
-      return NextResponse.json({ error: 'Failed to generate image buffer' }, { status: 500 })
     }
 
-    // Convert to blob and upload
-    const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
-    const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
-    
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from('game_assets')
-      .upload(fileName, blob, { contentType: 'image/webp' })
-      
-    if (uploadError) {
-      console.error("Upload error", uploadError)
-      return NextResponse.json({ error: 'Failed to upload generated image' }, { status: 500 })
+    // 4. Generate & Upload Cache Misses Concurrently
+    const newDbRows: any[] = []
+
+    if (toGenerate.length > 0) {
+      const generatedResults = await Promise.all(toGenerate.map(async (comb) => {
+        try {
+          const { baseImageId, imageSlots } = comb
+          
+          // Find base image from master data
+          const baseImage = masterData.base_images.find((b: any) => Number(b.id) === baseImageId)
+          if (!baseImage) return { error: `Base image ${baseImageId} not found` }
+
+        const slots = baseImage.slots
+        const categories = masterData.categories || []
+        const partIds = Object.values(imageSlots).map(id => parseInt(id as string, 10))
+        
+        const allParts: any[] = []
+        categories.forEach((cat: any) => {
+          if (cat.parts) allParts.push(...cat.parts)
+        })
+        
+        const parts = allParts.filter(p => partIds.includes(Number(p.id)))
+
+        if (parts.length === 0) return { error: 'Parts not found' }
+
+        // Prepare overlays
+        const overlays = parts.map(part => {
+          const category = categories.find((c: any) => c.parts.some((p: any) => Number(p.id) === Number(part.id)))
+          if (!category) return null
+          
+          const slot = slots.find((s: any) => Number(s.category_id) === Number(category.id))
+          if (!slot) return null
+          
+          return {
+            imageUrl: part.image_url,
+            slotX: slot.x_coordinate,
+            slotY: slot.y_coordinate,
+            slotScale: slot.scale,
+            offsetX: part.offset_x,
+            offsetY: part.offset_y,
+            partScale: part.scale,
+            zIndex: slot.z_index
+          }
+        }).filter(Boolean) as any[]
+        
+        overlays.sort((a: any, b: any) => a.zIndex - b.zIndex)
+
+        // Generate image buffer
+        const buffer = await generateUnifiedImageBuffer(baseImage.image_url, overlays)
+        if (!buffer) return { error: 'Failed to generate image buffer' }
+
+        const blob = new Blob([new Uint8Array(buffer)], { type: 'image/webp' })
+        const fileName = `unified_cache/base${baseImageId}_${uuidv4()}.webp`
+        
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from('game_assets')
+          .upload(fileName, blob, { contentType: 'image/webp' })
+          
+        if (uploadError) return { error: 'Failed to upload generated image' }
+
+        const { data: publicUrlData } = supabaseAdmin.storage
+          .from('game_assets')
+          .getPublicUrl(fileName)
+        
+        const newImageUrl = publicUrlData.publicUrl
+
+          newDbRows.push({
+            base_image_id: baseImageId,
+            unified_image_url: newImageUrl,
+            image_slots: imageSlots
+          })
+
+          return { baseImageId, imageSlots, url: newImageUrl }
+        } catch (e: any) {
+          return { error: e.message || 'Failed to process combination' }
+        }
+      }))
+
+      generatedResults.forEach(res => {
+        if (!res.error) results.push(res)
+      })
+
+      // 5. Bulk Insert new rows
+      if (newDbRows.length > 0) {
+        const { error: insertError } = await supabaseAdmin.from('unified_images').insert(newDbRows)
+        if (insertError) {
+          console.error("DB Bulk Insert error", insertError)
+        }
+      }
     }
 
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from('game_assets')
-      .getPublicUrl(fileName)
-    
-    const newImageUrl = publicUrlData.publicUrl
-
-    // 6. Save to database
-    const { error: insertError } = await supabaseAdmin.from('unified_images').insert({
-      base_image_id: baseImageId,
-      unified_image_url: newImageUrl,
-      image_slots: sortedSlotsJson
-    })
-
-    if (insertError) {
-      console.error("DB Insert error", insertError)
-      // Even if DB insert fails slightly after upload, we can still return the generated image URL
+    // Maintain backward compatibility for single request format
+    if (body.baseImageId && body.imageSlots && !body.combinations) {
+      if (results.length > 0) {
+        return NextResponse.json({ success: true, url: results[0].url }, { headers: corsHeaders })
+      } else {
+        return NextResponse.json({ error: 'Failed to process combination' }, { status: 500, headers: corsHeaders })
+      }
     }
 
-    return NextResponse.json({ success: true, url: newImageUrl }, { headers: corsHeaders })
+    return NextResponse.json({ success: true, results }, { headers: corsHeaders })
   } catch (error: any) {
     console.error("Unhandled error in generator:", error)
     return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders })

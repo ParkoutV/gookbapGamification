@@ -43,14 +43,23 @@ export default function NicknameClient({
   const [exclusions, setExclusions] = useState<Exclusion[]>(initialExclusions)
   const [digitLength, setDigitLength] = useState<number>(initialDigitLength)
   const [isSaving, setIsSaving] = useState(false)
+  const [hasSaved, setHasSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<'first_word' | 'last_word'>('first_word')
 
-  const isDirty = 
+  const isDirty = !hasSaved && (
     JSON.stringify(presets) !== JSON.stringify(initialPresets) ||
     JSON.stringify(exclusions) !== JSON.stringify(initialExclusions) ||
     digitLength !== initialDigitLength
+  )
 
   useUnsavedChanges(isDirty)
+
+  // Wait for React to flush hasSaved state and update the hook before reloading
+  useEffect(() => {
+    if (hasSaved) {
+      window.location.reload()
+    }
+  }, [hasSaved])
 
   // Modals state
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -141,6 +150,23 @@ export default function NicknameClient({
     setPresets(presets.map(p => {
       if (p.id === id) {
         return { ...p, is_active: !p.is_active }
+      }
+      return p
+    }))
+  }
+
+  const handleTranslationComplete = (translations: Record<string, Record<string, string>>) => {
+    setPresets(prev => prev.map(p => {
+      let updatedText = { ...p.text }
+      let changed = false
+      Object.keys(translations).forEach(lang => {
+        if (translations[lang] && translations[lang][p.id]) {
+          updatedText[lang] = translations[lang][p.id]
+          changed = true
+        }
+      })
+      if (changed) {
+        return { ...p, text: updatedText }
       }
       return p
     }))
@@ -238,11 +264,10 @@ export default function NicknameClient({
       await supabase.rpc('reassign_invalid_nicknames')
 
       alert('저장되었습니다.')
-      window.location.reload()
+      setHasSaved(true)
     } catch (error) {
       console.error(error)
       alert('저장 중 오류가 발생했습니다.')
-    } finally {
       setIsSaving(false)
     }
   }
@@ -284,11 +309,49 @@ export default function NicknameClient({
 
   const renderTable = (type: 'first_word' | 'last_word') => {
     const filteredPresets = presets.filter(p => p.type === type)
+    const sourceTextsForTranslation = filteredPresets.reduce((acc, p) => {
+      if (p.text['ko'] && p.text['ko'].trim() !== '') {
+        // Find if there's any target language that is empty to avoid translating unnecessarily?
+        // Actually, TranslationButton translates all keys we pass. To save usage, we can only pass keys where at least one target lang is empty.
+        // Wait, the requirement just says "bulk translation". We will just pass all that have 'ko'. 
+        // But to be cost effective, only pass items that miss at least one target language value.
+        const needsTranslation = initialLanguages
+          .filter(l => l.lang_code !== 'ko')
+          .some(l => !p.text[l.lang_code] || p.text[l.lang_code]?.trim() === '')
+          
+        if (needsTranslation) {
+          acc[p.id] = p.text['ko']
+        }
+      }
+      return acc
+    }, {} as Record<string, string>)
+    
+    const targetLangs = initialLanguages.filter(l => l.lang_code !== 'ko').map(l => l.lang_code)
+
+    const existingTranslations = initialLanguages.filter(l => l.lang_code !== 'ko').reduce((acc, lang) => {
+      acc[lang.lang_code] = {};
+      filteredPresets.forEach(p => {
+        acc[lang.lang_code][p.id] = p.text[lang.lang_code] || '';
+      });
+      return acc;
+    }, {} as Record<string, Record<string, string>>);
 
     return (
-      <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg shadow-sm">
-        <table className="w-full text-sm text-left min-w-max whitespace-nowrap">
-          <thead className="bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
+      <div className="space-y-3">
+        {targetLangs.length > 0 && (
+          <div className="flex justify-end">
+            <TranslationButton 
+              sourceTexts={sourceTextsForTranslation}
+              targetLanguages={targetLangs}
+              existingTranslations={existingTranslations}
+              onTranslationComplete={handleTranslationComplete}
+              compact={false}
+            />
+          </div>
+        )}
+        <div className="overflow-x-auto bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg shadow-sm">
+          <table className="w-full text-sm text-left min-w-max whitespace-nowrap">
+            <thead className="bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
             <tr>
               <th className="px-4 py-3 font-semibold w-16">상태</th>
               {initialLanguages.map(lang => (
@@ -321,24 +384,6 @@ export default function NicknameClient({
                       placeholder={lang.lang_code === 'ko' ? (type === 'first_word' ? '예: 든든한' : '예: 국밥') : ''}
                       className="w-full bg-transparent border-none p-2 focus:ring-2 focus:ring-blue-500 rounded outline-none dark:text-white"
                     />
-                    {lang.lang_code === 'ko' && (
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        <TranslationButton
-                          compact
-                          sourceTexts={{ text: preset.text['ko'] || '' }}
-                          targetLanguages={initialLanguages
-                            .map(l => l.lang_code)
-                            .filter(c => c !== 'ko' && !preset.text[c])}
-                          onTranslationComplete={(results) => {
-                            let updatedText = { ...preset.text }
-                            for (const [resLang, resObj] of Object.entries(results)) {
-                              if (resObj.text) updatedText[resLang] = resObj.text
-                            }
-                            setPresets(prev => prev.map(p => p.id === preset.id ? { ...p, text: updatedText } : p))
-                          }}
-                        />
-                      </div>
-                    )}
                   </td>
                 ))}
                 <td className="px-4 py-2 text-center">
@@ -373,6 +418,7 @@ export default function NicknameClient({
               </tr>
             </tbody>
           </table>
+        </div>
       </div>
     )
   }

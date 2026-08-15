@@ -762,6 +762,13 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
                 <TranslationButton
                   sourceTexts={{ text: nameModalData['ko'] || '' }}
                   targetLanguages={supportedLanguages.map(l => l.lang_code).filter(c => c !== 'ko' && !nameModalData[c])}
+                  existingTranslations={supportedLanguages.reduce((acc, l) => {
+                    if (l.lang_code === 'ko') return acc;
+                    acc[l.lang_code] = {
+                      text: nameModalData[l.lang_code] || ''
+                    };
+                    return acc;
+                  }, {} as Record<string, Record<string, string>>)}
                   onTranslationComplete={(results) => {
                     setNameModalData(prev => {
                       const next = { ...prev }

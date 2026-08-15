@@ -459,6 +459,19 @@ export default function SurveyManager({
                                 (q.question_type !== 2 ? (q.options || []).some(o => !o[c]) : !(q.options || [])[0]?.[c])
                               ))
                             }
+                            existingTranslations={activeLanguages.reduce((acc, l) => {
+                              if (l.lang_code === 'ko') return acc;
+                              acc[l.lang_code] = {
+                                questionText: q.question_text?.[l.lang_code] || '',
+                                ...((q.options || []).reduce((oAcc, opt, idx) => {
+                                  if (q.question_type !== 2 || idx === 0) {
+                                    oAcc[`option_${idx}`] = opt[l.lang_code] || '';
+                                  }
+                                  return oAcc;
+                                }, {} as Record<string, string>))
+                              };
+                              return acc;
+                            }, {} as Record<string, Record<string, string>>)}
                             onTranslationComplete={(results) => {
                               let newQText = { ...(q.question_text || {}) }
                               let newOptions = [...(q.options || [])].map(o => ({ ...o }))

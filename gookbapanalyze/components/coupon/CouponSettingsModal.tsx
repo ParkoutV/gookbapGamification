@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Save, MonitorPlay } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import TranslationButton from '@/components/TranslationButton'
 
 interface LanguageSetting {
   lang_code: string
@@ -88,6 +89,78 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
   }
 
   const activeConfig = editableLangs[activeTab] || {}
+
+  const encodeVariables = (text: string) => {
+    const vars: string[] = []
+    const encoded = text.replace(/\{\{[^}]+\}\}/g, (match) => {
+      vars.push(match)
+      return `[V${vars.length - 1}]`
+    })
+    return { encoded, vars }
+  }
+
+  const decodeVariables = (text: string, vars: string[]) => {
+    let decoded = text
+    vars.forEach((v, i) => {
+      const regex = new RegExp(`\\[\\s*[vV]${i}\\s*\\]`, 'g')
+      decoded = decoded.replace(regex, v)
+    })
+    return decoded
+  }
+
+  const targetLanguages = languages.map(l => l.lang_code).filter(code => code !== 'ko')
+  const koConfig = editableLangs['ko'] || {}
+  
+  const translationFields = [
+    'use_coupon_question',
+    'yes',
+    'no',
+    'used_successfully',
+    'expired_coupon',
+    'not_yet_valid_coupon',
+    'already_used_coupon',
+    'load_error'
+  ]
+
+  const sourceTexts: Record<string, string> = {}
+  const varsMap: Record<string, string[]> = {}
+  
+  translationFields.forEach(field => {
+    if (koConfig[field]) {
+      const { encoded, vars } = encodeVariables(koConfig[field])
+      sourceTexts[field] = encoded
+      varsMap[field] = vars
+    }
+  })
+
+  const existingTranslations: Record<string, Record<string, string>> = {}
+  targetLanguages.forEach(lang => {
+    existingTranslations[lang] = {}
+    translationFields.forEach(field => {
+      if (editableLangs[lang]?.[field]) {
+         existingTranslations[lang][field] = editableLangs[lang][field]
+      }
+    })
+  })
+
+  const handleTranslationComplete = (results: Record<string, Record<string, string>>) => {
+    setEditableLangs(prev => {
+      const next = { ...prev }
+      Object.keys(results).forEach(lang => {
+        if (!next[lang]) next[lang] = {}
+        Object.keys(results[lang]).forEach(key => {
+          if (results[lang][key]) {
+            const decoded = decodeVariables(results[lang][key], varsMap[key] || [])
+            next[lang] = {
+              ...next[lang],
+              [key]: decoded
+            }
+          }
+        })
+      })
+      return next
+    })
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 text-left">
@@ -179,7 +252,15 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
 
           {isAdmin && (
             <>
-              <h3 className="text-lg font-bold text-white mb-4 mt-6">다국어 텍스트 설정</h3>
+              <div className="flex items-center justify-between mt-6 mb-4">
+                <h3 className="text-lg font-bold text-white">다국어 텍스트 설정</h3>
+                <TranslationButton 
+                  sourceTexts={sourceTexts}
+                  targetLanguages={targetLanguages}
+                  existingTranslations={existingTranslations}
+                  onTranslationComplete={handleTranslationComplete}
+                />
+              </div>
               <p className="text-sm text-zinc-400 mb-4">사용할 수 있는 변수: {'{{user_nickname}}'}, {'{{coupon_effects}}'}, {'{{expired_date}}'}, {'{{valid_date}}'}</p>
           
           <div className="flex space-x-2 border-b border-zinc-700 mb-6 overflow-x-auto">
