@@ -16,7 +16,7 @@ import type { Dictionary } from "../types.ts";
 // 개인정보보호법 조문 인용이 들어간 문서라 오역이 곧 법적 리스크다.
 // 여기 있는 `legal.*`는 탭 이름·버튼 같은 UI 껍데기뿐이다.
 export const zh: Partial<Dictionary> = {
-  "meta.title": "找不同 - 汤饭",
+  "meta.title": "挑战！1953 找不同 - 汤饭",
   "meta.description": "以汤饭套餐为主题的找不同游戏",
 
   "common.retry": "重试",
@@ -24,7 +24,7 @@ export const zh: Partial<Dictionary> = {
   // 창 제목 표시줄(90s 데스크톱 컨셉)에 쓰는 브랜드명. 화면 제목과 별개다.
   "window.brand": "1953 兄弟猪肉汤饭",
 
-  "start.title": "找不同",
+  "start.title": "挑战！1953 找不同",
   "start.welcome": "欢迎您，{nickname}",
   "start.regenerateNicknameAria": "重新生成昵称",
   "start.playButton": "开始游戏",
@@ -98,6 +98,13 @@ export const zh: Partial<Dictionary> = {
   "preload.sessionError": "游戏数据加载失败，请检查网络状况。",
   "preload.levelSessionError": "无法加载第 {level} 关的游戏数据。",
   "preload.imageError": "图片加载失败，请检查网络状况。",
+
+  /* 로딩 화면 읽을거리 — 근거와 주의사항은 ko.ts의 같은 자리 주석 참고.
+     zh는 초벌 번역이라 수사 없이 평서문으로만 썼다(AGENTS.md의 zh 절).
+     국밥은 다른 키와 같이 `汤饭`/`猪肉汤饭` 표기를 따른다. */
+  "preload.brandLine1": "用一碗热腾腾的汤饭迎接您。",
+  "preload.brandLine2": "在釜山熬煮的一碗猪肉汤饭。",
+  "preload.brandLine3": "今天也用心熬煮，等待每一位客人。",
 
   "gameResult.title": "游戏结果",
   "gameResult.stageScore": "关卡得分",

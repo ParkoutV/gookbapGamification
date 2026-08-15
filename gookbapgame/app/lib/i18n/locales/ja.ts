@@ -3,15 +3,19 @@ import type { Dictionary } from "../types.ts";
 // 한국 음식 이름은 일본어에 대응 어휘가 없으면 그대로 가타카나로 음차한다
 // (국밥 → クッパ, 돼지국밥 → テジクッパ). 값이 없는 키는 en → ko 순으로 폴백된다.
 export const ja: Partial<Dictionary> = {
-  "meta.title": "間違い探し - クッパ",
+  "meta.title": "挑戦！1953 間違い探し - クッパ",
   "meta.description": "クッパのお膳で遊ぶ間違い探しゲーム",
 
   "common.retry": "再試行",
 
   // ウィンドウのタイトルバー（90s デスクトップ風）に表示するブランド名。画面見出しとは別。
-  "window.brand": "1953 兄弟豚クッパ",
+  //
+  // `豚クッパ`가 아니라 `テジクッパ`다(2026-08-15 이란토 확인, 공식 표기).
+  // 위 주석의 음차 규칙(돼지국밥 → テジクッパ)과도 일치한다 — 예전에는 상호에만
+  // `豚`을 써서 규칙과 어긋나 있었다.
+  "window.brand": "1953 兄弟テジクッパ",
 
-  "start.title": "間違い探し",
+  "start.title": "挑戦！1953 間違い探し",
   "start.welcome": "{nickname} さん、ようこそ",
   "start.regenerateNicknameAria": "ニックネームを再生成",
   "start.playButton": "ゲーム開始",
@@ -85,6 +89,11 @@ export const ja: Partial<Dictionary> = {
   "preload.levelSessionError": "ステージ{level}のゲームデータを読み込めませんでした。",
   "preload.imageError": "画像の読み込みに失敗しました。ネットワーク状況をご確認ください。",
 
+  // 로딩 화면 읽을거리 — 근거와 주의사항은 ko.ts의 같은 자리 주석 참고.
+  "preload.brandLine1": "あたたかいクッパ一杯で、お客様をお迎えします。",
+  "preload.brandLine2": "釜山で煮込む、テジクッパ一杯。",
+  "preload.brandLine3": "今日も心をこめて煮込み、お客様をお待ちしています。",
+
   "gameResult.title": "ゲーム結果",
   "gameResult.stageScore": "ステージ得点",
   "gameResult.timeBonus": "タイムボーナス",
@@ -146,7 +155,7 @@ export const ja: Partial<Dictionary> = {
   "start.goToDrawButton": "クーポンを引きに行く",
   "start.inviteButton": "友だちを招待する",
   "start.drawAvailableNotice": "引けるクーポンがあります",
-  "start.invitePromo": "クッパマスターは誰だ？\n〈1953 眼力対決〉に参加して、1953 兄弟豚クッパのクーポンをゲットしよう！🍲",
+  "start.invitePromo": "クッパマスターは誰だ？\n〈1953 眼力対決〉に参加して、1953 兄弟テジクッパのクーポンをゲットしよう！🍲",
   "start.inviteCopied": "招待リンクをコピーしました！",
   "start.inviteFailed": "コピーできませんでした。しばらくしてからもう一度お試しください。",
   "wheel.nextButton": "次へ",

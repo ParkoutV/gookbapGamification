@@ -12,7 +12,7 @@ export default function SurveyIntroScreen({ onParticipate, onDecline }: SurveyIn
   const { t } = useLocale();
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-4 text-ink">{t("surveyIntro.title")}</h1>
         <p className="text-muted mb-8">{t("surveyIntro.description")}</p>

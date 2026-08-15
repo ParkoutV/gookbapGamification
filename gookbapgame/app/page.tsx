@@ -12,6 +12,8 @@ import GameResultScreen from "./components/GameResultScreen";
 import SurveyIntroScreen from "./components/SurveyIntroScreen";
 import SurveyScreen from "./components/SurveyScreen";
 import WheelScreen from "./components/WheelScreen";
+import GatchaLoading from "./components/GatchaLoading";
+import DaylightBackground from "./components/DaylightBackground";
 import MyCouponsScreen from "./components/MyCouponsScreen";
 import RankingScreen from "./components/RankingScreen";
 import DailyResultScreen from "./components/DailyResultScreen";
@@ -61,7 +63,9 @@ export default function Home({ searchParams }: PageProps) {
 
   // 화면의 모든 버튼에 클릭 소리를 붙인다. 이 컴포넌트가 모든 화면의 루트라
   // 여기 한 번만 걸면 된다 — 버튼마다 심으면 반드시 빠뜨리는 곳이 생긴다.
-  useButtonClickSfx();
+  // 두 번째 인자로 데이터 프리워밍을 얹는다 — 첫 상호작용에서 세션만 미리 받아둔다
+  // (실제로 한 번만 도는 것은 훅 안의 래치가 보장한다).
+  useButtonClickSfx(game.prewarmSessions);
 
   // 두 훅 모두 매 렌더마다 새 객체를 반환하므로, 객체를 그대로 의존성에 넣으면
   // 아래 콜백들이 매 렌더 재생성된다. 개별 함수는 useCallback([])로 안정적이니
@@ -187,6 +191,13 @@ export default function Home({ searchParams }: PageProps) {
    * localStorage에 남기지 않는다 — 거절은 그 판 안에서만 유효한 상태다.
    * 이 값은 UI 힌트일 뿐이며 발급 자격은 언제나 서버가 판정한다.
    */
+  /**
+   * 설문을 띄울지 서버에 묻는 중인가. 그동안 `surveyIntro` 위에 대기 오버레이를 덮는다
+   * (근거는 `enterSurveyFlow` 안 주석). 설문 안내가 잘못 번쩍이는 것을 막는 UI 전용
+   * 플래그이며, 흐름 판정에는 관여하지 않는다.
+   */
+  const [surveyGateWaiting, setSurveyGateWaiting] = useState(false);
+
   const [declinedSurvey, setDeclinedSurvey] = useState(false);
 
   // 거절 지점에서만 켠다. leaveDrawFlow는 WheelScreen의 '다음'과도 공유하므로
@@ -243,25 +254,43 @@ export default function Home({ searchParams }: PageProps) {
      * "건너뛰기"로 쓰는 자리라 실패를 빈 목록과 뭉뚱그리면 그대로 403이 되고,
      * 설문을 한 번 더 보는 쪽이 쿠폰을 못 받는 것보다 낫다.
      */
-    const pending = await fetchPendingSurvey(COUPON_SURVEY_PHASE);
-    // await를 지났으므로 그 사이 사용자가 설문 안내를 벗어났을 수 있다(위 주석).
-    if (pending.ok && pending.questionIds.length === 0) {
-      if (phaseRef.current === "surveyIntro") goToPhase("wheel");
-      return;
-    }
+    /*
+     * **판정이 끝날 때까지 설문 안내를 가린다**(2026-08-15 이란토 제보).
+     *
+     * 아래 RPC를 기다리는 동안 `surveyIntro`가 이미 그려져 있어서, 설문을 이미 마쳐
+     * 곧장 룰렛으로 갈 사람에게도 **설문 독려 화면이 한 번 번쩍 스쳤다.** 안 해도 될
+     * 설문을 권하는 화면이라 잘못된 안내다.
+     *
+     * 화면 전환 자체를 늦추지는 않는다 — 그러면 이번엔 결과 화면이 멈춰 보인다.
+     * 대신 뽑기 화면과 **같은 대기 오버레이**를 덮는다(게임 안의 "서버를 기다리는
+     * 화면"은 전부 같은 모양이라는 원칙, `GatchaLoading` 주석).
+     */
+    setSurveyGateWaiting(true);
+    try {
+      const pending = await fetchPendingSurvey(COUPON_SURVEY_PHASE);
+      // await를 지났으므로 그 사이 사용자가 설문 안내를 벗어났을 수 있다(위 주석).
+      if (pending.ok && pending.questionIds.length === 0) {
+        if (phaseRef.current === "surveyIntro") goToPhase("wheel");
+        return;
+      }
 
-    const outcome = await loadQuestions();
-    // "empty"(문항 0건)와 "failed"(조회 실패) 모두 룰렛으로 보낸다 — 설문을 못 불러왔다고
-    // 쿠폰 기회까지 막으면 사용자에게 더 큰 손해다. 다만 "failed"는 콘솔에만 남던 것을
-    // 여기서 구분해 기록한다. 두 경우가 동일하게 처리되던 탓에 프로덕션에서 설문이
-    // 안 뜨는 원인을 추적할 수 없었다.
-    if (outcome === "failed") {
-      console.error(
-        "[enterSurveyFlow] 설문 문항 조회 실패 — 설문을 건너뛰고 룰렛으로 진행한다."
-      );
-    }
-    if (outcome !== "shown" && phaseRef.current === "surveyIntro") {
-      goToPhase("wheel");
+      // **문항 조회까지 가려야 한다.** 이쪽도 "empty"/"failed"면 룰렛으로 보내므로,
+      // 여기서 오버레이를 걷으면 설문 독려 화면이 그 사이에 다시 번쩍인다.
+      const outcome = await loadQuestions();
+      // "empty"(문항 0건)와 "failed"(조회 실패) 모두 룰렛으로 보낸다 — 설문을 못
+      // 불러왔다고 쿠폰 기회까지 막으면 사용자에게 더 큰 손해다. 다만 "failed"는
+      // 콘솔에만 남던 것을 여기서 구분해 기록한다.
+      if (outcome === "failed") {
+        console.error(
+          "[enterSurveyFlow] 설문 문항 조회 실패 — 설문을 건너뛰고 룰렛으로 진행한다."
+        );
+      }
+      if (outcome !== "shown" && phaseRef.current === "surveyIntro") {
+        goToPhase("wheel");
+      }
+    } finally {
+      // 어느 경로로 빠져나가든 반드시 걷는다 — 남으면 설문 화면 위에 오버레이가 얹힌다.
+      setSurveyGateWaiting(false);
     }
   }, [resetCoupon, goToPhase, loadQuestions]);
 
@@ -333,7 +362,18 @@ export default function Home({ searchParams }: PageProps) {
   );
 
   return (
-    <div className="min-h-dvh bg-black">
+    <div className="min-h-dvh">
+      {/* 시간대 배경. **여기 한 곳에만 둔다** — 화면마다 붙이면 화면이 늘어날 때
+          반드시 하나를 빠뜨린다. 게임 중에만 가려지는데, 그것은 이 컴포넌트가 phase를
+          보는 것이 아니라 `GameScreen`이 불투명한 `bg-bg`로 덮기 때문이다(2026-08-15
+          이란토). 따라서 **다른 화면들은 배경을 칠하지 말아야 한다.**
+
+          **이 루트에 배경색을 칠하지 말 것.** `DaylightBackground`가 `-z-10`이라
+          **부모의 배경보다도 아래**로 내려간다 — 여기에 `bg-bg`(또는 `bg-black`)를
+          주면 사진이 그 색에 완전히 가려져 아예 보이지 않는다. 실제로 한 번 그렇게
+          만들었고, DOM에는 레이어가 멀쩡히 있어서 검사로는 잡히지 않았다(2026-08-15).
+          폴백 색은 레이어 안쪽이 들고 있다. */}
+      <DaylightBackground />
       {/* 최초 고지가 열려 있는 동안에는 열람용을 띄우지 않는다 — 겹치면 같은 창이
           두 겹으로 쌓인다. 최초 고지 쪽이 우선이다(먼저 확인해야 하는 것이므로). */}
       {showTerm && <LegalNotice firstRun onClose={acknowledgeTerm} />}
@@ -386,7 +426,11 @@ export default function Home({ searchParams }: PageProps) {
       )}
 
       {game.phase === "loading" && (
-        <PreloadScreen loadError={game.loadError} onRetry={game.retryPreload} />
+        <PreloadScreen
+          loadError={game.loadError}
+          onRetry={game.retryPreload}
+          onGoToStart={game.resetToStart}
+        />
       )}
 
       {/* 카운트다운 오버레이를 이 블록 **안**에 형제로 두는 것이 요점이다 —
@@ -453,10 +497,15 @@ export default function Home({ searchParams }: PageProps) {
       )}
 
       {game.phase === "surveyIntro" && (
-        <SurveyIntroScreen
-          onParticipate={() => goToPhase("survey")}
-          onDecline={declineSurvey}
-        />
+        <>
+          <SurveyIntroScreen
+            onParticipate={() => goToPhase("survey")}
+            onDecline={declineSurvey}
+          />
+          {/* 판정이 끝날 때까지 덮는다. 뽑기 화면과 같은 대기 오버레이를 쓴다 —
+              게임 안의 "서버를 기다리는 화면"은 전부 같은 모양이다. */}
+          {surveyGateWaiting && <GatchaLoading variant="waiting" />}
+        </>
       )}
 
       {game.phase === "survey" && (

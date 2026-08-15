@@ -116,7 +116,7 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
   const pageEntries = current ? rankingPageSlice(current.entries, page) : [];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full">
         {/* 제목과 내 점수를 한 덩어리로 묶어 아래 여백을 한 곳에서 준다 — 내 점수 줄이
             없을 때(기록 없음·조회 실패) 제목 마진을 따로 손볼 필요가 없다. */}
