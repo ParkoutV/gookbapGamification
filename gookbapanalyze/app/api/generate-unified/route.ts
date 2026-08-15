@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
 
         // Prepare overlays
         const overlays = parts.map(part => {
-          const category = categories.find((c: any) => c.parts.some((p: any) => Number(p.id) === Number(part.id)))
+          const category = categories.find((c: any) => c.parts && c.parts.some((p: any) => Number(p.id) === Number(part.id)))
           if (!category) return null
           
           const slot = slots.find((s: any) => Number(s.category_id) === Number(category.id))
@@ -169,6 +169,7 @@ export async function POST(req: NextRequest) {
 
           return { baseImageId, imageSlots, url: newImageUrl }
         } catch (e: any) {
+          console.error(`[Combination Generator] Error for baseImageId ${comb.baseImageId}:`, e.message || e);
           return { error: e.message || 'Failed to process combination' }
         }
       }))
