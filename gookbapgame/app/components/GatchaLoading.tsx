@@ -36,8 +36,11 @@ export default function GatchaLoading({
   const { t } = useLocale();
 
   return (
+    /* 배경을 칠하지 않는다 — 루트의 `DaylightBackground`가 비쳐야 한다(2026-08-15
+       이란토). 이 오버레이는 z-50이라 그 위에 뜨므로 `bg-bg`를 주면 시간대 배경이
+       이 화면에서만 사라진다. `PreloadScreen`도 같은 이유로 투명하다. */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg"
+      className="fixed inset-0 z-50 flex items-center justify-center"
       role="status"
       aria-live="polite"
     >
