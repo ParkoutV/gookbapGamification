@@ -6,6 +6,7 @@ import { useLocale } from "../lib/i18n/LocaleContext";
 import { formatNickname } from "../lib/nicknameParts";
 import { fetchMyBestScore, fetchRanking } from "../actions";
 import { RANKING_PERIODS, type RankingPeriod } from "../lib/rankingPeriod";
+import { RANKING_BODY_H, RANKING_LIST_H } from "../lib/rankingLayout";
 import {
   toRankingList,
   rankingPageCount,
@@ -177,15 +178,35 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        {!current && <p className="text-muted text-center py-8">{t("ranking.loading")}</p>}
+        {/* 로딩·실패·빈 목록 세 상태는 목록과 **같은 높이**의 컨테이너에 담는다.
+            높이는 `rankingLayout.ts`가 한 곳에서 들고 있다 — 목록 쪽만 바꾸고 여기를
+            안 고치면 다시 어긋난다(그 파일 주석 참고). */}
+        {!current && (
+          <div
+            className="flex items-center justify-center mb-3"
+            style={{ height: RANKING_BODY_H }}
+          >
+            <p className="text-muted text-center">{t("ranking.loading")}</p>
+          </div>
+        )}
 
         {/* 조회 실패. 빈 목록과 다른 문구다(위 loaded 주석). */}
         {current && !current.ok && (
-          <p className="text-error text-center py-8 text-sm">{t("ranking.loadFailed")}</p>
+          <div
+            className="flex items-center justify-center mb-3"
+            style={{ height: RANKING_BODY_H }}
+          >
+            <p className="text-error text-center text-sm">{t("ranking.loadFailed")}</p>
+          </div>
         )}
 
         {current?.ok && current.entries.length === 0 && (
-          <p className="text-muted text-center py-8">{t("ranking.empty")}</p>
+          <div
+            className="flex items-center justify-center mb-3"
+            style={{ height: RANKING_BODY_H }}
+          >
+            <p className="text-muted text-center">{t("ranking.empty")}</p>
+          </div>
         )}
 
         {current?.ok && current.entries.length > 0 && (
@@ -217,7 +238,7 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
             {/* 목록 높이를 고정한다. 마지막 페이지가 10건 미만이면 패널이 줄어들어 아래
                 페이지 버튼과 '닫기'가 위로 튀는데, 페이지를 넘길 때마다 버튼이 움직이면
                 연속으로 누르기 어렵다. 한 줄 20px + gap 4px × 9 = 236px. */}
-            <ol className="flex flex-col gap-1 mb-3 h-[236px]">
+            <ol className="flex flex-col gap-1 mb-3" style={{ height: RANKING_LIST_H }}>
               {pageEntries.map((entry) => (
                 <li
                   key={`${entry.rank}-${entry.joinedTime}`}

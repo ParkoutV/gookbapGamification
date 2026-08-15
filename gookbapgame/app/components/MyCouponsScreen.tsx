@@ -34,6 +34,7 @@ export default function MyCouponsScreen({
   coupons,
   webCoupons = [],
   webCouponSettings = null,
+  loading = false,
   onClose,
   onGoToDraw,
 }: {
@@ -45,6 +46,13 @@ export default function MyCouponsScreen({
   webCoupons?: WebCoupon[];
   /** 티켓 문구(`web_coupon_settings`). 없으면 로케일 파일 기본값으로 떨어진다. */
   webCouponSettings?: WebCouponSettings | null;
+  /**
+   * 조회가 아직 끝나지 않았다. `page.tsx`가 낙관적으로 화면부터 띄우기 때문에
+   * **빈 배열이 "쿠폰 없음"을 뜻하지 않는 구간이 생긴다** — 그 구간에
+   * `coupon.empty`("아직 받은 쿠폰이 없어요.")를 띄우면 거짓말이 된다.
+   * 랭킹이 `ranking.empty`를 다루는 방식과 같은 함정이다.
+   */
+  loading?: boolean;
   onClose: () => void;
   /** 뽑기 기회가 남았을 때만 넘어온다. undefined면 버튼을 띄우지 않는다. */
   onGoToDraw?: () => void;
@@ -138,8 +146,15 @@ export default function MyCouponsScreen({
 
         {/* **두 목록이 모두 비었을 때만** 빈 상태다. 매장 쿠폰만 보면, 설문만 하고
             뽑기를 안 한 사람(온라인몰 쿠폰만 가진 사람)에게 티켓과 "쿠폰이 없어요"가
-            함께 뜬다. */}
-        {coupons.length === 0 && webCoupons.length === 0 && (
+            함께 뜬다.
+
+            `loading`을 함께 보는 이유는 `loading` prop 주석에 있다 — 조회 중의 빈
+            배열은 "없음"이 아니다. 문구는 `ranking.loading`을 재사용한다(새 한글이
+            없으므로 픽셀 폰트 재빌드 대상도 아니다). */}
+        {loading && coupons.length === 0 && webCoupons.length === 0 && (
+          <p className="text-muted text-center mb-6">{t("ranking.loading")}</p>
+        )}
+        {!loading && coupons.length === 0 && webCoupons.length === 0 && (
           <p className="text-muted text-center mb-6">{t("coupon.empty")}</p>
         )}
 

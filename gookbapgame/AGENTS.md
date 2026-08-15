@@ -115,8 +115,9 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     영어·일본어 사용자에게 한글이 노출된다.
 - **오늘의 결과의 '설문하고 쿠폰 받기' 재진입 버튼은 설문 안내를 거절한 사람 전용이다**
   (`page.tsx`의 `declinedSurvey`, 설계 문서 `2026-08-04-coupon-qr-design.md`).
-  조건 없이 항상 넘기면 설문·뽑기를 이미 마친 사람에게도 떠서, 누르면
-  `hasSurveySubmitted()`로 설문을 건너뛰고 뽑기를 한 번 더 태운다(3회 제한 안에서 실제로 더 뽑힌다).
+  조건 없이 항상 넘기면 설문·뽑기를 이미 마친 사람에게도 떠서, 누르면 설문을 건너뛰고
+  (이제 RPC가 "남은 문항 없음"으로 판정한다) 뽑기를 한 번 더 태운다 — 3회 제한 안에서
+  실제로 더 뽑힌다.
   - 플래그는 **거절 지점(`onDecline`)에서만 켜고 `enterSurveyFlow` 진입 시 끈다** —
     버튼은 한 번 쓰면 소진된다. `leaveDrawFlow`는 `WheelScreen`의 '다음'과 공유하므로
     그 안에서 켜면 뽑기를 끝낸 사람에게도 버튼이 살아난다.
@@ -133,6 +134,24 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   - `cardImage.ts`도 이에 맞춰 흰 사각형을 **그리지 않는다**. 양쪽이 여백을 각자
     만들면 화면과 저장본의 QR 크기가 조용히 어긋난다.
 - **Phase 1 문항이 0개면** 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
+- **설문을 건너뛸지는 서버가 정한다 — localStorage가 아니다**(2026-08-15, 구자건 지적).
+  `enterSurveyFlow`가 `fetchPendingSurvey(1)`(→ `check_pending_survey` RPC)를 부르고,
+  **미응답 문항이 0건일 때만** 룰렛으로 보낸다.
+  - 예전에는 `hasSurveySubmitted()`(localStorage)만 봤다. 그런데 **쿠키
+    (`gookbapgame_token`)와 localStorage는 수명이 다르다** — 쿠키가 지워지거나 만료되면
+    `participant_id`가 새로 생기는데 플래그는 남아, 클라이언트는 "설문 했음"으로 보고
+    건너뛰지만 서버 기준으로는 응답이 없어 뽑기가 **403(`SURVEY_REQUIRED`)**으로 거절된다.
+    프로덕션에서 실제로 났다.
+  - **조회 실패는 건너뛰지 않는다(fail closed).** 빈 목록이 곧 "건너뛰기"인 자리라
+    실패를 빈 목록과 뭉뚱그리면 그대로 403이 된다. 그래서 phase 1은
+    `fetchPendingSurveyQuestionIds`(빈 배열로 뭉개는 편의 래퍼)를 **쓰면 안 되고**
+    `fetchPendingSurvey`의 `ok`를 봐야 한다. phase 0(힌트)은 중복 응답이 허용돼
+    구분이 필요 없으므로 래퍼를 그대로 쓴다.
+  - **재제출 가드를 localStorage로 되돌리지 말 것.** `submitAnswers`는 세션
+    `hasSubmittedRef`만 본다. 화면에 설문이 떴다는 것은 서버가 아직 안 받았다는
+    뜻이므로, 옛 플래그로 제출을 건너뛰면 **답을 적었는데 저장되지 않고 403이 남는다.**
+  - localStorage(`surveySubmitted.ts`)는 UI 힌트로 계속 기록하지만 **판정에는 쓰지 않는다.**
+    `pendingSurvey.test.ts`가 이 회귀들을 잡는다.
 - **접속 실패 시 재시도 버튼을 두지 않는다.** 안내 문구만 띄우고 흐름을 진행시킨 뒤,
   `pendingDraw` 표시를 남겨 다음 방문 시작 화면에 뽑기 진입 버튼을 노출한다. 이 표시는
   UI 힌트일 뿐이며 발급 자격은 언제나 서버가 판정한다.
