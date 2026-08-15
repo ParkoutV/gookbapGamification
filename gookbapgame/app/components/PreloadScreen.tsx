@@ -55,8 +55,11 @@ export default function PreloadScreen({ loadError, onRetry, onGoToStart }: Prelo
        문구만이 유일한 안내이고, 그것이 보조기기에 전달되려면 live region이어야 한다).
        에러는 alert으로 올린다: 사용자가 조치해야 하는 상황이라 polite하게 끼워넣을
        것이 아니고, 실제로 읽을 것도 재시도 버튼이 딸린 에러 문구다. */
+    /* 배경을 칠하지 않는다 — 루트의 `DaylightBackground`가 비쳐야 한다(2026-08-15
+       이란토). z-50이라 그 위에 뜨므로 `bg-bg`를 주면 시간대 배경이 로딩 화면에서만
+       사라진다. 슬라이드는 `object-contain`이라 여백으로 배경이 보이는 것이 맞다. */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg"
+      className="fixed inset-0 z-50 flex items-center justify-center"
       role={loadError ? "alert" : "status"}
       aria-live={loadError ? "assertive" : "polite"}
     >

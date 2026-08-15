@@ -4,6 +4,7 @@ import {
   isFreshlyIssued,
   sortByIssuedAt,
   toIssuedCoupon,
+  withoutOnlineCoupons,
   type IssuedCouponRow,
 } from "./issuedCoupons.ts";
 import { parseCouponType } from "./couponType.ts";
@@ -81,4 +82,35 @@ test("같은 날이라도 몇 시간 전 쿠폰은 최근이 아니다", () => {
 test("issued_at이 없거나 파싱되지 않으면 최근이 아니다", () => {
   assert.equal(isFreshlyIssued(issuedCoupon(undefined), NOW), false);
   assert.equal(isFreshlyIssued(issuedCoupon("not-a-date"), NOW), false);
+});
+
+/*
+ * 온라인몰 전용 쿠폰 걸러내기(2026-08-15 실기 제보).
+ *
+ * `coupon_effects`의 '웹 쿠폰'은 아임웹 쿠폰 발급을 트리거하는 지시자일 뿐인데,
+ * 발급 흔적이 `issued_coupons`에 매장 쿠폰과 같은 모양으로 남아 앨범이 QR 카드로
+ * 그리고 '사용 완료' 도장까지 찍었다. 스캐너가 받지 않는 QR이라 무의미하다.
+ */
+const at = (id: string, effect: string): IssuedCouponRow =>
+  row({ coupon_id: id, coupon_effect_id: effect });
+
+test("withoutOnlineCoupons: 온라인몰 전용 효과를 걷어낸다", () => {
+  const rows = [at("a", "store-1"), at("b", "web-1"), at("c", "store-2")];
+  const kept = withoutOnlineCoupons(rows, new Set(["web-1"]));
+  assert.deepEqual(kept.map((r) => r.coupon_id), ["a", "c"]);
+});
+
+test("withoutOnlineCoupons: 해당 없으면 원본 그대로", () => {
+  const rows = [at("a", "store-1")];
+  assert.equal(withoutOnlineCoupons(rows, new Set()), rows);
+});
+
+/*
+ * **fail open이 중요하다.** 플래그를 못 읽었을 때(컬럼 없음·RLS·조회 실패) 빈 Set이
+ * 오는데, 그때 멀쩡한 매장 쿠폰이 사라지면 손님이 받은 쿠폰을 잃는다 — 웹 쿠폰이
+ * 하나 더 보이는 것보다 훨씬 나쁘다.
+ */
+test("withoutOnlineCoupons: 플래그를 못 읽으면 아무것도 지우지 않는다", () => {
+  const rows = [at("a", "store-1"), at("b", "web-1")];
+  assert.equal(withoutOnlineCoupons(rows, new Set()).length, 2);
 });

@@ -19,7 +19,12 @@ import { generateNickname } from "./lib/nickname";
 import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
 import { resolveInviteTrackId } from "./lib/inviteLink";
-import { sortByIssuedAt, toIssuedCoupon, type IssuedCouponRow } from "./lib/issuedCoupons";
+import {
+  sortByIssuedAt,
+  toIssuedCoupon,
+  withoutOnlineCoupons,
+  type IssuedCouponRow,
+} from "./lib/issuedCoupons";
 import type { IssuedCoupon } from "./lib/issuedCoupons";
 import { requestWebCouponAssign } from "./lib/webCouponApi";
 import { sortByAssignedAt, toWebCoupons, type WebCouponRow } from "./lib/webCoupons";
@@ -683,22 +688,36 @@ export type DrawCouponResult =
  * 조회에 실패해도 던지지 않는다. 이름이 없으면 "—"로 보일 뿐이지만, 여기서 던지면
  * QR까지 사라져 쿠폰을 매장에서 쓸 수 없게 된다 — 이름보다 QR이 중요하다.
  */
-async function fetchCouponNames(effectIds: string[]): Promise<Map<string, LocalizedName>> {
+async function fetchCouponNames(
+  effectIds: string[]
+): Promise<{ names: Map<string, LocalizedName>; onlineOnly: Set<string> }> {
   const names = new Map<string, LocalizedName>();
-  if (effectIds.length === 0) return names;
+  /**
+   * 온라인몰 전용 효과 id. 이 쿠폰들은 목록에서 걷어낸다 —
+   * 근거는 `issuedCoupons.ts`의 `withoutOnlineCoupons` 주석에 있다.
+   */
+  const onlineOnly = new Set<string>();
+  if (effectIds.length === 0) return { names, onlineOnly };
 
   const { data, error } = await supabase
     .from("coupon_effects")
-    .select("coupon_effect_id, coupon_type")
+    .select("coupon_effect_id, coupon_type, is_online_coupon")
     .in("coupon_effect_id", effectIds);
 
   if (error) {
     console.error("[fetchCouponNames] coupon_effects 조회 실패:", error);
-    return names;
+    return { names, onlineOnly };
   }
 
-  for (const row of (data ?? []) as { coupon_effect_id: string; coupon_type: string }[]) {
+  for (const row of (data ?? []) as {
+    coupon_effect_id: string;
+    coupon_type: string;
+    is_online_coupon?: boolean;
+  }[]) {
     names.set(row.coupon_effect_id, parseCouponType(row.coupon_type));
+    // 컬럼이 없거나 null이면 매장 쿠폰으로 친다(fail open) — 이 플래그를 못 읽었다고
+    // 멀쩡한 쿠폰이 목록에서 사라지는 쪽이 훨씬 나쁘다.
+    if (row.is_online_coupon === true) onlineOnly.add(row.coupon_effect_id);
   }
 
   // Supabase의 SELECT RLS는 에러를 내지 않고 **행을 걸러낸다**(error: null, data: []).
@@ -708,7 +727,7 @@ async function fetchCouponNames(effectIds: string[]): Promise<Map<string, Locali
   if (names.size < effectIds.length) {
     console.error(`[fetchCouponNames] 이름 누락 ${names.size}/${effectIds.length}`, effectIds);
   }
-  return names;
+  return { names, onlineOnly };
 }
 
 /**
@@ -727,8 +746,12 @@ export async function fetchMyCoupons(): Promise<IssuedCoupon[]> {
     const sorted = sortByIssuedAt((data ?? []) as IssuedCouponRow[]);
 
     // 상품명은 별도 조회다 — RPC 응답에 없다(issuedCoupons.ts의 IssuedCouponRow 주석).
-    const names = await fetchCouponNames([...new Set(sorted.map((r) => r.coupon_effect_id))]);
-    return sorted.map((row) => toIssuedCoupon(row, names));
+    const { names, onlineOnly } = await fetchCouponNames([
+      ...new Set(sorted.map((r) => r.coupon_effect_id)),
+    ]);
+    // 온라인몰 전용 효과는 목록에서 걷어낸다. **여기 한 곳에서 거른다** —
+    // 화면마다 거르면 새 화면이 생길 때 빠뜨린다(`withoutOnlineCoupons` 주석).
+    return withoutOnlineCoupons(sorted, onlineOnly).map((row) => toIssuedCoupon(row, names));
   } catch (error) {
     console.error("[fetchMyCoupons] 예기치 못한 예외:", error);
     return [];

@@ -98,3 +98,27 @@ export function isFreshlyIssued(coupon: IssuedCoupon, now: number): boolean {
   // 미래 시각(서버·기기 시계 어긋남)도 창 안으로 본다 — 방금 발급된 것이 맞다.
   return now - issued < FRESHLY_ISSUED_WINDOW_MS;
 }
+
+/**
+ * 온라인몰 전용 쿠폰 효과를 목록에서 걷어낸다.
+ *
+ * **`coupon_effects`의 '웹 쿠폰'은 손님에게 보여줄 상품이 아니라 지시자다**
+ * (2026-08-15 이란토). 구조상 '쿠폰' 카테고리 아래에 '웹 쿠폰' 항목이 있고, 그것이
+ * 뽑히면 아임웹 기반 외부 쿠폰(`web_coupons`)이 따로 발급돼 연결된다. 저쪽 문서도
+ * `is_online_coupon`을 "true면 **스캐너 조회·KPI 수집에서 제외**되며 web_coupons
+ * 할당을 트리거한다"고 적고 있다(`gookbapanalyze/AGENTS.md`).
+ *
+ * 그런데 발급 자체는 `issued_coupons`에 매장 쿠폰과 같은 모양으로 남아서, 앨범이
+ * 그것을 **QR 달린 카드로 그리고 서버가 준 `is_used: true` 때문에 '사용 완료'
+ * 도장까지 찍었다**(실기 스크린샷). 스캐너가 애초에 받지 않는 QR이라 손님에게는
+ * 아무 의미가 없고, 같은 혜택이 온라인몰 티켓으로 이미 따로 뜬다 — 중복이자 오해다.
+ *
+ * **`fetchMyCoupons` 한 곳에서 거른다.** 화면마다 거르면 새 화면이 생길 때 빠뜨린다.
+ */
+export function withoutOnlineCoupons(
+  rows: IssuedCouponRow[],
+  onlineEffectIds: ReadonlySet<string>
+): IssuedCouponRow[] {
+  if (onlineEffectIds.size === 0) return rows;
+  return rows.filter((r) => !onlineEffectIds.has(r.coupon_effect_id));
+}
