@@ -23,8 +23,7 @@ import { useCouponFlow } from "./hooks/useCouponFlow";
 import type { SurveyAnswerMap } from "./lib/surveyAnswers";
 import { useLocale } from "./lib/i18n/LocaleContext";
 import { hasPendingDraw } from "./lib/pendingDraw";
-import { hasSurveySubmitted } from "./lib/surveySubmitted";
-import { fetchGatchaLimit } from "./actions";
+import { fetchGatchaLimit, fetchPendingSurvey } from "./actions";
 import { gatchaLimitNotice, type GatchaLimitNotice } from "./lib/gatchaLimit";
 import { useButtonClickSfx } from "./hooks/useButtonClickSfx";
 import { useBgm } from "./hooks/useBgm";
@@ -44,6 +43,12 @@ type PageProps = {
  *  참조가 바뀌어, GameScreen의 onStageClear 의존 이펙트가 매번 다시 돌면서
  *  끊으려던 타이머를 오히려 계속 새로 건다. */
 const noop = () => {};
+
+/**
+ * 쿠폰 설문. 힌트 설문(phase 0)과 달리 **뽑기 자격이 걸려 있어** 서버가 같은 값을
+ * 검증한다(`/api/gatcha/draw`). `GameScreen`의 `HINT_SURVEY_PHASE = 0`과 짝이다.
+ */
+const COUPON_SURVEY_PHASE = 1;
 
 export default function Home({ searchParams }: PageProps) {
   const resolvedSearchParams = use(searchParams);
@@ -203,18 +208,14 @@ export default function Home({ searchParams }: PageProps) {
   // loadQuestions는 비동기이므로, 그 사이 사용자가 설문 안내를 벗어났다면(예: 참여
   // 거부) 되돌아온 뒤 강제로 wheel로 보내면 안 된다 — 여전히 surveyIntro일 때만 전환한다.
   //
-  // 이미 설문을 제출한 적 있는 참여자(hasSurveySubmitted)라면 설문은 짐이 아니라 이미
-  // 획득한 혜택이다 — 다시 답하게 하지 않고 곧장 룰렛으로 보낸다. 이 경우 questions를
-  // 로드할 이유도 없다(어차피 렌더하지 않는다).
+  // 이미 답한 사람이라면 설문은 짐이 아니라 이미 획득한 혜택이다 — 다시 답하게 하지
+  // 않고 곧장 룰렛으로 보낸다. **그 판정은 서버(RPC)가 한다**(아래 주석 참고).
   //
-  // 여기서는 phaseRef 가드를 넣지 않는다: goToPhase("surveyIntro") 직후 이 값을 확인하면,
-  // 그 setState가 아직 커밋되지 않아 phaseRef.current가 "이전" phase를 가리키는 상태라
-  // 가드가 오탐(항상 false)해 wheel 전환이 죽는다. phaseRef는 await로 실제 시간이 흐른
-  // 뒤(zero-questions 분기)에만 의미가 있다 — 여기는 동기 경로라 그 사이 사용자가 다른
-  // 곳으로 이동할 틈이 없으므로 가드가 필요 없다.
-  // hasSurveySubmitted()는 localStorage를 읽지만, 이 콜백은 사용자 클릭 이벤트로만
-  // 트리거되어 서버 렌더 중에는 절대 호출되지 않으므로 안전하다 — submitAnswers의 기존
-  // 호출과 같은 전제.
+  // phaseRef 가드는 **await 뒤의 wheel 전환에만** 건다. `goToPhase("surveyIntro")`
+  // 직후에 확인하면 그 setState가 아직 커밋되지 않아 phaseRef.current가 "이전" phase를
+  // 가리켜 가드가 항상 false로 오탐한다 — 그래서 동기 구간에는 두지 않는다.
+  // 반대로 await를 지난 뒤에는 그 사이 사용자가 화면을 벗어났을 수 있으므로 반드시
+  // 필요하다(설문 안내에서 참여를 거부하고 나갔는데 강제로 룰렛에 들어가면 안 된다).
   const enterSurveyFlow = useCallback(async () => {
     resetCoupon();
     // 흐름에 들어가는 순간 거절 상태를 끈다 — 버튼은 한 번 쓰면 소진된다.
@@ -225,10 +226,30 @@ export default function Home({ searchParams }: PageProps) {
     // 그 사람은 여전히 뽑지 않았다.
     setDeclinedSurvey(false);
     goToPhase("surveyIntro");
-    if (hasSurveySubmitted()) {
-      goToPhase("wheel");
+
+    /*
+     * **설문을 건너뛸지는 서버(RPC)가 정한다**(2026-08-15, 구자건 지적).
+     *
+     * 예전에는 `hasSurveySubmitted()`(localStorage)만 보고 곧장 wheel로 보냈다.
+     * 그런데 **쿠키(`gookbapgame_token`)와 localStorage는 수명이 다르다** — 쿠키가
+     * 지워지거나 만료되면 participant_id가 새로 생기는데 localStorage 플래그는 남아,
+     * 클라이언트는 "설문 했음"으로 보고 건너뛰지만 서버 기준으로는 응답이 없어
+     * 뽑기가 403(SURVEY_REQUIRED)으로 거절된다. 실제로 프로덕션에서 난 증상이다.
+     *
+     * localStorage는 **지우지 않고 힌트로 남긴다** — 재제출 차단(`submitAnswers`)과
+     * `declinedSurvey` 연동이 그 값에 걸려 있다. 여기서는 "판정 권위"만 RPC로 옮긴다.
+     *
+     * **조회 실패는 fail closed** — 설문을 보여주는 쪽으로 떨어진다. 빈 목록을
+     * "건너뛰기"로 쓰는 자리라 실패를 빈 목록과 뭉뚱그리면 그대로 403이 되고,
+     * 설문을 한 번 더 보는 쪽이 쿠폰을 못 받는 것보다 낫다.
+     */
+    const pending = await fetchPendingSurvey(COUPON_SURVEY_PHASE);
+    // await를 지났으므로 그 사이 사용자가 설문 안내를 벗어났을 수 있다(위 주석).
+    if (pending.ok && pending.questionIds.length === 0) {
+      if (phaseRef.current === "surveyIntro") goToPhase("wheel");
       return;
     }
+
     const outcome = await loadQuestions();
     // "empty"(문항 0건)와 "failed"(조회 실패) 모두 룰렛으로 보낸다 — 설문을 못 불러왔다고
     // 쿠폰 기회까지 막으면 사용자에게 더 큰 손해다. 다만 "failed"는 콘솔에만 남던 것을
@@ -274,11 +295,39 @@ export default function Home({ searchParams }: PageProps) {
    */
   const [myCouponsReturnPhase, setMyCouponsReturnPhase] = useState<GamePhase>("start");
 
+  /**
+   * 조회를 기다리지 않고 **먼저 화면을 바꾼다**(2026-08-15, 이란토 실기 제보).
+   *
+   * 예전에는 `await refreshCoupons()` 뒤에 전환해서, 기다리는 동안 화면이 아무 말도
+   * 하지 않았다. 그래서 사용자가 여러 번 눌렀고 **눌린 횟수만큼 전환이 큐에 쌓여
+   * 다른 페이지로 이동한 뒤에도 보관함이 계속 떴다.**
+   *
+   * 호출부가 세 곳이므로(시작 화면·뽑기 거절·오늘의 결과) 버튼마다 `disabled`를 다는
+   * 방식은 쓰지 않는다 — 세 곳에 흩어지면 언젠가 하나가 빠진다. 여기 한 곳에서 막는다.
+   *
+   * **가드는 화면 전환이 아니라 조회에만 건다.** 전환보다 앞에 두면 조회가 끝나기 전에
+   * 앨범을 닫고 다시 여는 경로에서(`onClose`는 아무것도 기다리지 않는다) 가드가 아직
+   * 켜져 있어 **버튼이 죽는다** — 느린 네트워크일수록 그 창이 길어지므로, 애초에
+   * 문제였던 "눌렀는데 아무 일도 안 일어난다"를 그대로 되살리는 셈이다.
+   * 전환은 멱등하고 비용이 없으니 언제나 연다.
+   * ref인 이유는 state로 두면 리렌더가 한 박자 늦어 그 사이의 연타를 못 막기 때문이다.
+   */
+  const couponsLoadingRef = useRef(false);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+
   const openMyCoupons = useCallback(
     async (returnTo: GamePhase = "start") => {
       setMyCouponsReturnPhase(returnTo);
-      await refreshCoupons();
       goToPhase("myCoupons");
+      if (couponsLoadingRef.current) return;
+      couponsLoadingRef.current = true;
+      setCouponsLoading(true);
+      try {
+        await refreshCoupons();
+      } finally {
+        couponsLoadingRef.current = false;
+        setCouponsLoading(false);
+      }
     },
     [goToPhase, refreshCoupons]
   );
@@ -451,6 +500,7 @@ export default function Home({ searchParams }: PageProps) {
           coupons={coupon.coupons}
           webCoupons={coupon.webCoupons}
           webCouponSettings={coupon.webCouponSettings}
+          loading={couponsLoading}
           onClose={() => goToPhase(myCouponsReturnPhase)}
           onGoToDraw={showDrawEntry ? enterDrawFromStart : undefined}
         />

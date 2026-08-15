@@ -555,20 +555,23 @@ export async function fetchSurveyQuestions(phase: number = 1): Promise<SurveyFet
 }
 
 /**
- * 아직 답하지 않은 문항의 `question_id` 목록. `check_pending_survey` RPC를 부른다.
+ * `check_pending_survey` RPC의 원본 결과. **실패와 "남은 문항 없음"을 구분한다.**
  *
- * **이것만으로는 화면을 그릴 수 없다** — 문항 텍스트도 선택지도 오지 않는다
- * (gookbapanalyze/AGENTS.md의 반환 예시). `fetchSurveyQuestions(phase)`로 받은
- * 전체 행을 이 목록으로 걸러내는 용도다.
+ * phase 0(힌트)은 이 구분이 필요 없어 `fetchPendingSurveyQuestionIds`를 그대로 쓰지만,
+ * phase 1(쿠폰)은 빈 목록이 곧 "설문 건너뛰기"라 조회 실패를 빈 목록으로 뭉뚱그리면
+ * **자격 없는 사람을 뽑기로 보내 서버가 403(SURVEY_REQUIRED)으로 거절한다.**
+ */
+export type PendingSurveyResult =
+  | { ok: true; questionIds: string[] }
+  | { ok: false; questionIds: [] };
+
+/**
+ * 미응답 문항 조회의 **원본 형태**. 실패 여부를 함께 돌려준다.
  *
  * `p_track_id`는 **null을 넘긴다.** track_id는 phase 2에서만 지점 판별에 쓰이므로
- * (그쪽 문서 주의사항) phase 0에는 의미가 없다 — 호출부가 트랙을 찾아 헤맬 필요가 없다.
- *
- * **실패와 "남은 문항 없음"을 구분하지 않는다.** 둘 다 빈 배열이고, 호출부는 어느
- * 쪽이든 "전체에서 무작위로 재탕"이라는 같은 경로로 떨어진다(phase 0은 중복 응답
- * 허용). 여기에 `ok` 플래그를 붙이면 소비처 없는 분기만 늘어난다.
+ * (그쪽 문서 주의사항) phase 0·1에는 의미가 없다 — 호출부가 트랙을 찾아 헤맬 필요가 없다.
  */
-export async function fetchPendingSurveyQuestionIds(phase: number): Promise<string[]> {
+export async function fetchPendingSurvey(phase: number): Promise<PendingSurveyResult> {
   try {
     const participantId = await resolveParticipantId();
     const { data, error } = await supabase.rpc("check_pending_survey", {
@@ -578,16 +581,38 @@ export async function fetchPendingSurveyQuestionIds(phase: number): Promise<stri
     });
 
     if (error) {
-      console.error("[fetchPendingSurveyQuestionIds] 조회 실패:", error);
-      return [];
+      console.error("[fetchPendingSurvey] 조회 실패:", error);
+      return { ok: false, questionIds: [] };
     }
-    return ((data ?? []) as { question_id?: string }[])
-      .map((row) => row.question_id)
-      .filter((id): id is string => typeof id === "string");
+    return {
+      ok: true,
+      questionIds: ((data ?? []) as { question_id?: string }[])
+        .map((row) => row.question_id)
+        .filter((id): id is string => typeof id === "string"),
+    };
   } catch (error) {
-    console.error("[fetchPendingSurveyQuestionIds] 예기치 못한 예외:", error);
-    return [];
+    console.error("[fetchPendingSurvey] 예기치 못한 예외:", error);
+    return { ok: false, questionIds: [] };
   }
+}
+
+/**
+ * 아직 답하지 않은 문항의 `question_id` 목록. `check_pending_survey` RPC를 부른다.
+ *
+ * **이것만으로는 화면을 그릴 수 없다** — 문항 텍스트도 선택지도 오지 않는다
+ * (gookbapanalyze/AGENTS.md의 반환 예시). `fetchSurveyQuestions(phase)`로 받은
+ * 전체 행을 이 목록으로 걸러내는 용도다.
+ *
+ * **실패와 "남은 문항 없음"을 구분하지 않는다** — phase 0(힌트) 전용 편의 래퍼다.
+ * 둘 다 빈 배열이고, 호출부는 어느 쪽이든 "전체에서 무작위로 재탕"이라는 같은 경로로
+ * 떨어진다(phase 0은 중복 응답 허용).
+ *
+ * **phase 1에 이걸 쓰지 말 것.** 거기서는 빈 배열이 "설문 건너뛰기"를 뜻하므로 조회
+ * 실패가 그대로 403이 된다 — `fetchPendingSurvey`를 직접 써서 `ok`를 볼 것.
+ */
+export async function fetchPendingSurveyQuestionIds(phase: number): Promise<string[]> {
+  const result = await fetchPendingSurvey(phase);
+  return result.questionIds;
 }
 
 export async function submitSurveyResponses(

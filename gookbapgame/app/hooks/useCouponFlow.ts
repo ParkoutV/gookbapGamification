@@ -17,7 +17,7 @@ import {
 } from "../actions";
 import type { SurveyAnswerMap, SurveyQuestion } from "../lib/surveyAnswers";
 import { clearPendingDraw, markPendingDraw } from "../lib/pendingDraw";
-import { hasSurveySubmitted, markSurveySubmitted } from "../lib/surveySubmitted";
+import { markSurveySubmitted } from "../lib/surveySubmitted";
 import { isCouponUnusable } from "../lib/couponUsability";
 import { isFreshlyIssued } from "../lib/issuedCoupons";
 
@@ -52,6 +52,16 @@ export function useCouponFlow() {
   const drawStartedRef = useRef(false);
 
   /**
+   * 이 세션에서 설문을 이미 제출했는가. **재제출 차단용이며 `reset()`으로 풀리지 않는다.**
+   *
+   * localStorage(`surveySubmitted.ts`)와 역할이 갈린다 — 그쪽은 새로고침을 넘어 남는
+   * 표시이고 이쪽은 한 세션 안에서 같은 답이 두 번 쌓이는 것만 막는다. 설문을 보여줄지
+   * 말지의 판정은 이제 서버 RPC가 하므로(`page.tsx`), 화면에 설문이 떴다는 것은
+   * "서버가 아직 안 받았다"는 뜻이라 localStorage를 이 가드로 쓰면 안 된다.
+   */
+  const hasSubmittedRef = useRef(false);
+
+  /**
    * "설문을 보여줄 수 있는가"와 "왜 못 보여주는가"를 구분해서 돌려준다.
    * - "shown":   문항을 불러왔다. 설문 화면으로 간다.
    * - "empty":   정상 조회했지만 Phase 1 문항이 0건. 설문을 건너뛰는 게 맞다.
@@ -81,10 +91,16 @@ export function useCouponFlow() {
   // 재제출 차단. 서버에서 SELECT로 막을 수 없어(survey_responses는 INSERT만 열림)
   // 여기서 막는다. reset()으로 풀리지 않는다 — 같은 세션에서 '설문하고 쿠폰 받기'로
   // 재진입해도 응답이 두 번 쌓이면 설문 완료율 KPI가 왜곡된다.
-  // ref만으로는 새로고침에 씻겨나가므로 localStorage(surveySubmitted.ts)에도 남긴다.
+  //
+  // **가드는 세션 ref만 본다.** 예전에는 localStorage(`hasSurveySubmitted`)도 함께
+  // 봤는데, 설문을 보여줄지는 이제 서버(RPC)가 정하므로(`page.tsx`의 `enterSurveyFlow`)
+  // 그 둘이 어긋나는 경로가 생긴다 — 쿠키가 새로 발급돼 **서버 기준으로는 미응답인
+  // 사람**에게 RPC가 설문을 띄웠는데, localStorage에 옛 플래그가 남아 있으면 여기서
+  // 조용히 리턴해 **답을 적었는데 아무것도 저장되지 않고 403이 그대로 남는다.**
+  // 화면에 설문이 떴다는 것은 서버가 아직 안 받았다는 뜻이므로 제출해야 맞다.
   const submitAnswers = useCallback(
     async (answers: SurveyAnswerMap): Promise<boolean> => {
-      if (hasSurveySubmitted()) return true;
+      if (hasSubmittedRef.current) return true;
       setState("submitting");
       setSubmitError(null);
       const result = await submitSurveyResponses(questions, answers);
@@ -93,6 +109,9 @@ export function useCouponFlow() {
         setState("survey");
         return false;
       }
+      hasSubmittedRef.current = true;
+      // localStorage 표시도 그대로 남긴다 — 판정 권위는 서버로 옮겼지만, 이 값은
+      // 여전히 UI 힌트(`declinedSurvey` 연동 등)로 쓰인다.
       markSurveySubmitted();
 
       /*
@@ -103,7 +122,7 @@ export function useCouponFlow() {
        * 흐름을 막지 않는다 — 실패는 앨범 진입 시 `ensureWebCoupons`가 한 번 더
        * 시도해서 메운다(그쪽 주석 참고).
        *
-       * **`hasSurveySubmitted()` 가드 뒤에 있다는 점이 중요하다.** 재제출로 들어온
+       * **재제출 가드(`hasSubmittedRef`) 뒤에 있다는 점이 중요하다.** 재제출로 들어온
        * 사람은 위에서 이미 리턴했으므로 여기 도달하지 않는다 — 발급 요청이 반복되지
        * 않는다. 서버도 자격을 검증하지만, 부르지 않는 편이 낫다.
        */
