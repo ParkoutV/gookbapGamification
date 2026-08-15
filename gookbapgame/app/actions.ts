@@ -3,6 +3,7 @@
 import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
 import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
+import { orderBaseImageCandidates, shuffled } from "./lib/baseImageOrder";
 import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
 import {
   getPartSilhouette,
@@ -62,6 +63,12 @@ export type GameSession = {
   leftSceneUrl: string;
   rightSceneUrl: string;
   slots: GameSlot[];
+  /**
+   * 이 판에 쓴 배경 이미지 id. **다음 판에서 같은 배경을 피하려고 돌려준다** —
+   * `fetchGameData`는 서버 액션이라 직전 판을 기억하지 못하므로, 클라이언트가 들고
+   * 있다가 `excludeBaseImageId`로 되돌려주는 구조다(`baseImageOrder.ts` 참고).
+   */
+  baseImageId: number;
 };
 
 type PartRow = {
@@ -101,9 +108,16 @@ async function computeSlotPolygons(
   return { leftHitPolygon, rightHitPolygon };
 }
 
+/**
+ * `excludeBaseImageId`는 **직전 판에서 이 레벨이 쓴 배경**이다. 있으면 후보 순서에서
+ * 뒤로 밀려 다른 배경이 우선 뽑힌다 — 대안이 없으면 그대로 다시 뽑힌다
+ * (`baseImageOrder.ts`가 그 이유를 설명한다: 빼버리면 풀이 1장인 레벨에서 게임이
+ * 시작되지 않는다).
+ */
 export async function fetchGameData(
   level: number,
-  targetDiffCount: number
+  targetDiffCount: number,
+  excludeBaseImageId?: number | null
 ): Promise<GameSession | null> {
   try {
     // 1. Fetch base_images registered for this stage's level and shuffle them
@@ -117,7 +131,7 @@ export async function fetchGameData(
       return null;
     }
 
-    const shuffledBaseImages = [...baseImages].sort(() => 0.5 - Math.random());
+    const shuffledBaseImages = orderBaseImageCandidates(baseImages, excludeBaseImageId);
 
     let selectedBaseImage = null;
     let validSlots: any[] = [];
@@ -206,7 +220,9 @@ export async function fetchGameData(
       );
     }
 
-    const diffIndices = [...Array(N).keys()].sort(() => 0.5 - Math.random()).slice(0, numDifferences);
+    // Fisher-Yates(`shuffled`)를 쓴다 — `sort(() => 0.5 - Math.random())`은 비교자가
+    // 일관되지 않아 특정 조합이 훨씬 자주 나온다. 정답 위치의 다양성이 걸린 자리다.
+    const diffIndices = shuffled([...Array(N).keys()]).slice(0, numDifferences);
 
     const leftImageSlots: ImageSlots = {};
     const rightImageSlots: ImageSlots = {};
@@ -230,7 +246,7 @@ export async function fetchGameData(
       let rightPart: PartRow;
 
       if (isDifference && slotParts.length >= 2) {
-        const shuffledSlotParts = [...slotParts].sort(() => 0.5 - Math.random());
+        const shuffledSlotParts = shuffled(slotParts);
         leftPart = shuffledSlotParts[0];
         rightPart = shuffledSlotParts[1];
       } else {
@@ -301,6 +317,7 @@ export async function fetchGameData(
       leftSceneUrl: leftResult.url,
       rightSceneUrl: rightResult.url,
       slots,
+      baseImageId,
     };
   } catch (error) {
     console.error("Error in fetchGameData:", error);

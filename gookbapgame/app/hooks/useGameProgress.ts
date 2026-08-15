@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGameData, GameSession } from "../actions";
-import { preloadAllStages } from "../lib/preloadGame";
-import type { LoadError } from "../lib/preloadGame";
+import { loadImageInBrowser, preloadAllStages } from "../lib/preloadGame";
+import type { LastBaseImageIds, LoadError } from "../lib/preloadGame";
 import {
   STAGE_CONFIG,
   GLOBAL_TIME_LIMIT_SEC,
@@ -80,6 +80,15 @@ export function useGameProgress(trackId: string | null) {
   // 세대를 증가시켜 자기 세대를 기억해두고, await 이후 그 세대가 여전히
   // 최신인 경우에만 setState한다 — 낡은 세대는 조용히 버린다.
   const preloadGenerationRef = useRef(0);
+
+  /**
+   * 직전 판에서 각 레벨이 쓴 배경 id. 다음 프리로드가 같은 배경을 뒤로 미루는 데 쓴다
+   * (`baseImageOrder.ts`). 첫 판에는 비어 있어 그냥 무작위다.
+   *
+   * **세션 안에서만 유효하다** — 새로고침하면 사라진다. 제보된 경우가 '다시하기'라
+   * 거기까지면 충분하고, localStorage로 넓히면 기기에 남는 상태가 하나 더 늘어난다.
+   */
+  const lastBaseImageIdsRef = useRef<LastBaseImageIds>({});
 
   const [remainingTimeSec, setRemainingTimeSec] = useState(GLOBAL_TIME_LIMIT_SEC);
   const [levelResults, setLevelResults] = useState<LevelResult[]>([]);
@@ -231,13 +240,24 @@ export function useGameProgress(trackId: string | null) {
     const generation = ++preloadGenerationRef.current;
     setLoadError(null);
     setPreloadStatus("loading");
-    const result = await preloadAllStages(fetchGameData);
+    const result = await preloadAllStages(
+      fetchGameData,
+      loadImageInBrowser,
+      lastBaseImageIdsRef.current
+    );
     // 대기하는 동안 더 최신 runPreload가 시작됐다면 이 결과는 낡은 것이다.
     // 최신 세대가 이미 자기 몫의 loading/sessions/preloadStatus를 세팅해뒀으므로
     // 여기서는 아무것도 하지 않고 그냥 반환한다.
     if (generation !== preloadGenerationRef.current) return;
     if (result.ok) {
       setSessions(result.sessions);
+      // 다음 판이 같은 배경을 피할 수 있도록 이번 판의 선택을 남긴다. state가 아니라
+      // ref인 이유: 이 값은 렌더에 쓰이지 않고 **다음 runPreload가 읽기만** 한다.
+      // `resetToStart`가 sessions를 비워도 이건 남아야 한다 — 다시하기가 바로 그
+      // "직전 판"이기 때문이다.
+      lastBaseImageIdsRef.current = Object.fromEntries(
+        result.sessions.map((s) => [s.level, s.baseImageId])
+      );
       totalAnswersRef.current = result.sessions.reduce((sum, s) => sum + countDifferences(s), 0);
       setLoadNonce((n) => n + 1);
       setPreloadStatus("ready");

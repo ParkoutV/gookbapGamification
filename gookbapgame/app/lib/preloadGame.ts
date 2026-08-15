@@ -9,8 +9,18 @@ import type { GameSession } from "../actions.ts";
  */
 export type FetchSessionFn = (
   level: number,
-  targetDiffCount: number
+  targetDiffCount: number,
+  excludeBaseImageId?: number | null
 ) => Promise<GameSession | null>;
+
+/**
+ * 직전 판에서 각 레벨이 쓴 배경 id(`level` → `baseImageId`).
+ *
+ * 7개 레벨을 **병렬로** 뽑으므로 서로의 선택을 알 수 없고, 서버 액션이라 직전 판도
+ *기억하지 못한다. 그래서 호출부가 이 표를 들고 있다가 넘겨준다 — 없으면(첫 판)
+ * 그냥 무작위다. 레벨 간 중복은 각 레벨이 자기 풀에서만 뽑아 애초에 불가능하다.
+ */
+export type LastBaseImageIds = Readonly<Record<number, number>>;
 
 export type LoadImageFn = (url: string) => Promise<void>;
 
@@ -33,12 +43,15 @@ export function loadImageInBrowser(url: string): Promise<void> {
 
 export async function preloadAllStages(
   fetchSession: FetchSessionFn,
-  loadImage: LoadImageFn = loadImageInBrowser
+  loadImage: LoadImageFn = loadImageInBrowser,
+  lastBaseImageIds: LastBaseImageIds = {}
 ): Promise<PreloadResult> {
   let sessions: (GameSession | null)[];
   try {
     sessions = await Promise.all(
-      STAGE_CONFIG.map((cfg) => fetchSession(cfg.level, cfg.diffCount))
+      STAGE_CONFIG.map((cfg) =>
+        fetchSession(cfg.level, cfg.diffCount, lastBaseImageIds[cfg.level] ?? null)
+      )
     );
   } catch {
     return { ok: false, key: "preload.sessionError" };
