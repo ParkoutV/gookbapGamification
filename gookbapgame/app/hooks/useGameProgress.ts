@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchGameData, GameSession } from "../actions";
-import { loadImageInBrowser, preloadAllStages } from "../lib/preloadGame";
-import type { LastBaseImageIds, LoadError } from "../lib/preloadGame";
+import { createSessionPrewarm, fetchAllSessions, loadSessionImages } from "../lib/preloadGame";
+import type { LastBaseImageIds, LoadError, SessionPrewarm } from "../lib/preloadGame";
 import {
   STAGE_CONFIG,
   GLOBAL_TIME_LIMIT_SEC,
@@ -89,6 +89,31 @@ export function useGameProgress(trackId: string | null) {
    * 거기까지면 충분하고, localStorage로 넓히면 기기에 남는 상태가 하나 더 늘어난다.
    */
   const lastBaseImageIdsRef = useRef<LastBaseImageIds>({});
+
+  /**
+   * 첫 상호작용에서 세션만 미리 받아두는 래치(`prewarmSessions`가 방아쇠).
+   *
+   * **자기 ref에만 쓴다** — `preloadStatus`·`sessions`·`loadError`·`phase`를 건드리지
+   * 않는다. 프리로드 완료는 게임 진입의 방아쇠라, 여기서 세팅하면 시작을 누르지도
+   * 않았는데 게임이 시작되고 `game_start` KPI 정의가 조용히 바뀐다.
+   *
+   * 실패는 조용히 넘긴다 — `runPreload`가 정상 경로로 다시 받으므로 에러 표시 자리를
+   * 두 곳으로 늘리지 않는다.
+   *
+   * 콜백이 `lastBaseImageIdsRef`를 **호출 시점에** 읽는 것이 요점이다. 마운트 때 값을
+   * 굳히면 직전 판 배경 회피가 걸리지 않는다.
+   */
+  /* 지연 생성한다(`useRef(null)` + 첫 접근 시 채우기). `useRef(createSessionPrewarm(...))`로
+     쓰면 **렌더마다 래치를 새로 만들어 버린다** — 값은 첫 것만 남지만 나머지는 만들자마자
+     버려지는 낭비이고, `react-hooks/refs`가 이것을 잡는다. */
+  const prewarmRef = useRef<SessionPrewarm | null>(null);
+  const getPrewarm = useCallback(() => {
+    prewarmRef.current ??= createSessionPrewarm(() =>
+      fetchAllSessions(fetchGameData, lastBaseImageIdsRef.current)
+    );
+    return prewarmRef.current;
+  }, []);
+  const prewarmSessions = useCallback(() => getPrewarm().start(), [getPrewarm]);
 
   const [remainingTimeSec, setRemainingTimeSec] = useState(GLOBAL_TIME_LIMIT_SEC);
   const [levelResults, setLevelResults] = useState<LevelResult[]>([]);
@@ -240,11 +265,18 @@ export function useGameProgress(trackId: string | null) {
     const generation = ++preloadGenerationRef.current;
     setLoadError(null);
     setPreloadStatus("loading");
-    const result = await preloadAllStages(
-      fetchGameData,
-      loadImageInBrowser,
-      lastBaseImageIdsRef.current
-    );
+    // 프리워밍 세션을 **첫 await 이전에 동기적으로** 꺼내 비운다. 그래야 두 번째
+    // runPreload가 같은 세트를 다시 집어가지 못하고(다시하기가 같은 판을 재생하는
+    // 43252ed 중복), 프리워밍 진행 중에 시작을 눌러도 중복 요청이 생기지 않는다.
+    const prewarmed = getPrewarm().take();
+    let fetched = prewarmed ? await prewarmed : null;
+    // 프리워밍이 실패했으면 그 실패를 화면에 띄우지 않고 정상 경로로 다시 받는다 —
+    // 첫 탭 때의 네트워크 끊김이 10초 뒤 누른 시작까지 망가뜨리면 안 된다.
+    if (!fetched?.ok) {
+      fetched = await fetchAllSessions(fetchGameData, lastBaseImageIdsRef.current);
+    }
+    // 프리워밍은 이미지 14장을 받지 않으므로 이 단계는 어느 경로든 반드시 거친다.
+    const result = fetched.ok ? await loadSessionImages(fetched.sessions) : fetched;
     // 대기하는 동안 더 최신 runPreload가 시작됐다면 이 결과는 낡은 것이다.
     // 최신 세대가 이미 자기 몫의 loading/sessions/preloadStatus를 세팅해뒀으므로
     // 여기서는 아무것도 하지 않고 그냥 반환한다.
@@ -265,7 +297,9 @@ export function useGameProgress(trackId: string | null) {
       setLoadError({ key: result.key, params: result.params });
       setPreloadStatus("error");
     }
-  }, []);
+    // getPrewarm은 useCallback([])이라 참조가 고정이다 — 넣어도 runPreload가
+    // 재생성되지 않는다.
+  }, [getPrewarm]);
 
   // 게임 진입의 자동 경로는 여기 한 곳만 담당한다.
   // phase가 "loading"일 때만 작동하므로, 튜토리얼(phase === "tutorial") 중에
@@ -496,6 +530,7 @@ export function useGameProgress(trackId: string | null) {
     consumeHint,
     markHintSurveyShown,
     startGame,
+    prewarmSessions,
     retryPreload,
     recordCorrectFind,
     recordWrongTouch,

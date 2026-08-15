@@ -1,15 +1,23 @@
 import type { Dictionary } from "../types.ts";
 
 export const en: Partial<Dictionary> = {
-  "meta.title": "Spot the Difference - Gukbap",
+  "meta.title": "Spot the Difference 1953 - Gukbap",
   "meta.description": "A spot-the-difference game set around a bowl of gukbap",
 
   "common.retry": "Retry",
 
   // Brand name shown in the window title bar (90s desktop concept), not the screen heading.
-  "window.brand": "1953 Brother Pork Gookbap",
+  //
+  // **`Pork`를 다시 넣지 말 것**(2026-08-15 이란토). 공식 영문 표기에 없다 —
+  // 영어권에서는 `Gukbap`만으로도 이미 읽기 어려운데 수식어까지 붙으면 더 길어진다.
+  //
+  // 철자는 문체부 표준 로마자 `Gukbap`이다. 홈페이지 로고에는 `GUKBOB`으로 보이지만
+  // 브랜드가 그 표기를 밀고 있는지 불확실하고, **대시보드(`gookbapanalyze`)가 이미
+  // `Gukbap`으로 등록하고 있어** 그쪽에 맞춘다. 이 파일의 다른 9곳(`Gukbap Power` 등)과도
+  // 철자가 일치한다 — 한쪽만 바꾸면 같은 화면에 두 철자가 뜬다.
+  "window.brand": "1953 Brothers Gukbap",
 
-  "start.title": "Spot the Difference",
+  "start.title": "Spot the Difference 1953",
   "start.welcome": "Welcome, {nickname}",
   "start.regenerateNicknameAria": "Regenerate nickname",
   "start.playButton": "Start Game",
@@ -84,6 +92,11 @@ export const en: Partial<Dictionary> = {
   "preload.levelSessionError": "Failed to load game data for stage {level}.",
   "preload.imageError": "Failed to load images. Please check your network connection.",
 
+  // 로딩 화면 읽을거리 — 근거와 주의사항은 ko.ts의 같은 자리 주석 참고.
+  "preload.brandLine1": "We welcome you with a warm bowl of gukbap.",
+  "preload.brandLine2": "A bowl of pork gukbap, simmered in Busan.",
+  "preload.brandLine3": "Simmered with care, served fresh for every guest.",
+
   "gameResult.title": "Game Result",
   "gameResult.stageScore": "Stage Score",
   "gameResult.timeBonus": "Time Bonus",
@@ -145,7 +158,8 @@ export const en: Partial<Dictionary> = {
   "start.goToDrawButton": "Go draw your coupon",
   "start.inviteButton": "Invite a friend",
   "start.drawAvailableNotice": "You have a coupon draw available",
-  "start.invitePromo": "Who's the true Gookbap Master?\nJoin the <1953 Spot-the-Difference Challenge> and grab a 1953 Brother Pork Gookbap coupon! 🍲",
+  // 상호와 일반명사 모두 `Gukbap`으로 통일한다(`window.brand` 주석 참고).
+  "start.invitePromo": "Who's the true Gukbap Master?\nJoin the <1953 Spot-the-Difference Challenge> and grab a 1953 Brothers Gukbap coupon! 🍲",
   "start.inviteCopied": "Invite link copied!",
   "start.inviteFailed": "Couldn't copy. Please try again in a moment.",
   "wheel.nextButton": "Next",

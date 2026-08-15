@@ -76,7 +76,7 @@ export default function StartScreen({
   }, [inviteMessage]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-md w-full text-center">
         {/* `break-keep`(word-break: keep-all)이 없으면 어절 중간에서 끊긴다 —
             "도전! 1953 틀 / 린그림찾기"처럼(2026-08-14, 320·390px 실측). 한국어는
@@ -189,15 +189,30 @@ export default function StartScreen({
           들어가면 언젠가 어긋난다 — `LOCALE_LABELS`와 `GAME OVER`/`CLEAR!` 리터럴을
           로케일에서 뺀 것과 같은 근거다(AGENTS.md 연출 글자 절). 상호는 번역 대상이
           아니고, 표기는 회사 문서를 따라 '(주)웨이브앤바이브'다. */}
+      {/* **글자를 흰색으로 둔다.** 푸터는 `PixelPanel` 바깥이라 배경 사진에 그대로
+          노출되는 유일한 텍스트이고, 이제 배경은 (게임 중을 빼면) 항상 깔린다.
+          `text-muted`(#5A6570)를 그대로 두면 `city_midnight` 위에서 **2.02:1**까지
+          떨어진다 — 개인정보처리방침 재열람의 유일한 통로라(AGENTS.md) 실제 손실이다.
+
+          **회색을 유지한 채로는 못 고친다.** #5A6570의 휘도가 배경들과 `--bg` 사이에
+          끼어 있어 배경을 밝히면 대비가 단조 증가하지 않고 글자 휘도를 통과한다
+          (α=0.3 → 1.03 / 0.5 → 1.47 / 0.7 → 2.15). 어둡게 하는 방향에서만 흰 글자의
+          대비가 단조 증가한다.
+
+          가독성은 배경 레이어 하단의 그라데이션이 만든다(`DaylightBackground`) —
+          푸터 자리 국소 최악 **7.22:1**로 AA를 넘는다. 사각형 칩을 얹는 안은
+          `day`처럼 밝은 배경에서 그 자리만 패인 것처럼 보여 버렸다(2026-08-15 이란토). */}
       <footer className="mt-4 flex flex-col items-center gap-1 text-center">
         <button
           type="button"
           onClick={onOpenLegal}
-          className="text-xs text-muted underline underline-offset-2"
+          className="text-xs text-white underline underline-offset-2"
         >
           {t("legal.openButton")}
         </button>
-        <p className="text-[0.65rem] text-muted">Copyright © 2026 (주)웨이브앤바이브</p>
+        <p className="text-[0.65rem] text-white">
+          Copyright © 2026 (주)웨이브앤바이브
+        </p>
       </footer>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { Dictionary } from "../types.ts";
 
 export const ko: Dictionary = {
-  "meta.title": "1953 눈썰미 대결!",
+  "meta.title": "도전! 1953 틀린그림찾기",
   "meta.description": "틀린그림찾기의 달인을 찾습니다.",
 
   "common.retry": "다시 시도",
@@ -103,6 +103,28 @@ export const ko: Dictionary = {
   "preload.sessionError": "게임 데이터를 불러오는데 실패했습니다. 접속이 원활하지 않습니다.",
   "preload.levelSessionError": "{level}단계 게임 데이터를 불러오지 못했습니다.",
   "preload.imageError": "이미지를 불러오는데 실패했습니다. 접속이 원활하지 않습니다.",
+
+  /* 로딩 화면 읽을거리(2026-08-15). 로딩 화면이 뜰 때 셋 중 하나를 뽑아 고정한다
+     — 이미지는 순환하고 글은 고정이다. 키 목록은 `introSlides.ts`에 있고 네
+     로케일 모두에 있어야 한다(`introSlides.test.ts`).
+
+     **검증되지 않은 사실을 넣지 말 것.** 창업 연도·창업주·수상 이력은 이 리포에서
+     확인할 수 없다(상호의 `1953`은 시사일 뿐 근거가 아니다). 확실한 것은 상호와
+     부산 소재뿐이라 문장을 거기에 맞춰 담백하게 썼다. 사실이 확인되면 그때 더
+     구체적인 문구로 바꿀 것.
+
+     **상호를 문장 안에 다시 적지 말 것.** 이 문구는 창 제목 표시줄
+     (`window.brand`) **바로 아래**에 뜨는데, 로케일마다 표기가 다르다
+     (en `1953 Brothers Gukbap` / ja `1953 兄弟テジクッパ` /
+     zh `1953 兄弟猪肉汤饭`). 문장에 따로 적으면 같은 화면에서 같은 가게가
+     두 줄 간격으로 다른 이름으로 뜬다 — 실제로 en·ja를 지어낼 뻔했다.
+     제목 표시줄이 이미 상호를 들고 있으므로 문장에는 없어도 잃는 것이 없다.
+
+     영업시간도 넣지 않았다. 부산 소재는 확인됐지만(설계 문서 3절) 아침
+     영업 여부는 이 리포에서 확인할 수 없다. */
+  "preload.brandLine1": "뜨끈한 국밥 한 그릇으로 맞이합니다.",
+  "preload.brandLine2": "부산에서 끓여내는 돼지국밥 한 그릇.",
+  "preload.brandLine3": "오늘도 정성껏 끓여 손님을 기다립니다.",
 
   "gameResult.title": "게임 결과",
   "gameResult.stageScore": "Stage 점수",

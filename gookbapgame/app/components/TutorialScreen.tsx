@@ -49,7 +49,7 @@ export default function TutorialScreen({
   const isLastPage = pageIndex === PAGE_KEYS.length - 1;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh bg-bg text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
       {/* 닫기는 타이틀바의 ✕가 맡는다 — 본문 좌상단에 두면 타이틀바와 겹친다. */}
       <PixelPanel
         size="card"

@@ -584,6 +584,21 @@ body {
   }
 }
 
+/* 시작 화면 시간대 배경의 크로스페이드(설계 문서 2026-08-15 3절).
+   **경계 부근에 접속했을 때만** 걸린다 — 직전 단계 이미지 위로 현재 단계가 5초에 걸쳐
+   덮는다. 게임 중에 시간이 흘러 경계를 넘는 경우는 다루지 않는다(한 판이 짧고, 배경이
+   플레이 도중 바뀌면 오히려 산만하다).
+   `both`로 잡아 시작 프레임의 opacity 0이 첫 페인트부터 적용되게 한다 — 없으면 한 프레임
+   동안 새 배경이 그대로 보였다가 사라진다. */
+@keyframes daylight-crossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .photo-swap__incoming {
   animation: photo-swap-in 0.3s ease-in-out;
 }

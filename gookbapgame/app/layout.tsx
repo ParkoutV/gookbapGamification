@@ -42,7 +42,7 @@ export const metadata: Metadata = {
    * 로케일별로 갈라주지는 않는다. `generateMetadata`로 하려면 요청에서 언어를
    * 정해야 하는데, 실제 로케일은 localStorage(클라이언트)에 있어 서버가 알 수 없다.
    */
-  title: "1953 눈썰미 대결!",
+  title: "도전! 1953 틀린그림찾기",
   description: "틀린그림찾기의 달인을 찾습니다.",
   other: {
     /**
