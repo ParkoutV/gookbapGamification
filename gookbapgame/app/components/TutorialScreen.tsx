@@ -6,6 +6,7 @@ import { useLocale } from "../lib/i18n/LocaleContext";
 import type { PreloadStatus } from "../hooks/useGameProgress";
 import type { LoadError } from "../lib/preloadGame";
 import type { GatchaLimitNotice } from "../lib/gatchaLimit";
+import { TUTORIAL_SHOTS } from "../lib/tutorialShots";
 
 // 페이지 순서. 로케일 키의 중간 세그먼트로 쓴다(tutorial.what.title 등).
 const PAGE_KEYS = ["what", "limit", "score"] as const;
@@ -47,6 +48,7 @@ export default function TutorialScreen({
 
   const pageKey = PAGE_KEYS[pageIndex];
   const isLastPage = pageIndex === PAGE_KEYS.length - 1;
+  const shot = TUTORIAL_SHOTS[pageKey];
 
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
@@ -66,11 +68,32 @@ export default function TutorialScreen({
           {t(`tutorial.${pageKey}.title`)}
         </h2>
 
-        {/*
-          일러스트 자리. 로드맵 A단계(디자인 톤·아이콘)가 끝난 뒤 채운다.
-          지금 비워두는 이유는 톤이 확정되기 전에 그리면 재작업이 되기 때문이다.
-        */}
-        <div className="w-full aspect-[4/3] mb-4 bg-black/20" aria-hidden="true" />
+        {/* 예시 이미지(2026-08-16). 실제 게임 화면을 장마다 필요한 만큼만 잘라 쓴다 —
+            애셋과 그 근거는 `docs/build-tutorial-assets.sh`, 비율은 `tutorialShots.ts`.
+
+            **`aspect-[4/3]` 고정으로 되돌리지 말 것.** 세 장의 비율이 0.63 / 9.69 / 1.98로
+            제각각이라(본문이 말하는 영역만 잘라냈다) 한 비율에 가두면 `object-contain`이
+            레터박스를 만들어 위아래가 빈다. 각 장이 자기 비율을 그대로 쓴다.
+
+            장식이 아니라 설명의 일부지만 **본문 문구가 같은 내용을 이미 말하고 있어**
+            `aria-hidden`으로 둔다 — 스크린리더에 그림 설명을 중복으로 읽히지 않는다. */}
+        {/* **높이 상한이 폭에 걸려 있다**(`max-width`, `height`가 아니다). `what`은
+            비율 0.63이라 416px 폭에서 664px까지 자라 세로 예산(약 492px)을 넘는다.
+            높이를 직접 주면 비율이 깨져 `object-contain`이 좌우에 레터박스를 만들므로,
+            게임판(`.photo-frame--fit`)과 같이 폭으로 환산해 건다 —
+            높이 상한 × 비율 = 폭 상한. `mx-auto`는 그렇게 좁아진 장을 가운데 두려는 것이다. */}
+        {shot && (
+          <img
+            src={shot.src}
+            alt=""
+            aria-hidden="true"
+            className="w-full mb-4 mx-auto"
+            style={{
+              aspectRatio: shot.aspect,
+              maxWidth: `calc(min(46dvh, 420px) * ${shot.aspect})`,
+            }}
+          />
+        )}
 
         <p className="text-sm text-left whitespace-pre-line mb-6 min-h-[6rem]">
           {t(`tutorial.${pageKey}.body`)}
