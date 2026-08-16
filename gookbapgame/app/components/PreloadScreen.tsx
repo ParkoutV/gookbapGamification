@@ -12,8 +12,13 @@ import {
 } from "../lib/introSlides";
 
 /** 슬라이드 영역 높이. 세 장의 비율이 달라 고정 높이 + object-contain이 필요하다.
-    `vh`가 아니라 `dvh`인 것은 브라우저 툴바 때문이다(AGENTS.md의 전용 절). */
-const SLIDE_H = "min(180px, 22dvh)";
+    `vh`가 아니라 `dvh`인 것은 브라우저 툴바 때문이다(AGENTS.md의 전용 절).
+
+    **180px에서 240px로 올렸다**(2026-08-16, 이란토). 세 장이 전부 세로형~정사각
+    (0.85 / 1.00 / 1.07)이라 높이로 잘리면 폭이 남는다 — 180px일 때 가장 넓은 장도
+    193px밖에 안 돼서 384px 패널 안에 좌우 여백이 80~99px씩 생겼다. 창을 좁히는
+    것만으로는 해결되지 않는다(여백이 48~67px로 줄 뿐이다). 둘을 같이 조정한 값이다. */
+const SLIDE_H = "min(240px, 30dvh)";
 
 interface PreloadScreenProps {
   loadError: LoadError | null;
@@ -63,7 +68,11 @@ export default function PreloadScreen({ loadError, onRetry, onGoToStart }: Prelo
       role={loadError ? "alert" : "status"}
       aria-live={loadError ? "assertive" : "polite"}
     >
-      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full mx-4 text-center">
+      {/* **이 화면만 `max-w-xs`다**(다른 패널은 `max-w-sm`, 2026-08-16 이란토).
+          슬라이드 3장이 세로형~정사각이라 넓은 창에서는 이미지 양옆 여백만 커진다.
+          `GatchaLoading`도 같은 폭으로 맞춘다 — "서버를 기다리는 화면은 같은 모양"이라는
+          규칙이 AGENTS.md에 있고, 한쪽만 줄이면 그게 깨진다. */}
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-xs w-full mx-4 text-center">
         {loadError ? (
           <>
             <p className="text-error mb-6 text-lg">{t(loadError.key, loadError.params)}</p>
