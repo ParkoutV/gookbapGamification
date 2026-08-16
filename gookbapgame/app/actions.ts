@@ -4,7 +4,8 @@ import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
 import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
 import { orderBaseImageCandidates, shuffled } from "./lib/baseImageOrder";
-import { requestUnifiedImage, type ImageSlots } from "./lib/generateUnified";
+import { requestUnifiedImages, type ImageSlots } from "./lib/generateUnified";
+import { zipPlansToSessions } from "./lib/sessionZip";
 import {
   getPartSilhouette,
   mapSilhouetteToSlot,
@@ -70,7 +71,7 @@ export type GameSession = {
   slots: GameSlot[];
   /**
    * 이 판에 쓴 배경 이미지 id. **다음 판에서 같은 배경을 피하려고 돌려준다** —
-   * `fetchGameData`는 서버 액션이라 직전 판을 기억하지 못하므로, 클라이언트가 들고
+   * `planAllGameSessions`는 서버 액션이라 직전 판을 기억하지 못하므로, 클라이언트가 들고
    * 있다가 `excludeBaseImageId`로 되돌려주는 구조다(`baseImageOrder.ts` 참고).
    */
   baseImageId: number;
@@ -114,16 +115,32 @@ async function computeSlotPolygons(
 }
 
 /**
+ * 한 레벨의 출제 명세. **합성 URL이 아직 없다** — 그것만 빼면 `GameSession`이다.
+ *
+ * 출제(배경·정답 슬롯·파츠 선택)는 전부 순수 계산이라 네트워크가 필요 없고, 예전
+ * `fetchGameData`는 그 계산 끝에 자기 몫 2장을 곧바로 합성 요청했다. 7레벨을 병렬로
+ * 돌리므로 요청이 14건 나갔다. 지금은 여기서 멈추고 `planAllGameSessions`가 14건을
+ * **한 번에** 요청한다(2026-08-16 벌크 API 전환).
+ */
+type SessionPlan = {
+  level: number;
+  baseImageId: number;
+  slots: GameSlot[];
+  leftImageSlots: ImageSlots;
+  rightImageSlots: ImageSlots;
+};
+
+/**
  * `excludeBaseImageId`는 **직전 판에서 이 레벨이 쓴 배경**이다. 있으면 후보 순서에서
  * 뒤로 밀려 다른 배경이 우선 뽑힌다 — 대안이 없으면 그대로 다시 뽑힌다
  * (`baseImageOrder.ts`가 그 이유를 설명한다: 빼버리면 풀이 1장인 레벨에서 게임이
  * 시작되지 않는다).
  */
-export async function fetchGameData(
+async function planGameSession(
   level: number,
   targetDiffCount: number,
   excludeBaseImageId?: number | null
-): Promise<GameSession | null> {
+): Promise<SessionPlan | null> {
   try {
     // 1. Fetch base_images registered for this stage's level and shuffle them
     const { data: baseImages, error: baseErr } = await supabase
@@ -193,12 +210,12 @@ export async function fetchGameData(
       .in("id", usedCategoryIds);
 
     if (categoriesErr) {
-      console.warn("[fetchGameData] part_categories 조회 실패 — 힌트에 카테고리명이 비게 된다:", categoriesErr);
+      console.warn("[planGameSession] part_categories 조회 실패 — 힌트에 카테고리명이 비게 된다:", categoriesErr);
     }
 
     if (!categoriesErr && (categoryRows ?? []).length < usedCategoryIds.length) {
       console.warn(
-        `[fetchGameData] part_categories ${usedCategoryIds.length}건 중 ${(categoryRows ?? []).length}건만 조회됨 — anon SELECT 권한/RLS 정책을 확인할 것`
+        `[planGameSession] part_categories ${usedCategoryIds.length}건 중 ${(categoryRows ?? []).length}건만 조회됨 — anon SELECT 권한/RLS 정책을 확인할 것`
       );
     }
 
@@ -221,7 +238,7 @@ export async function fetchGameData(
     const numDifferences = clampDifferenceCount(desiredCount, N);
     if (numDifferences < desiredCount) {
       console.warn(
-        `[fetchGameData] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${desiredCount})보다 적어 ${numDifferences}개로 축소함`
+        `[planGameSession] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${desiredCount})보다 적어 ${numDifferences}개로 축소함`
       );
     }
 
@@ -295,39 +312,75 @@ export async function fetchGameData(
       })
     );
 
-    const baseImageId = selectedBaseImage.id;
-
-    const apiUrl = process.env.GENERATE_UNIFIED_API_URL;
-    if (!apiUrl) {
-      console.error("Missing GENERATE_UNIFIED_API_URL environment variable.");
-      return null;
-    }
-
-    const [leftResult, rightResult] = await Promise.all([
-      requestUnifiedImage(apiUrl, baseImageId, leftImageSlots),
-      requestUnifiedImage(apiUrl, baseImageId, rightImageSlots),
-    ]);
-
-    if (!leftResult.ok || !rightResult.ok) {
-      console.error(
-        `[fetchGameData] generate-unified 호출 실패 (base=${baseImageId}): left=${
-          leftResult.ok ? "ok" : leftResult.error
-        }, right=${rightResult.ok ? "ok" : rightResult.error}`
-      );
-      return null;
-    }
-
     return {
       level,
-      leftSceneUrl: leftResult.url,
-      rightSceneUrl: rightResult.url,
+      baseImageId: selectedBaseImage.id,
       slots,
-      baseImageId,
+      leftImageSlots,
+      rightImageSlots,
     };
   } catch (error) {
-    console.error("Error in fetchGameData:", error);
+    console.error("Error in planGameSession:", error);
     return null;
   }
+}
+
+/**
+ * 7레벨의 출제를 병렬로 계산한 뒤, 좌/우 14장을 **벌크 API 한 번**으로 합성한다.
+ *
+ * 서버 액션이 이 단위인 것이 요점이다. 레벨별로 쪼개면 액션이 7번 불려 합성 요청도
+ * 7번으로 갈라지고, 벌크로 바꾼 의미가 사라진다.
+ *
+ * 반환 순서는 `STAGE_CONFIG` 순서 그대로다. 한 레벨이라도 실패하면 그 자리에 `null`을
+ * 넣어 돌려주므로, 호출부(`fetchAllSessions`)가 어느 레벨이 비었는지 그대로 알 수 있다.
+ */
+export async function planAllGameSessions(
+  levels: { level: number; diffCount: number }[],
+  lastBaseImageIds: Readonly<Record<number, number>> = {}
+): Promise<(GameSession | null)[]> {
+  const plans = await Promise.all(
+    levels.map((cfg) =>
+      planGameSession(cfg.level, cfg.diffCount, lastBaseImageIds[cfg.level] ?? null)
+    )
+  );
+
+  const apiUrl = process.env.GENERATE_UNIFIED_API_URL;
+  if (!apiUrl) {
+    console.error("Missing GENERATE_UNIFIED_API_URL environment variable.");
+    return plans.map(() => null);
+  }
+
+  // 성사된 계획만 모아 좌/우 순서로 늘어놓는다. 실패한 레벨은 자리를 만들지 않으므로
+  // 아래에서 `null`로 남는다.
+  const ready = plans.filter((p): p is SessionPlan => p !== null);
+  const combinations = ready.flatMap((p) => [
+    { baseImageId: p.baseImageId, imageSlots: p.leftImageSlots },
+    { baseImageId: p.baseImageId, imageSlots: p.rightImageSlots },
+  ]);
+
+  const result = await requestUnifiedImages(apiUrl, combinations);
+  if (!result.ok) {
+    // **벌크는 전부 아니면 전무다.** 한 조합이 빠져도 여기서 전 레벨이 null이 되므로
+    // 화면에는 늘 "1단계 …"로 뜬다(`fetchAllSessions`가 첫 null을 집는다). 실제로
+    // 어느 배경이 실패했는지는 이 로그에만 있다.
+    console.error(`[planAllGameSessions] generate-unified 벌크 호출 실패: ${result.error}`);
+    return plans.map(() => null);
+  }
+
+  // `urls`는 요청 순서대로 복원돼 돌아온다(`requestUnifiedImages`가 키로 짝짓는다).
+  // 되붙이는 계산은 `sessionZip.ts`에 순수 함수로 있다 — 이 함수는 Supabase를 타서
+  // 단위 테스트가 안 되는데, 14개 URL을 7레벨에 되돌리는 그 줄이 가장 위험하기 때문이다.
+  return zipPlansToSessions(plans, result.urls).map((zipped) =>
+    zipped
+      ? {
+          level: zipped.level,
+          leftSceneUrl: zipped.leftSceneUrl,
+          rightSceneUrl: zipped.rightSceneUrl,
+          slots: zipped.plan.slots,
+          baseImageId: zipped.plan.baseImageId,
+        }
+      : null
+  );
 }
 
 /**

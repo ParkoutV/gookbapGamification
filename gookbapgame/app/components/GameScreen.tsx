@@ -463,7 +463,7 @@ export default function GameScreen({
               배경 클릭 판정은 .photo-frame__photo에 붙인다 — 프레임에 붙이면
               clientWidth에 좌우 여백 20px이 섞여 scale이 어긋나고, 배경 클릭
               좌표도 여백만큼 밀린다. */}
-          <div className="photo-frame w-full">
+          <div className="photo-frame photo-frame--fit w-full">
             <div
               ref={containerRef}
               className="photo-frame__photo cursor-pointer"
@@ -527,8 +527,12 @@ export default function GameScreen({
           </div>
         </div>
 
-        {/* 힌트 + 게이지 (두 그림 사이) */}
-        <div className="flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
+        {/* 힌트 + 게이지 (두 그림 사이).
+            세로 배치에서 **인화지와 좌우 끝을 맞춘다**(`photo-frame--fit`, 2026-08-16 이란토).
+            사진이 짧은 화면에서 좁아지는데 이 줄만 `w-full`로 남으면 혼자 튀어나와
+            중심이 어긋나 보인다(실측 양쪽 28px). 같은 상한을 쓰므로 자동으로 따라간다 —
+            `md:` 가로 배치에서는 그 상한이 100%로 풀리고 `md:w-auto`가 이긴다. */}
+        <div className="photo-frame--fit flex md:flex-col items-center gap-2 w-full md:w-auto md:self-stretch md:justify-center shrink-0">
           {/* 잔여 힌트 칸. **'?' 버튼보다 앞(위)** — "second gauge의 반대편"이라는
               이란토 지시다.
 
@@ -611,7 +615,7 @@ export default function GameScreen({
 
         {/* 오른쪽(세로 배치에서는 아래쪽) 장면 + 그 아래 오답 인디케이터 */}
         <div className="flex flex-col items-center gap-2 w-full max-w-[1200px]">
-          <div className="photo-frame w-full">
+          <div className="photo-frame photo-frame--fit w-full">
             <div
               className="photo-frame__photo cursor-pointer"
               onClick={handleBackgroundClick("right")}

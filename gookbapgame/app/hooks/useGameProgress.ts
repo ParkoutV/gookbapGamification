@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchGameData, GameSession } from "../actions";
+import { planAllGameSessions, GameSession } from "../actions";
 import { createSessionPrewarm, fetchAllSessions, loadSessionImages } from "../lib/preloadGame";
 import type { LastBaseImageIds, LoadError, SessionPrewarm } from "../lib/preloadGame";
 import {
@@ -109,7 +109,7 @@ export function useGameProgress(trackId: string | null) {
   const prewarmRef = useRef<SessionPrewarm | null>(null);
   const getPrewarm = useCallback(() => {
     prewarmRef.current ??= createSessionPrewarm(() =>
-      fetchAllSessions(fetchGameData, lastBaseImageIdsRef.current)
+      fetchAllSessions(planAllGameSessions, lastBaseImageIdsRef.current)
     );
     return prewarmRef.current;
   }, []);
@@ -273,7 +273,7 @@ export function useGameProgress(trackId: string | null) {
     // 프리워밍이 실패했으면 그 실패를 화면에 띄우지 않고 정상 경로로 다시 받는다 —
     // 첫 탭 때의 네트워크 끊김이 10초 뒤 누른 시작까지 망가뜨리면 안 된다.
     if (!fetched?.ok) {
-      fetched = await fetchAllSessions(fetchGameData, lastBaseImageIdsRef.current);
+      fetched = await fetchAllSessions(planAllGameSessions, lastBaseImageIdsRef.current);
     }
     // 프리워밍은 이미지 14장을 받지 않으므로 이 단계는 어느 경로든 반드시 거친다.
     const result = fetched.ok ? await loadSessionImages(fetched.sessions) : fetched;

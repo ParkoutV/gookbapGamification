@@ -44,7 +44,11 @@ export default function GatchaLoading({
       role="status"
       aria-live="polite"
     >
-      <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full mx-4 text-center">
+      {/* 폭은 `PreloadScreen`과 **같이** 움직인다(2026-08-16 `max-w-sm`→`max-w-xs`).
+          저쪽을 좁힌 것은 슬라이드 여백 때문이고 이 화면에는 그 이득이 없지만,
+          위 주석의 "기다리는 화면은 전부 같은 형태" 규칙이 폭에도 걸린다 —
+          한쪽만 좁히면 뽑기 도중 화면이 바뀔 때 창 크기가 튄다. */}
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-xs w-full mx-4 text-center">
         {variant === "shuffle" ? (
           <>
             {/*

@@ -7,7 +7,7 @@
 
 ## 왜 서버가 두 개인가
 
-`gookbapgame`은 좌/우 장면 이미지를 스스로 합성하지 않는다. `fetchGameData`가
+`gookbapgame`은 좌/우 장면 이미지를 스스로 합성하지 않는다. `planAllGameSessions`가
 `GENERATE_UNIFIED_API_URL`로 POST해서 합성된 이미지 URL을 받아온다. 그 엔드포인트는
 **`gookbapanalyze`의 `/api/generate-unified`** 다.
 
@@ -131,7 +131,7 @@ curl -s -X POST -H 'Content-Type: application/json' \
 `AGENTS.md`가 `participants`/`track_logs`에 대해 같은 경고를 하고 있고,
 `part_categories`도 마찬가지다 — 힌트 기능이 게임 최초로 이 테이블을 읽으므로,
 배포 전에 anon SELECT 권한을 구자건에게 확인해야 한다.
-(`fetchGameData`는 이 조회가 조용히 0행을 반환하는 경우도 경고 로그를 남긴다.)
+(`planGameSession`은 이 조회가 조용히 0행을 반환하는 경우도 경고 로그를 남긴다.)
 
 **로컬 스택에 `db push` 하지 말 것.**
 
