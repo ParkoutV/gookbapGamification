@@ -817,21 +817,7 @@ export default function CouponsPage() {
               </div>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-2">
-                최고 점수 집계 기준 시간
-              </label>
-              <div className="flex items-center gap-2">
-                <input type="number" min="0" max="99" value={settings?.aggregation_hours || 0} onChange={e => handleSettingsChange('aggregation_hours', e.target.value)} className="w-20 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">시간</span>
-                <input type="number" min="0" max="59" value={settings?.aggregation_minutes || 0} onChange={e => handleSettingsChange('aggregation_minutes', e.target.value)} className="w-20 px-3 py-2 border rounded-lg dark:bg-zinc-950 dark:border-zinc-700 dark:text-white text-center" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">분</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2 flex items-center">
-                <Info className="w-3.5 h-3.5 mr-1" />
-                위 설정된 최근 시간 이내의 플레이 중 가장 높은 점수를 가져옵니다.
-              </p>
-            </div>
+
           </div>
         </div>
 
