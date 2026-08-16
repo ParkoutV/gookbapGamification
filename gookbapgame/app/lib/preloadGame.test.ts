@@ -15,7 +15,7 @@ test("모든 레벨/이미지가 성공하면 세션 전체를 반환하고 이�
   const loadedUrls: string[] = [];
 
   const result = await preloadAllStages(
-    async (level) => fakeSessions.find((s) => s.level === level) ?? null,
+    async (levels) => levels.map((c) => fakeSessions.find((s) => s.level === c.level) ?? null),
     async (url) => {
       loadedUrls.push(url);
     }
@@ -30,8 +30,10 @@ test("모든 레벨/이미지가 성공하면 세션 전체를 반환하고 이�
 
 test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 레벨을 파라미터에 포함한다", async () => {
   const result = await preloadAllStages(
-    async (level) =>
-      level === 3 ? null : { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 },
+    async (levels) =>
+      levels.map(({ level }) =>
+        level === 3 ? null : { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 }
+      ),
     async () => {}
   );
 
@@ -44,11 +46,8 @@ test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 �
 
 test("세션 조회 중 네트워크 오류로 reject되면 예외를 던지지 않고 실패로 처리한다", async () => {
   const result = await preloadAllStages(
-    async (level) => {
-      if (level === 2) {
-        throw new Error("network unreachable");
-      }
-      return { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 };
+    async () => {
+      throw new Error("network unreachable");
     },
     async () => {}
   );
@@ -61,7 +60,7 @@ test("세션 조회 중 네트워크 오류로 reject되면 예외를 던지지 
 
 test("이미지 로드가 실패하면 실패로 처리한다", async () => {
   const result = await preloadAllStages(
-    async (level) => ({ level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 }),
+    async (levels) => levels.map(({ level }) => fakeSession(level)),
     async () => {
       throw new Error("network fail");
     }
@@ -83,10 +82,10 @@ test("직전 배경만 있는 레벨도 다시하기가 된다 — 제외가 아
   const seenExcludes: (number | null | undefined)[] = [];
 
   const result = await preloadAllStages(
-    async (level, _diff, excludeBaseImageId) => {
-      seenExcludes.push(excludeBaseImageId);
+    async (levels, seen) => {
+      seenExcludes.push(...levels.map(({ level }) => seen[level] ?? null));
       // 풀이 1장이라 제외 요청과 무관하게 같은 배경을 돌려준다.
-      return { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 };
+      return levels.map(({ level }) => fakeSession(level));
     },
     async () => {},
     lastIds
@@ -103,9 +102,9 @@ test("직전 배경만 있는 레벨도 다시하기가 된다 — 제외가 아
 test("직전 기록이 없으면(첫 판) 제외 없이 부른다", async () => {
   const seenExcludes: (number | null | undefined)[] = [];
   const result = await preloadAllStages(
-    async (level, _diff, excludeBaseImageId) => {
-      seenExcludes.push(excludeBaseImageId);
-      return { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 };
+    async (levels, lastIds) => {
+      seenExcludes.push(...levels.map(({ level }) => lastIds[level] ?? null));
+      return levels.map(({ level }) => fakeSession(level));
     },
     async () => {}
   );
@@ -142,7 +141,7 @@ test("프리워밍한 세션은 정확히 한 번만 소비된다 — 두 번째
   let calls = 0;
   const fetchSessions = async (): Promise<PreloadResult> => {
     calls += 1;
-    return fetchAllSessions(async (level) => fakeSession(level));
+    return fetchAllSessions(async (levels) => levels.map(({ level }) => fakeSession(level)));
   };
 
   const prewarm = createSessionPrewarm(fetchSessions);
@@ -167,7 +166,7 @@ test("프리워밍 중 시작을 눌러도 중복 요청이 생기지 않는다"
   const fetchSessions = async (): Promise<PreloadResult> => {
     calls += 1;
     await gate;
-    return fetchAllSessions(async (level) => fakeSession(level));
+    return fetchAllSessions(async (levels) => levels.map(({ level }) => fakeSession(level)));
   };
 
   const prewarm = createSessionPrewarm(fetchSessions);
@@ -186,7 +185,7 @@ test("start를 여러 번 불러도 요청은 한 번뿐이다 — pointerdown�
   let calls = 0;
   const prewarm = createSessionPrewarm(async (): Promise<PreloadResult> => {
     calls += 1;
-    return fetchAllSessions(async (level) => fakeSession(level));
+    return fetchAllSessions(async (levels) => levels.map(({ level }) => fakeSession(level)));
   });
 
   prewarm.start();
@@ -212,7 +211,7 @@ test("프리워밍이 실패해도 에러가 되지 않고 정상 경로로 다�
 
   const result = await takeOrFetch(prewarm, async () => {
     fallbackCalls += 1;
-    return fetchAllSessions(async (level) => fakeSession(level));
+    return fetchAllSessions(async (levels) => levels.map(({ level }) => fakeSession(level)));
   });
 
   assert.equal(result.ok, true, "프리워밍 실패가 에러 상태로 새어나가면 안 된다");
@@ -229,7 +228,7 @@ test("프리워밍한 적이 없으면 take는 null이고 정상 경로가 받�
 
   const result = await takeOrFetch(prewarm, async () => {
     fallbackCalls += 1;
-    return fetchAllSessions(async (level) => fakeSession(level));
+    return fetchAllSessions(async (levels) => levels.map(({ level }) => fakeSession(level)));
   });
 
   assert.equal(result.ok, true);

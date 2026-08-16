@@ -17,7 +17,7 @@ test("직전 배경을 맨 뒤로 보낸다 — 대안이 있으면 다른 것�
  * 이 검사가 이 파일의 존재 이유다.
  *
  * 직전 배경을 목록에서 **빼버리면** 레벨당 배경이 1장일 때 후보가 0개가 되고,
- * `fetchGameData`가 null → `preloadAllStages`가 `preload.levelSessionError` →
+ * `planGameSession`이 null → `preloadAllStages`가 `preload.levelSessionError` →
  * **다시하기가 통째로 막힌다.** 로컬 픽스처가 실제로 레벨당 1장이라 바로 걸린다.
  */
 test("풀이 1장이면 그 한 장을 그대로 준다 — 절대 빈 배열이 되지 않는다", () => {
