@@ -5,6 +5,7 @@ import { parseCouponType } from "./lib/couponType";
 import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
 import { orderBaseImageCandidates, shuffled } from "./lib/baseImageOrder";
 import { requestUnifiedImages, type ImageSlots } from "./lib/generateUnified";
+import { zipPlansToSessions } from "./lib/sessionZip";
 import {
   getPartSilhouette,
   mapSilhouetteToSlot,
@@ -359,28 +360,27 @@ export async function planAllGameSessions(
 
   const result = await requestUnifiedImages(apiUrl, combinations);
   if (!result.ok) {
+    // **벌크는 전부 아니면 전무다.** 한 조합이 빠져도 여기서 전 레벨이 null이 되므로
+    // 화면에는 늘 "1단계 …"로 뜬다(`fetchAllSessions`가 첫 null을 집는다). 실제로
+    // 어느 배경이 실패했는지는 이 로그에만 있다.
     console.error(`[planAllGameSessions] generate-unified 벌크 호출 실패: ${result.error}`);
     return plans.map(() => null);
   }
 
   // `urls`는 요청 순서대로 복원돼 돌아온다(`requestUnifiedImages`가 키로 짝짓는다).
-  const urlByLevel = new Map<number, { left: string; right: string }>();
-  ready.forEach((p, i) => {
-    urlByLevel.set(p.level, { left: result.urls[i * 2], right: result.urls[i * 2 + 1] });
-  });
-
-  return plans.map((p) => {
-    if (!p) return null;
-    const urls = urlByLevel.get(p.level);
-    if (!urls) return null;
-    return {
-      level: p.level,
-      leftSceneUrl: urls.left,
-      rightSceneUrl: urls.right,
-      slots: p.slots,
-      baseImageId: p.baseImageId,
-    };
-  });
+  // 되붙이는 계산은 `sessionZip.ts`에 순수 함수로 있다 — 이 함수는 Supabase를 타서
+  // 단위 테스트가 안 되는데, 14개 URL을 7레벨에 되돌리는 그 줄이 가장 위험하기 때문이다.
+  return zipPlansToSessions(plans, result.urls).map((zipped) =>
+    zipped
+      ? {
+          level: zipped.level,
+          leftSceneUrl: zipped.leftSceneUrl,
+          rightSceneUrl: zipped.rightSceneUrl,
+          slots: zipped.plan.slots,
+          baseImageId: zipped.plan.baseImageId,
+        }
+      : null
+  );
 }
 
 /**

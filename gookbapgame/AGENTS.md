@@ -384,6 +384,15 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 - **응답에서 빠진 조합은 실패로 처리한다.** 저쪽은 합성에 실패한 조합을 조용히 빼고
   `success: true`를 준다(`if (!res.error) results.push(res)`). 14건 요청에 12건이 와도
   성공으로 보이므로, 걸러내지 않으면 `undefined`가 그대로 `leftSceneUrl`이 된다.
+- **벌크가 실패하면 화면에는 늘 "1단계"로 뜬다 — 그 레벨이 원인이 아니다.** 전부 아니면
+  전무라 전 레벨이 `null`이 되고, `fetchAllSessions`는 **첫 번째** null의 레벨을 문구에
+  넣기 때문이다. 실제로 어느 배경이 실패했는지는 서버 콘솔의 `[planAllGameSessions]`
+  로그에만 있다(`baseImageId`가 찍힌다).
+- **URL을 레벨에 되붙이는 계산은 `sessionZip.ts`에 순수 함수로 떼어놨다.** 계획이 일부
+  실패하면 그 레벨은 조합을 만들지 않아 URL도 없으므로(7레벨 중 1개 실패 → 12장),
+  `plans`의 인덱스로 URL을 찾으면 **그 뒤 레벨이 전부 한 칸씩 밀린다** — 역시 에러 없이
+  틀린 그림이 나간다. `planAllGameSessions`는 Supabase를 타서 단위 테스트가 안 되므로
+  가장 위험한 이 계산만 테스트 가능한 층으로 내렸다(`sessionZip.test.ts`).
 - **조합 개수를 쪼개거나 재시도를 넣지 않았다.** 저쪽이 병렬 합성으로 최적화를 끝냈고
   14건이 게임 한 판 전부다. 쪼개면 청크마다 위 순서 문제가 다시 생긴다 — 콜드 캐시에서
   실제로 타임아웃이 나면 그때 근거를 갖고 넣을 것.
