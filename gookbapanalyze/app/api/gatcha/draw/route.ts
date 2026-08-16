@@ -11,32 +11,58 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // 1. Fetch settings
-    const { data: settings, error: settingsError } = await supabase
-      .from('gatcha_settings')
-      .select('*')
-      .eq('id', 1)
-      .single()
+    // 1. Fetch independent queries in parallel
+    const [
+      { data: settings, error: settingsError },
+      { data: participant, error: partError },
+      { data: p1RequiredQuestions },
+      { data: gatchaLogsData, error: gatchaLogError },
+      { data: gameScoreData, error: gameScoreError },
+      { data: p1Responses, error: p1Error },
+      { data: gatchaCases, error: caseError },
+      { data: coupons, error: couponError },
+      { data: issuedCountsData }
+    ] = await Promise.all([
+      // Settings
+      supabase.from('gatcha_settings').select('*').eq('id', 1).single(),
+      // Participant
+      supabase.from('participants').select('roulette_joined').eq('participant_id', participant_id).single(),
+      // Survey Phase 1 Required
+      supabase.from('survey_questions').select('question_id').eq('survey_phase', 1).eq('is_required', true).eq('is_active', true),
+      // Gatcha Logs (for total count and time limit check)
+      supabase.from('gatcha_logs').select('joined_at').eq('participant_id', participant_id),
+      // Game Score Logs (for total count and most recent score)
+      supabase.from('game_score_logs').select('gookbap_score, joined_time').eq('participant_id', participant_id).order('joined_time', { ascending: false }),
+      // Survey Responses
+      supabase.from('survey_responses').select('question_id').eq('participant_id', participant_id),
+      // Gatcha Cases
+      supabase.from('gatcha_cases').select('*'),
+      // Coupon Effects
+      supabase.from('coupon_effects').select('*'),
+      // Issued Coupons (offline only filtering will be done in-memory to save query complexity)
+      supabase.from('issued_coupons').select('coupon_effect_id, issued_at')
+    ]);
 
+    // 2. Validate basic fetched data
     if (settingsError || !settings) {
       return NextResponse.json({ error: 'Failed to load gatcha settings' }, { status: 500 })
     }
-
-    // 2. Fetch participant
-    const { data: participant, error: partError } = await supabase
-      .from('participants')
-      .select('roulette_joined')
-      .eq('participant_id', participant_id)
-      .single()
-
     if (partError || !participant) {
       return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
+    }
+    if (couponError || !coupons || coupons.length === 0) {
+      return NextResponse.json({ error: '등록된 쿠폰이 없습니다.' }, { status: 500 })
+    }
+    if (caseError || !gatchaCases || gatchaCases.length === 0) {
+      return NextResponse.json({ error: '가챠 확률 그룹 정보가 없습니다.' }, { status: 500 })
+    }
+    if (gatchaLogError || gameScoreError) {
+      return NextResponse.json({ error: 'Failed to check play limits' }, { status: 500 })
     }
 
     // 3. Check Gatcha Limit (N days / N hours)
     let limitStartTime = new Date()
     if (settings.limit_type === 'days') {
-      // KST 00:00:00 계산
       const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
       const kstDate = new Date(kstTimeStr)
       kstDate.setDate(kstDate.getDate() - (settings.limit_n - 1))
@@ -49,35 +75,24 @@ export async function POST(req: NextRequest) {
       limitStartTime = new Date(Date.now() - (settings.limit_n * 60 * 60 * 1000))
     }
 
-    const { count: logCount, error: logError } = await supabase
-      .from('gatcha_logs')
-      .select('log_id', { count: 'exact', head: true })
-      .eq('participant_id', participant_id)
-      .gte('joined_at', limitStartTime.toISOString())
+    const limitStartMs = limitStartTime.getTime()
+    let recentGatchaCount = 0
+    gatchaLogsData.forEach(log => {
+      if (new Date(log.joined_at).getTime() >= limitStartMs) {
+        recentGatchaCount++
+      }
+    })
 
-    if (logError) {
-      return NextResponse.json({ error: 'Failed to check gatcha limits' }, { status: 500 })
-    }
-
-    if (logCount !== null && logCount >= settings.limit_m) {
+    if (recentGatchaCount >= settings.limit_m) {
       return NextResponse.json({ 
         error: `제한 횟수 초과 (${settings.limit_type === 'days' ? `${settings.limit_n}일` : `${settings.limit_n}시간`} 이내 최대 ${settings.limit_m}번 참여 가능)`, 
         code: 'LIMIT_EXCEEDED' 
       }, { status: 400 })
     }
 
-    // 3.4 Check Overall Play Count vs Gatcha Count
-    const [totalGatcha, totalGame] = await Promise.all([
-      supabase.from('gatcha_logs').select('log_id', { count: 'exact', head: true }).eq('participant_id', participant_id),
-      supabase.from('game_score_logs').select('log_id', { count: 'exact', head: true }).eq('participant_id', participant_id)
-    ]);
-
-    if (totalGatcha.error || totalGame.error) {
-      return NextResponse.json({ error: 'Failed to check play limits' }, { status: 500 })
-    }
-
-    const gatchaCountTotal = totalGatcha.count || 0;
-    const gameCountTotal = totalGame.count || 0;
+    // 4. Check Overall Play Count vs Gatcha Count
+    const gatchaCountTotal = gatchaLogsData.length
+    const gameCountTotal = gameScoreData.length
 
     if (gatchaCountTotal >= gameCountTotal) {
       return NextResponse.json({ 
@@ -86,82 +101,41 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // 3.5 Check Survey Phase 1 Completion (All required questions)
-    const { data: p1RequiredQuestions } = await supabase
-      .from('survey_questions')
-      .select('question_id')
-      .eq('survey_phase', 1)
-      .eq('is_required', true)
-      .eq('is_active', true)
-
+    // 5. Check Survey Phase 1 Completion
     if (p1RequiredQuestions && p1RequiredQuestions.length > 0) {
       const p1RequiredIds = p1RequiredQuestions.map(q => q.question_id)
+      const p1AnsweredIds = p1Responses ? p1Responses.map(r => r.question_id) : []
+      const hasCompleted = p1RequiredIds.every(id => p1AnsweredIds.includes(id))
       
-      const { data: p1Responses, error: p1Error } = await supabase
-        .from('survey_responses')
-        .select('question_id')
-        .eq('participant_id', participant_id)
-        .in('question_id', p1RequiredIds)
-
-      if (p1Error || !p1Responses || p1Responses.length < p1RequiredIds.length) {
+      if (!hasCompleted) {
         return NextResponse.json({ error: '설문조사를 먼저 완료해주세요.', code: 'SURVEY_REQUIRED' }, { status: 403 })
       }
     }
 
-    // 4. Fetch Best Score within Aggregation Time
-    const aggregationMs = (settings.aggregation_hours * 60 * 60 * 1000) + (settings.aggregation_minutes * 60 * 1000)
-    const timeLimit = new Date(Date.now() - aggregationMs).toISOString()
-
-    // We strictly use the aggregation time cutoff as requested
-    const cutoffTime = timeLimit
-
-    const { data: scores, error: scoreError } = await supabase
-      .from('game_score_logs')
-      .select('gookbap_score')
-      .eq('participant_id', participant_id)
-      .gte('joined_time', cutoffTime)
-      .order('gookbap_score', { ascending: false })
-      .limit(1)
-
-    const bestScore = (scores && scores.length > 0) ? scores[0].gookbap_score : 0
-
-    // 5. Match Score to Gatcha Case
-    const { data: gatchaCase, error: caseError } = await supabase
-      .from('gatcha_cases')
-      .select('gatcha_case_id')
-      .lte('min_score', bestScore)
-      .gte('max_score', bestScore)
-      .limit(1)
-
-    if (caseError || !gatchaCase || gatchaCase.length === 0) {
-      return NextResponse.json({ error: '해당 점수에 맞는 가챠 확률 그룹을 찾을 수 없습니다.' }, { status: 500 })
+    // 6. Fetch Most Recent Score
+    // Aggregation time logic is removed. We use the most recent score regardless of time.
+    if (gameScoreData.length === 0) {
+      return NextResponse.json({ error: '플레이 기록이 없습니다.' }, { status: 400 })
     }
-
-    const gatchaCaseId = gatchaCase[0].gatcha_case_id
-
-    // 6. Fetch Coupon Effects
-    const { data: coupons, error: couponError } = await supabase
-      .from('coupon_effects')
-      .select('*')
-
-    if (couponError || !coupons || coupons.length === 0) {
-      return NextResponse.json({ error: '등록된 쿠폰이 없습니다.' }, { status: 500 })
-    }
-
-    // 6.5 Fetch issued counts for offline coupons
-    const offlineCoupons = coupons.filter(c => !c.is_online_coupon)
-    const offlineCouponIds = offlineCoupons.map(c => c.coupon_effect_id)
     
-    const { data: issuedCountsData } = await supabase
-      .from('issued_coupons')
-      .select('coupon_effect_id, issued_at')
-      .in('coupon_effect_id', offlineCouponIds)
-      
+    // gameScoreData is already ordered by joined_time desc
+    const bestScore = gameScoreData[0].gookbap_score
+
+    // 7. Match Score to Gatcha Case
+    const matchedCase = gatchaCases.find(c => bestScore >= c.min_score && bestScore <= c.max_score)
+    if (!matchedCase) {
+      return NextResponse.json({ error: `해당 점수(${bestScore}점)에 맞는 가챠 확률 그룹을 찾을 수 없습니다.` }, { status: 500 })
+    }
+    const gatchaCaseId = matchedCase.gatcha_case_id
+
+    // 8. Process issued counts for offline coupons
+    const offlineCoupons = coupons.filter(c => !c.is_online_coupon)
+    const offlineCouponIds = new Set(offlineCoupons.map(c => c.coupon_effect_id))
+    
     const issuedCounts: Record<string, number> = {}
     const dailyIssuedCounts: Record<string, number> = {}
     
     if (issuedCountsData) {
-      // Calculate today's KST 00:00:00
       const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
       const kstDate = new Date(kstTimeStr)
       const year = kstDate.getFullYear()
@@ -171,12 +145,14 @@ export async function POST(req: NextRequest) {
 
       issuedCountsData.forEach(item => {
         const effectId = item.coupon_effect_id
-        issuedCounts[effectId] = (issuedCounts[effectId] || 0) + 1
-        
-        if (item.issued_at) {
-          const issuedTime = new Date(item.issued_at).getTime()
-          if (issuedTime >= todayKstStartMs) {
-            dailyIssuedCounts[effectId] = (dailyIssuedCounts[effectId] || 0) + 1
+        if (offlineCouponIds.has(effectId)) {
+          issuedCounts[effectId] = (issuedCounts[effectId] || 0) + 1
+          
+          if (item.issued_at) {
+            const issuedTime = new Date(item.issued_at).getTime()
+            if (issuedTime >= todayKstStartMs) {
+              dailyIssuedCounts[effectId] = (dailyIssuedCounts[effectId] || 0) + 1
+            }
           }
         }
       })

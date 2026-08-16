@@ -76,6 +76,8 @@ export async function POST(req: NextRequest) {
       
       const existingRow = existingUnified?.find(row => {
         if (Number(row.base_image_id) !== baseImageId) return false
+        if (!row.unified_image_url) return false // Ignore cache rows with missing images
+        
         const dbSlots = row.image_slots as Record<string, string>
         const dbKeys = Object.keys(dbSlots).sort()
         const reqKeys = Object.keys(imageSlots).sort()
@@ -118,11 +120,13 @@ export async function POST(req: NextRequest) {
 
         // Prepare overlays
         const overlays = parts.map(part => {
-          const category = categories.find((c: any) => c.parts.some((p: any) => Number(p.id) === Number(part.id)))
+          const category = categories.find((c: any) => c.parts && c.parts.some((p: any) => Number(p.id) === Number(part.id)))
           if (!category) return null
           
           const slot = slots.find((s: any) => Number(s.category_id) === Number(category.id))
           if (!slot) return null
+          
+          if (!part.image_url) return null
           
           return {
             imageUrl: part.image_url,
@@ -165,6 +169,7 @@ export async function POST(req: NextRequest) {
 
           return { baseImageId, imageSlots, url: newImageUrl }
         } catch (e: any) {
+          console.error(`[Combination Generator] Error for baseImageId ${comb.baseImageId}:`, e.message || e);
           return { error: e.message || 'Failed to process combination' }
         }
       }))
