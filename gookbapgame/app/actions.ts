@@ -2,10 +2,10 @@
 
 import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
-import { clampDifferenceCount, resolveQuestionsCount } from "./lib/gameSelection";
-import { orderBaseImageCandidates, shuffled } from "./lib/baseImageOrder";
 import { requestUnifiedImages, type ImageSlots } from "./lib/generateUnified";
 import { zipPlansToSessions } from "./lib/sessionZip";
+import { toGameMasterData, type GameMasterData, type MasterPart } from "./lib/gameMasterData";
+import { selectSessionPlan } from "./lib/sessionPlan";
 import {
   getPartSilhouette,
   mapSilhouetteToSlot,
@@ -77,22 +77,14 @@ export type GameSession = {
   baseImageId: number;
 };
 
-type PartRow = {
-  id: number;
-  image_url: string;
-  offset_x: number;
-  offset_y: number;
-  scale: number;
-};
-
 async function computeSlotPolygons(
-  leftPart: PartRow,
-  rightPart: PartRow,
+  leftPart: MasterPart,
+  rightPart: MasterPart,
   slotScale: number
 ): Promise<{ leftHitPolygon: Point[] | null; rightHitPolygon: Point[] | null }> {
-  const leftHull = await getPartSilhouette(leftPart.image_url);
+  const leftHull = await getPartSilhouette(leftPart.imageUrl);
   const rightHull =
-    rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.image_url);
+    rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.imageUrl);
 
   // 투명 파트(= "없는 쪽")는 실루엣이 null이다. 규칙과 이유는 `pickPolygonSource`에.
   const leftSource = pickPolygonSource(leftHull, rightHull, leftPart, rightPart);
@@ -101,8 +93,8 @@ async function computeSlotPolygons(
   const toPolygon = (source: typeof leftSource) =>
     source
       ? mapSilhouetteToSlot(source.hull, {
-          offsetX: source.placement.offset_x,
-          offsetY: source.placement.offset_y,
+          offsetX: source.placement.offsetX,
+          offsetY: source.placement.offsetY,
           partScale: source.placement.scale,
           slotScale,
         })
@@ -131,168 +123,54 @@ type SessionPlan = {
 };
 
 /**
+ * 게임 마스터 데이터(배경·슬롯·카테고리·파츠)를 **RPC 한 번**으로 받는다.
+ *
+ * 예전에는 `planGameSession`이 레벨마다 `base_images` → `image_slots` → `parts` →
+ * `part_categories`를 따로 조회해, 7레벨이 병렬로 도는 동안 28번이 나갔다. 저쪽이
+ * 같은 목적으로 만들어 둔 RPC가 있어(`gookbapanalyze/AGENTS.md`의 `base_images` 절 —
+ * "게임 클라이언트의 최적화된 초기 로딩을 위해") 그것으로 대체한다.
+ *
+ * **`planAllGameSessions`가 한 번만 부르고 7레벨이 나눠 쓴다.** 레벨별로 부르면
+ * 합성 요청을 벌크로 묶은 것과 같은 이유로 의미가 사라진다.
+ *
+ * 캐시를 두지 않는다 — 대시보드에서 이미지를 편집하면 슬롯 구성이 바뀌는데, 낡은
+ * 마스터 데이터로 만든 조합은 저쪽 합성 API가 그리지 못한다(그쪽도 편집 저장 시
+ * `unified_images` 캐시를 통째로 비운다).
+ */
+async function fetchGameMasterData(): Promise<GameMasterData | null> {
+  const { data, error } = await supabase.rpc("get_game_master_data");
+  if (error) {
+    console.error("[fetchGameMasterData] get_game_master_data 실패:", error);
+    return null;
+  }
+  return toGameMasterData(data);
+}
+
+/**
+ * 한 레벨의 출제를 계획한다. **고르는 계산은 `sessionPlan.ts`에 있다** — 순수 함수라
+ * 단위 테스트가 되고(`sessionPlan.test.ts`), 여기 남은 것은 히트 폴리곤 계산뿐이다.
+ * 그쪽은 파트 이미지를 받아 sharp로 디코딩해야 해서 순수해질 수 없다.
+ *
  * `excludeBaseImageId`는 **직전 판에서 이 레벨이 쓴 배경**이다. 있으면 후보 순서에서
  * 뒤로 밀려 다른 배경이 우선 뽑힌다 — 대안이 없으면 그대로 다시 뽑힌다
  * (`baseImageOrder.ts`가 그 이유를 설명한다: 빼버리면 풀이 1장인 레벨에서 게임이
  * 시작되지 않는다).
  */
 async function planGameSession(
+  master: GameMasterData,
   level: number,
   targetDiffCount: number,
   excludeBaseImageId?: number | null
 ): Promise<SessionPlan | null> {
   try {
-    // 1. Fetch base_images registered for this stage's level and shuffle them
-    const { data: baseImages, error: baseErr } = await supabase
-      .from("base_images")
-      .select("*")
-      .eq("level", level);
-
-    if (baseErr || !baseImages || baseImages.length === 0) {
-      console.error(`Failed to fetch base_images for level=${level}:`, baseErr);
+    const selection = selectSessionPlan(master, level, targetDiffCount, excludeBaseImageId);
+    if (!selection) {
+      console.error(`[planGameSession] level=${level}: 쓸 수 있는 배경이 없다.`);
       return null;
-    }
-
-    const shuffledBaseImages = orderBaseImageCandidates(baseImages, excludeBaseImageId);
-
-    let selectedBaseImage = null;
-    let validSlots: any[] = [];
-    let validParts: any[] = [];
-
-    // 2. Find the first base_image that meets the minimum requirements
-    for (const base of shuffledBaseImages) {
-      const { data: slots, error: slotsErr } = await supabase
-        .from("image_slots")
-        .select("*")
-        .eq("base_image_id", base.id);
-
-      if (slotsErr || !slots || slots.length === 0) continue;
-
-      const categoryIds = slots.map((s) => s.category_id);
-
-      const { data: parts, error: partsErr } = await supabase
-        .from("parts")
-        .select("*")
-        .in("category_id", categoryIds);
-
-      if (partsErr || !parts || parts.length === 0) continue;
-
-      const dedupedSlots = Array.from(
-        new Map(
-          slots.map((slot) => [`${slot.x_coordinate},${slot.y_coordinate},${slot.scale}`, slot])
-        ).values()
-      );
-
-      const currentValidSlots = dedupedSlots.filter((slot) => {
-        const slotParts = parts.filter((p) => p.category_id === slot.category_id);
-        return slotParts.length >= 2;
-      });
-
-      if (currentValidSlots.length >= 1) {
-        selectedBaseImage = base;
-        validSlots = currentValidSlots;
-        validParts = parts;
-        break;
-      }
-    }
-
-    if (!selectedBaseImage || validSlots.length === 0) {
-      console.error("No valid base image found with at least 1 valid slot.");
-      return null;
-    }
-
-    // 힌트 클립보드에 표시할 카테고리명. 이 조회가 실패해도 게임 진행은 막지 않고,
-    // 해당 슬롯의 categoryName을 null로 두어 클라이언트가 플레이스홀더를 그리게 한다.
-    const usedCategoryIds = Array.from(new Set(validSlots.map((s) => s.category_id)));
-    const { data: categoryRows, error: categoriesErr } = await supabase
-      .from("part_categories")
-      .select("id,name")
-      .in("id", usedCategoryIds);
-
-    if (categoriesErr) {
-      console.warn("[planGameSession] part_categories 조회 실패 — 힌트에 카테고리명이 비게 된다:", categoriesErr);
-    }
-
-    if (!categoriesErr && (categoryRows ?? []).length < usedCategoryIds.length) {
-      console.warn(
-        `[planGameSession] part_categories ${usedCategoryIds.length}건 중 ${(categoryRows ?? []).length}건만 조회됨 — anon SELECT 권한/RLS 정책을 확인할 것`
-      );
-    }
-
-    const categoryNameById = new Map<number, LocalizedName>(
-      (categoryRows ?? []).map((row) => [row.id as number, row.name as LocalizedName])
-    );
-
-    // 3. Determine differences — **출제 개수는 이미지가 정한다.**
-    // `base_images.questions_count`가 대시보드에서 이미지마다 설정하는 값이고
-    // (기본값 3, DB 트리거가 image_slots 개수 이하임을 보장), 어느 레벨에 나올지도
-    // 이미지의 `level`이 정한다. 그래서 같은 레벨이라도 뽑힌 이미지에 따라 개수가
-    // 다를 수 있다 — 이것이 의도된 설계다(2026-08-07, 이란토).
-    //
-    // `targetDiffCount`(STAGE_CONFIG)는 그 값이 없을 때만 쓰는 폴백이다. 예전에는
-    // 이쪽이 유일한 기준이라 대시보드에서 3개로 설정해도 레벨 7이 항상 7문항으로
-    // 나왔다.
-    const desiredCount = resolveQuestionsCount(selectedBaseImage.questions_count, targetDiffCount);
-
-    const N = validSlots.length;
-    const numDifferences = clampDifferenceCount(desiredCount, N);
-    if (numDifferences < desiredCount) {
-      console.warn(
-        `[planGameSession] level=${level}: 콘텐츠 슬롯(${N}개)이 목표 차이 개수(${desiredCount})보다 적어 ${numDifferences}개로 축소함`
-      );
-    }
-
-    // Fisher-Yates(`shuffled`)를 쓴다 — `sort(() => 0.5 - Math.random())`은 비교자가
-    // 일관되지 않아 특정 조합이 훨씬 자주 나온다. 정답 위치의 다양성이 걸린 자리다.
-    const diffIndices = shuffled([...Array(N).keys()]).slice(0, numDifferences);
-
-    const leftImageSlots: ImageSlots = {};
-    const rightImageSlots: ImageSlots = {};
-
-    const slotBuilders: {
-      slotId: number;
-      x: number;
-      y: number;
-      slotScale: number;
-      leftPart: PartRow;
-      rightPart: PartRow;
-      categoryName: LocalizedName;
-    }[] = [];
-
-    for (let i = 0; i < N; i++) {
-      const slot = validSlots[i];
-      const slotParts = validParts.filter((p) => p.category_id === slot.category_id);
-
-      const isDifference = diffIndices.includes(i);
-      let leftPart: PartRow;
-      let rightPart: PartRow;
-
-      if (isDifference && slotParts.length >= 2) {
-        const shuffledSlotParts = shuffled(slotParts);
-        leftPart = shuffledSlotParts[0];
-        rightPart = shuffledSlotParts[1];
-      } else {
-        const randomPart = slotParts[Math.floor(Math.random() * slotParts.length)];
-        leftPart = randomPart;
-        rightPart = randomPart;
-      }
-
-      slotBuilders.push({
-        slotId: slot.id,
-        x: slot.x_coordinate,
-        y: slot.y_coordinate,
-        slotScale: slot.scale ?? 1.0,
-        leftPart,
-        rightPart,
-        categoryName: categoryNameById.get(slot.category_id) ?? null,
-      });
-
-      leftImageSlots[slot.category_id] = leftPart.id;
-      rightImageSlots[slot.category_id] = rightPart.id;
     }
 
     const slots: GameSlot[] = await Promise.all(
-      slotBuilders.map(async (builder) => {
+      selection.slots.map(async (builder) => {
         const { leftHitPolygon, rightHitPolygon } = await computeSlotPolygons(
           builder.leftPart,
           builder.rightPart,
@@ -314,10 +192,10 @@ async function planGameSession(
 
     return {
       level,
-      baseImageId: selectedBaseImage.id,
+      baseImageId: selection.baseImageId,
       slots,
-      leftImageSlots,
-      rightImageSlots,
+      leftImageSlots: selection.leftImageSlots,
+      rightImageSlots: selection.rightImageSlots,
     };
   } catch (error) {
     console.error("Error in planGameSession:", error);
@@ -338,9 +216,16 @@ export async function planAllGameSessions(
   levels: { level: number; diffCount: number }[],
   lastBaseImageIds: Readonly<Record<number, number>> = {}
 ): Promise<(GameSession | null)[]> {
+  // **7레벨이 이 한 번의 조회를 나눠 쓴다.** 레벨마다 부르면 RPC로 묶은 의미가 없다.
+  const master = await fetchGameMasterData();
+  if (!master) {
+    console.error("[planAllGameSessions] 마스터 데이터를 받지 못해 전 레벨을 포기한다.");
+    return levels.map(() => null);
+  }
+
   const plans = await Promise.all(
     levels.map((cfg) =>
-      planGameSession(cfg.level, cfg.diffCount, lastBaseImageIds[cfg.level] ?? null)
+      planGameSession(master, cfg.level, cfg.diffCount, lastBaseImageIds[cfg.level] ?? null)
     )
   );
 
