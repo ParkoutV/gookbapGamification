@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import type { PreloadStatus } from "../hooks/useGameProgress";
@@ -46,6 +46,23 @@ export default function TutorialScreen({
   const { t } = useLocale();
   const [pageIndex, setPageIndex] = useState(0);
 
+  /* 세 장을 마운트 때 미리 받아둔다(합쳐 70KB). 장을 넘긴 뒤에 받기 시작하면 그
+     동안 빈 박스가 보인다 — 아래 `key`가 낡은 비트맵을 지우기 때문에 **찌그러지는
+     대신 비어 보이는** 것으로 증상이 바뀌므로, 그 빈 시간을 없애는 것이 여기 몫이다.
+
+     실패는 그냥 둔다(`onerror`를 달지 않는다). 여기서 못 받아도 `<img>`가 제 몫을
+     다시 받으므로 굳이 붙잡을 이유가 없고, 알림을 띄우면 그림 하나 때문에 튜토리얼이
+     막힌다. 목록은 `TUTORIAL_SHOTS`에서 그대로 파생시킬 것 — 따로 적으면 장이
+     늘었을 때 조용히 빠진다. */
+  useEffect(() => {
+    for (const preloaded of Object.values(TUTORIAL_SHOTS)) {
+      // 참조를 붙잡는다(`preloadGame.ts`의 `loadImageInBrowser`와 같은 관용구) —
+      // 버리면 로드가 끝나기 전에 GC 대상이 된다.
+      const img = new Image();
+      img.src = preloaded.src;
+    }
+  }, []);
+
   const pageKey = PAGE_KEYS[pageIndex];
   const isLastPage = pageIndex === PAGE_KEYS.length - 1;
   const shot = TUTORIAL_SHOTS[pageKey];
@@ -71,7 +88,7 @@ export default function TutorialScreen({
         {/* 예시 이미지(2026-08-16). 실제 게임 화면을 장마다 필요한 만큼만 잘라 쓴다 —
             애셋과 그 근거는 `docs/build-tutorial-assets.sh`, 비율은 `tutorialShots.ts`.
 
-            **`aspect-[4/3]` 고정으로 되돌리지 말 것.** 세 장의 비율이 0.63 / 9.69 / 1.98로
+            **`aspect-[4/3]` 고정으로 되돌리지 말 것.** 세 장의 비율이 0.63 / 9.69 / 3.24로
             제각각이라(본문이 말하는 영역만 잘라냈다) 한 비율에 가두면 `object-contain`이
             레터박스를 만들어 위아래가 빈다. 각 장이 자기 비율을 그대로 쓴다.
 
@@ -82,17 +99,53 @@ export default function TutorialScreen({
             높이를 직접 주면 비율이 깨져 `object-contain`이 좌우에 레터박스를 만들므로,
             게임판(`.photo-frame--fit`)과 같이 폭으로 환산해 건다 —
             높이 상한 × 비율 = 폭 상한. `mx-auto`는 그렇게 좁아진 장을 가운데 두려는 것이다. */}
+        {/* **`key`를 빼지 말 것**(2026-08-17, 이란토 제보). 없으면 React가 같은
+            `<img>`를 재사용해 `src`만 갈아끼우는데, 브라우저는 새 그림이 도착할
+            때까지 **이전 비트맵을 계속 그린다.** 비율은 위 `style`이 즉시 바뀌므로
+            그 사이 이전 그림이 새 비율에 늘어난다 — 0.63과 9.69를 오가는 사이라
+            눌리거나 홀쭉해지는 것이 눈에 그대로 보였다. `key`가 있으면 언마운트되어
+            낡은 비트맵이 존재할 수 없다.
+
+            `object-contain`은 그 위의 안전망이다. 선언 비율(`tutorialShots.ts`)과
+            실제 애셋이 어긋날 때만 작동하며(어긋나면 `tutorialShots.test.ts`가 먼저
+            잡는다), 정상 상태에서는 박스와 그림의 비율이 같아 레터박스가 생기지
+            않는다 — 위 주석의 "한 비율에 가두지 말 것"과 충돌하지 않는다.
+
+            **로드 완료까지 버튼을 막는 쪽은 택하지 않았다.** 404거나 `onLoad`가
+            오지 않으면 버튼이 영구히 죽어 튜토리얼을 빠져나갈 수 없다. */}
+        {/* **바깥 `div`의 `min-height`는 창이 출렁이는 것을 줄이는 몫이다**
+            (2026-08-17, 이란토 지적). 그림 높이가 장마다 394 / 128 / 43px로 갈려
+            (가용폭 ÷ 각 비율) 장을 넘길 때마다 창이 350px 가까이 줄었다 늘었다 했다.
+            세로 중앙 정렬이라 그 변화가 위아래 경계에 절반씩 나뉘어, 읽던 위치가
+            통째로 움직인다.
+
+            바닥값은 위 높이 상한의 **절반**이다 — 임의의 수가 아니라 그 상한에서
+            유도한 값이며, 상한을 고치면 여기도 같이 따라가야 한다. 최대치(46dvh)로
+            맞추지 않은 것은 43px짜리 `limit` 장이 394px 박스 안에서 휑해지기
+            때문이다. 변화폭만 반으로 줄이는 절충이다.
+
+            바로 아래 본문 `<p>`의 `min-h-[6rem]`이 같은 문제를 이미 같은 방식으로
+            처리하고 있다 — 문구 길이가 장마다 달라 버튼이 오르내리던 자리다.
+
+            **높이를 `<img>`에 직접 걸지 말 것.** 비율이 깨진다(위 주석 참고).
+            래퍼가 자리만 잡고 그림은 자기 비율대로 그 안에 놓인다. */}
         {shot && (
-          <img
-            src={shot.src}
-            alt=""
-            aria-hidden="true"
-            className="w-full mb-4 mx-auto"
-            style={{
-              aspectRatio: shot.aspect,
-              maxWidth: `calc(min(46dvh, 420px) * ${shot.aspect})`,
-            }}
-          />
+          <div
+            className="flex items-center justify-center mb-4"
+            style={{ minHeight: "min(23dvh, 210px)" }}
+          >
+            <img
+              key={pageKey}
+              src={shot.src}
+              alt=""
+              aria-hidden="true"
+              className="w-full mx-auto object-contain"
+              style={{
+                aspectRatio: shot.aspect,
+                maxWidth: `calc(min(46dvh, 420px) * ${shot.aspect})`,
+              }}
+            />
+          </div>
         )}
 
         <p className="text-sm text-left whitespace-pre-line mb-6 min-h-[6rem]">

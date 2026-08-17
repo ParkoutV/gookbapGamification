@@ -44,3 +44,49 @@ test("페이지 키와 애셋 키가 일치한다", () => {
   const pageKeys = ["what", "limit", "score"];
   assert.deepEqual(Object.keys(TUTORIAL_SHOTS).sort(), [...pageKeys].sort());
 });
+
+/*
+ * 장을 넘길 때 그림이 눌리거나 홀쭉해지던 버그의 가드다(2026-08-17 이란토 제보).
+ * `key`가 없으면 React가 같은 `<img>`를 재사용해 `src`만 갈아끼우는데, 브라우저는
+ * 새 그림이 도착할 때까지 **이전 비트맵을 계속 그린다** — 비율 style은 즉시 바뀌므로
+ * 그 사이 이전 그림이 새 비율에 늘어난다. `object-contain`은 그 위의 안전망이다.
+ *
+ * JSX는 `--experimental-strip-types`가 파싱하지 못해 컴포넌트를 불러올 수 없으므로
+ * 소스를 문자열로 훑는다 — `couponEmoji.test.ts`가 VS16을 막는 방식과 같다.
+ */
+test("튜토리얼 예시 이미지는 key와 object-contain을 유지한다", () => {
+  const source = readFileSync("app/components/TutorialScreen.tsx", "utf8");
+  // 주석 안의 `<img>`는 속성이 없어 걸러진다.
+  const tags = [...source.matchAll(/<img\b[^>]*>/g)]
+    .map((m) => m[0])
+    .filter((tag) => tag.includes("src="));
+  assert.equal(tags.length, 1, "예시 이미지는 한 곳에서만 그린다");
+  assert.match(tags[0], /\bkey=/, "key가 없으면 낡은 비트맵이 새 비율에 늘어난다");
+  assert.match(tags[0], /object-contain/, "비율이 어긋날 때 찌그러지지 않게 하는 안전망");
+
+  /* 래퍼의 `items-center`는 장식이 아니다 — 없으면 flex 기본값 `stretch`가 걸려
+     `<img>`가 바닥값 높이만큼 **늘어나고**, `object-contain`이 레터박스를 만들어
+     비율 깨짐이 다른 경로로 되살아난다. */
+  const wrapper = source.match(/<div\n\s+className="flex[^"]*"/);
+  assert.ok(wrapper, "이미지 래퍼를 찾지 못했다");
+  assert.match(wrapper[0], /items-center/, "stretch가 되면 그림이 세로로 늘어난다");
+});
+
+/*
+ * 이미지 영역의 바닥값(`min-height`)은 높이 상한의 **절반**으로 잡은 것이라
+ * 상한만 고치면 근거가 조용히 끊긴다. 장마다 창이 출렁이는 것을 줄이는 몫이므로,
+ * 어느 한쪽만 커지면 그 절충이 의도와 다른 값이 된다.
+ *
+ * **이건 물리적 관계가 아니라 절충치다.** 짧은 장이 휑하다고 바닥값을 낮추기로
+ * 했다면 그건 정당한 변경이며, 그때는 이 테스트도 함께 고칠 것 — 어긋나면 화면이
+ * 깨지는 종류의 가드가 아니다(바로 위 `items-center`가 그쪽이다).
+ */
+test("이미지 영역의 바닥값은 높이 상한의 절반이다", () => {
+  const source = readFileSync("app/components/TutorialScreen.tsx", "utf8");
+  const cap = source.match(/maxWidth: `calc\(min\((\d+)dvh, (\d+)px\)/);
+  const floor = source.match(/minHeight: "min\((\d+)dvh, (\d+)px\)"/);
+  assert.ok(cap, "높이 상한(maxWidth의 calc)을 찾지 못했다");
+  assert.ok(floor, "바닥값(minHeight)을 찾지 못했다");
+  assert.equal(Number(floor[1]) * 2, Number(cap[1]), `dvh: ${floor[1]} × 2 ≠ ${cap[1]}`);
+  assert.equal(Number(floor[2]) * 2, Number(cap[2]), `px: ${floor[2]} × 2 ≠ ${cap[2]}`);
+});
