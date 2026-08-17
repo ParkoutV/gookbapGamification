@@ -36,7 +36,8 @@ function combinationKey(baseImageId: number | string, imageSlots: Record<string,
  */
 export async function requestUnifiedImages(
   apiUrl: string,
-  combinations: UnifiedCombination[]
+  combinations: UnifiedCombination[],
+  masterData?: any
 ): Promise<GenerateUnifiedResult> {
   if (combinations.length === 0) return { ok: true, urls: [] };
 
@@ -45,7 +46,7 @@ export async function requestUnifiedImages(
     res = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ combinations }),
+      body: JSON.stringify({ combinations, masterData }),
     });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Unknown fetch error" };

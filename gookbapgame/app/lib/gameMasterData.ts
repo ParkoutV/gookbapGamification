@@ -1,5 +1,48 @@
 import type { LocalizedName } from "./i18n/localizedName.ts";
 
+/**
+ * `get_game_master_data` RPC가 **실제로 돌려주는 형태**. 2026-08-17에 구자건(그 함수를
+ * 만든 사람)이 직접 적어준 것이라 이 저장소에서 가장 믿을 만한 명세다.
+ *
+ * **`parts`에 `category_id`가 없다** — 파츠가 카테고리 밑에 중첩돼 있어 중복 키를 두지
+ * 않았다. 평탄화한 배열에 `p.category_id === slot.category_id` 필터를 얹으면
+ * `undefined === n`이 되어 유효 슬롯이 0개가 되고 전 레벨이 조용히 죽는다.
+ * `toGameMasterData`가 부모 카테고리의 `id`를 채워 넣는 이유다.
+ *
+ * `z_index`는 이쪽 계산에 쓰지 않지만 **합성 API가 레이어 순서에 쓴다.** 그래서
+ * 도메인 타입으로 옮긴 값이 아니라 **RPC 응답 원본을 그대로** 저쪽에 넘겨야 한다
+ * (`planAllGameSessions` 참고).
+ */
+export type RawGameMasterData = {
+  base_images: {
+    id: number;
+    level: number;
+    title: Record<string, string>;
+    image_url: string;
+    questions_count: number;
+    slots: {
+      id: number;
+      category_id: number;
+      x_coordinate: number;
+      y_coordinate: number;
+      z_index: number;
+      scale: number;
+    }[];
+  }[];
+  categories: {
+    id: number;
+    name: Record<string, string>;
+    parts: {
+      id: number;
+      name: Record<string, string>;
+      image_url: string;
+      offset_x: number;
+      offset_y: number;
+      scale: number;
+    }[];
+  }[];
+};
+
 export type MasterSlot = {
   id: number;
   categoryId: number;

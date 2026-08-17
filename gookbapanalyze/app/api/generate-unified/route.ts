@@ -39,11 +39,16 @@ export async function POST(req: NextRequest) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 2. Fetch Master Data using RPC (One query instead of multiple)
-    const { data: masterData, error: masterErr } = await supabaseAdmin.rpc('get_game_master_data')
-    if (masterErr || !masterData) {
-      console.error("Failed to fetch master data via RPC:", masterErr)
-      return NextResponse.json({ error: 'Failed to fetch game master data' }, { status: 500, headers: corsHeaders })
+    // 2. Resolve Master Data (Use provided data to save DB trips, or fallback to RPC)
+    let masterData = body.masterData;
+    
+    if (!masterData) {
+      const { data: fetchedData, error: masterErr } = await supabaseAdmin.rpc('get_game_master_data')
+      if (masterErr || !fetchedData) {
+        console.error("Failed to fetch master data via RPC:", masterErr)
+        return NextResponse.json({ error: 'Failed to fetch game master data' }, { status: 500, headers: corsHeaders })
+      }
+      masterData = fetchedData;
     }
 
     // Process each combination to ensure deterministic slot sorting

@@ -69,21 +69,27 @@ export function useCouponFlow() {
    *              사용자에게 알려야 한다 — 이걸 "empty"로 뭉뚱그렸던 것이
    *              프로덕션 장애를 조용한 스킵으로 위장시킨 원인이다.
    */
-  const loadQuestions = useCallback(async (): Promise<
+  const loadQuestions = useCallback(async (pendingIds?: string[]): Promise<
     "shown" | "empty" | "failed"
   > => {
     setState("loadingQuestions");
     const result = await fetchSurveyQuestions();
-    setQuestions(result.questions);
 
     if (!result.ok) {
       setState("idle");
       return "failed";
     }
-    if (result.questions.length === 0) {
+
+    const filteredQuestions = pendingIds && pendingIds.length > 0
+      ? result.questions.filter((q) => pendingIds.includes(q.questionId))
+      : result.questions;
+
+    if (filteredQuestions.length === 0) {
       setState("idle");
       return "empty";
     }
+    
+    setQuestions(filteredQuestions);
     setState("survey");
     return "shown";
   }, []);

@@ -276,7 +276,7 @@ export default function Home({ searchParams }: PageProps) {
 
       // **문항 조회까지 가려야 한다.** 이쪽도 "empty"/"failed"면 룰렛으로 보내므로,
       // 여기서 오버레이를 걷으면 설문 독려 화면이 그 사이에 다시 번쩍인다.
-      const outcome = await loadQuestions();
+      const outcome = await loadQuestions(pending.questionIds);
       // "empty"(문항 0건)와 "failed"(조회 실패) 모두 룰렛으로 보낸다 — 설문을 못
       // 불러왔다고 쿠폰 기회까지 막으면 사용자에게 더 큰 손해다. 다만 "failed"는
       // 콘솔에만 남던 것을 여기서 구분해 기록한다.

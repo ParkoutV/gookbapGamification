@@ -4,7 +4,12 @@ import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
 import { requestUnifiedImages, type ImageSlots } from "./lib/generateUnified";
 import { zipPlansToSessions } from "./lib/sessionZip";
-import { toGameMasterData, type GameMasterData, type MasterPart } from "./lib/gameMasterData";
+import {
+  toGameMasterData,
+  type GameMasterData,
+  type MasterPart,
+  type RawGameMasterData,
+} from "./lib/gameMasterData";
 import { selectSessionPlan } from "./lib/sessionPlan";
 import {
   getPartSilhouette,
@@ -136,14 +141,24 @@ type SessionPlan = {
  * 캐시를 두지 않는다 — 대시보드에서 이미지를 편집하면 슬롯 구성이 바뀌는데, 낡은
  * 마스터 데이터로 만든 조합은 저쪽 합성 API가 그리지 못한다(그쪽도 편집 저장 시
  * `unified_images` 캐시를 통째로 비운다).
+ *
+ * **`raw`를 함께 돌려주는 것이 요점이다.** 합성 API가 이 원본을 그대로 받아 자기 쪽
+ * RPC 왕복을 건너뛴다(2026-08-17, 구자건). 도메인 타입(`master`)을 다시 직렬화해
+ * 보내면 안 된다 — `z_index`처럼 이쪽 계산이 쓰지 않아 옮기지 않은 값이 빠져 저쪽의
+ * 레이어 순서가 **에러 없이** 틀어진다.
  */
-async function fetchGameMasterData(): Promise<GameMasterData | null> {
+async function fetchGameMasterData(): Promise<{
+  raw: RawGameMasterData;
+  master: GameMasterData;
+} | null> {
   const { data, error } = await supabase.rpc("get_game_master_data");
   if (error) {
     console.error("[fetchGameMasterData] get_game_master_data 실패:", error);
     return null;
   }
-  return toGameMasterData(data);
+
+  const master = toGameMasterData(data);
+  return master ? { raw: data as RawGameMasterData, master } : null;
 }
 
 /**
@@ -217,15 +232,20 @@ export async function planAllGameSessions(
   lastBaseImageIds: Readonly<Record<number, number>> = {}
 ): Promise<(GameSession | null)[]> {
   // **7레벨이 이 한 번의 조회를 나눠 쓴다.** 레벨마다 부르면 RPC로 묶은 의미가 없다.
-  const master = await fetchGameMasterData();
-  if (!master) {
+  const masterData = await fetchGameMasterData();
+  if (!masterData) {
     console.error("[planAllGameSessions] 마스터 데이터를 받지 못해 전 레벨을 포기한다.");
     return levels.map(() => null);
   }
 
   const plans = await Promise.all(
     levels.map((cfg) =>
-      planGameSession(master, cfg.level, cfg.diffCount, lastBaseImageIds[cfg.level] ?? null)
+      planGameSession(
+        masterData.master,
+        cfg.level,
+        cfg.diffCount,
+        lastBaseImageIds[cfg.level] ?? null
+      )
     )
   );
 
@@ -243,7 +263,16 @@ export async function planAllGameSessions(
     { baseImageId: p.baseImageId, imageSlots: p.rightImageSlots },
   ]);
 
-  const result = await requestUnifiedImages(apiUrl, combinations);
+  /*
+   * **마스터 데이터를 함께 보낸다**(2026-08-17, 구자건). 저쪽은 이게 오면 자기 쪽
+   * `get_game_master_data` 호출을 건너뛴다. **빠뜨려도 아무 일이 일어나지 않는다** —
+   * 저쪽에 "없으면 스스로 RPC를 돌린다"는 폴백이 있어서 조용히 예전만큼 느려질 뿐
+   * 화면도 테스트도 멀쩡하다. 이 인자를 지우지 말 것.
+   *
+   * 넘기는 것은 **RPC 응답 원본**이다. 도메인 타입을 다시 직렬화하면 `z_index`가 빠져
+   * 저쪽 레이어 순서가 틀어진다(`fetchGameMasterData` 주석).
+   */
+  const result = await requestUnifiedImages(apiUrl, combinations, masterData.raw);
   if (!result.ok) {
     // **벌크는 전부 아니면 전무다.** 한 조합이 빠져도 여기서 전 레벨이 null이 되므로
     // 화면에는 늘 "1단계 …"로 뜬다(`fetchAllSessions`가 첫 null을 집는다). 실제로
