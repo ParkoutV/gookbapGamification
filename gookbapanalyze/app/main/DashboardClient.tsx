@@ -266,7 +266,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
   const gameStartRate = kpis.visitors ? ((kpis.gameStarts / kpis.visitors) * 100).toFixed(1) : '0.0';
   const completionRate = kpis.gameStarts ? ((kpis.completions / kpis.gameStarts) * 100).toFixed(1) : '0.0';
   const couponUseRate = kpis.couponIssues ? ((kpis.couponUses / kpis.couponIssues) * 100).toFixed(1) : '0.0';
-  const surveyCompletionRate = kpis.completions ? ((kpis.surveyCompletions / kpis.completions) * 100).toFixed(1) : '0.0';
+  const surveyCompletionRate = kpis.visitors ? ((kpis.surveyCompletions / kpis.visitors) * 100).toFixed(1) : '0.0';
 
   const shareParticipationRate = kpis.visitors ? ((kpis.shares / kpis.visitors) * 100).toFixed(1) : '0.0';
   const inflowPerShare = kpis.shares ? (kpis.shareInflows / kpis.shares).toFixed(1) : '0.0';
