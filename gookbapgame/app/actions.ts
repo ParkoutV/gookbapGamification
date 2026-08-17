@@ -114,6 +114,40 @@ async function computeSlotPolygons(
   return { leftHitPolygon, rightHitPolygon };
 }
 
+export type GameMasterBaseImage = {
+  id: number;
+  level: number;
+  title: Record<string, string>;
+  image_url: string;
+  questions_count: number;
+  slots: {
+    id: number;
+    category_id: number;
+    x_coordinate: number;
+    y_coordinate: number;
+    z_index: number;
+    scale: number;
+  }[];
+};
+
+export type GameMasterCategory = {
+  id: number;
+  name: Record<string, string>;
+  parts: {
+    id: number;
+    name: Record<string, string>;
+    image_url: string;
+    offset_x: number;
+    offset_y: number;
+    scale: number;
+  }[];
+};
+
+export type GameMasterData = {
+  base_images: GameMasterBaseImage[];
+  categories: GameMasterCategory[];
+};
+
 /**
  * 한 레벨의 출제 명세. **합성 URL이 아직 없다** — 그것만 빼면 `GameSession`이다.
  *
@@ -139,17 +173,15 @@ type SessionPlan = {
 async function planGameSession(
   level: number,
   targetDiffCount: number,
+  masterData: GameMasterData,
   excludeBaseImageId?: number | null
 ): Promise<SessionPlan | null> {
   try {
-    // 1. Fetch base_images registered for this stage's level and shuffle them
-    const { data: baseImages, error: baseErr } = await supabase
-      .from("base_images")
-      .select("*")
-      .eq("level", level);
+    // 1. Filter base_images registered for this stage's level and shuffle them
+    const baseImages = masterData.base_images.filter((b) => b.level === level);
 
-    if (baseErr || !baseImages || baseImages.length === 0) {
-      console.error(`Failed to fetch base_images for level=${level}:`, baseErr);
+    if (baseImages.length === 0) {
+      console.error(`No base_images found in masterData for level=${level}`);
       return null;
     }
 
@@ -161,21 +193,16 @@ async function planGameSession(
 
     // 2. Find the first base_image that meets the minimum requirements
     for (const base of shuffledBaseImages) {
-      const { data: slots, error: slotsErr } = await supabase
-        .from("image_slots")
-        .select("*")
-        .eq("base_image_id", base.id);
-
-      if (slotsErr || !slots || slots.length === 0) continue;
+      const slots = base.slots || [];
+      if (slots.length === 0) continue;
 
       const categoryIds = slots.map((s) => s.category_id);
+      
+      const parts = masterData.categories
+        .filter((c) => categoryIds.includes(c.id))
+        .flatMap((c) => c.parts.map((p) => ({ ...p, category_id: c.id })));
 
-      const { data: parts, error: partsErr } = await supabase
-        .from("parts")
-        .select("*")
-        .in("category_id", categoryIds);
-
-      if (partsErr || !parts || parts.length === 0) continue;
+      if (parts.length === 0) continue;
 
       const dedupedSlots = Array.from(
         new Map(
@@ -201,27 +228,14 @@ async function planGameSession(
       return null;
     }
 
-    // 힌트 클립보드에 표시할 카테고리명. 이 조회가 실패해도 게임 진행은 막지 않고,
-    // 해당 슬롯의 categoryName을 null로 두어 클라이언트가 플레이스홀더를 그리게 한다.
+    // 힌트 클립보드에 표시할 카테고리명.
     const usedCategoryIds = Array.from(new Set(validSlots.map((s) => s.category_id)));
-    const { data: categoryRows, error: categoriesErr } = await supabase
-      .from("part_categories")
-      .select("id,name")
-      .in("id", usedCategoryIds);
-
-    if (categoriesErr) {
-      console.warn("[planGameSession] part_categories 조회 실패 — 힌트에 카테고리명이 비게 된다:", categoriesErr);
+    const categoryNameById = new Map<number, LocalizedName>();
+    for (const cat of masterData.categories) {
+      if (usedCategoryIds.includes(cat.id)) {
+        categoryNameById.set(cat.id, cat.name as LocalizedName);
+      }
     }
-
-    if (!categoriesErr && (categoryRows ?? []).length < usedCategoryIds.length) {
-      console.warn(
-        `[planGameSession] part_categories ${usedCategoryIds.length}건 중 ${(categoryRows ?? []).length}건만 조회됨 — anon SELECT 권한/RLS 정책을 확인할 것`
-      );
-    }
-
-    const categoryNameById = new Map<number, LocalizedName>(
-      (categoryRows ?? []).map((row) => [row.id as number, row.name as LocalizedName])
-    );
 
     // 3. Determine differences — **출제 개수는 이미지가 정한다.**
     // `base_images.questions_count`가 대시보드에서 이미지마다 설정하는 값이고
@@ -338,9 +352,16 @@ export async function planAllGameSessions(
   levels: { level: number; diffCount: number }[],
   lastBaseImageIds: Readonly<Record<number, number>> = {}
 ): Promise<(GameSession | null)[]> {
+  const { data: masterData, error: masterDataErr } = await supabase.rpc("get_game_master_data");
+  
+  if (masterDataErr || !masterData) {
+    console.error("[planAllGameSessions] get_game_master_data 조회 실패:", masterDataErr);
+    return levels.map(() => null);
+  }
+
   const plans = await Promise.all(
     levels.map((cfg) =>
-      planGameSession(cfg.level, cfg.diffCount, lastBaseImageIds[cfg.level] ?? null)
+      planGameSession(cfg.level, cfg.diffCount, masterData as GameMasterData, lastBaseImageIds[cfg.level] ?? null)
     )
   );
 
@@ -358,7 +379,7 @@ export async function planAllGameSessions(
     { baseImageId: p.baseImageId, imageSlots: p.rightImageSlots },
   ]);
 
-  const result = await requestUnifiedImages(apiUrl, combinations);
+  const result = await requestUnifiedImages(apiUrl, combinations, masterData);
   if (!result.ok) {
     // **벌크는 전부 아니면 전무다.** 한 조합이 빠져도 여기서 전 레벨이 null이 되므로
     // 화면에는 늘 "1단계 …"로 뜬다(`fetchAllSessions`가 첫 null을 집는다). 실제로
