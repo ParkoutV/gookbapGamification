@@ -498,13 +498,22 @@ export default function Home({ searchParams }: PageProps) {
 
       {game.phase === "surveyIntro" && (
         <>
-          <SurveyIntroScreen
-            onParticipate={() => goToPhase("survey")}
-            onDecline={declineSurvey}
-          />
-          {/* 판정이 끝날 때까지 덮는다. 뽑기 화면과 같은 대기 오버레이를 쓴다 —
-              게임 안의 "서버를 기다리는 화면"은 전부 같은 모양이다. */}
-          {surveyGateWaiting && <GatchaLoading variant="waiting" />}
+          {/* 판정이 끝날 때까지 **설문 안내를 그리지 않는다.** 뽑기 화면과 같은 대기
+              오버레이를 쓴다 — 게임 안의 "서버를 기다리는 화면"은 전부 같은 모양이다.
+
+              예전에는 안내 화면을 그대로 둔 채 오버레이만 얹었는데, `GatchaLoading`이
+              배경을 칠하지 않아(시간대 배경이 비쳐야 한다) **'불러오는 중' 창 뒤로
+              설문 독려 화면이 그대로 비쳤다**(2026-08-17 제보). 안 해도 될 설문을
+              권하는 화면이 미리 보이는 것이라 잘못된 안내이기도 하다.
+              스크림으로 덮지 말 것 — 시간대 배경까지 덮인다(`WheelScreen` 주석). */}
+          {surveyGateWaiting ? (
+            <GatchaLoading variant="waiting" />
+          ) : (
+            <SurveyIntroScreen
+              onParticipate={() => goToPhase("survey")}
+              onDecline={declineSurvey}
+            />
+          )}
         </>
       )}
 

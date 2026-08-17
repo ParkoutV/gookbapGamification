@@ -1,12 +1,25 @@
 export type GatchaDrawResult =
   /**
-   * 당첨 여부만 알린다. **상품명은 여기서 가져가지 않는다** — draw 응답에는
-   * `coupon_id`가 없어서 `drawCoupon()`이 어차피 `get_my_coupons`로 쿠폰을 다시
-   * 읽고, 화면에 뜨는 것은 그쪽 결과다. 여기에 이름을 실어두면 아무도 쓰지 않는
-   * 두 번째 진실이 생긴다 — 실제로 그랬고, 소비처가 없다 보니 파싱이 빠진 것도
-   * 오래 눈에 띄지 않았다.
+   * 당첨. **상품명은 여기서 가져가지 않는다** — 화면에 뜨는 것은 `get_my_coupons`가
+   * 돌려준 쿠폰이고, 여기에 이름을 실어두면 아무도 쓰지 않는 두 번째 진실이 생긴다
+   * (실제로 그랬고, 소비처가 없다 보니 파싱이 빠진 것도 오래 눈에 띄지 않았다).
+   *
+   * 대신 **식별에 필요한 두 가지만** 나른다. 둘 다 표시용이 아니다.
+   *
+   * - `couponId`: 방금 발급된 `issued_coupons.coupon_id`. 저쪽은 insert에
+   *   `.select('coupon_id')`를 붙여 **2026-08-04(`9774e07`)부터 이걸 돌려준다** —
+   *   우리 AGENTS.md가 오래도록 "없다"고 적어둔 탓에 `drawCoupon()`이 목록의
+   *   `[0]`을 "방금 그것"으로 **추측**해 왔다. 그 추측은 온라인몰 쿠폰이 뽑혀
+   *   목록에서 걸러지면 무너진다(아래 `webCouponCode` 참고).
+   * - `webCouponCode`: 뽑힌 것이 온라인몰 전용 효과(`is_online_coupon`)일 때만 온다
+   *   (2026-08-06 `504cfa7`). 저쪽이 `web_coupons` 한 장을 배정했다는 뜻이며,
+   *   그 발급은 `issued_coupons`에도 남지만 우리는 그 행을 걷어내므로
+   *   (`withoutOnlineCoupons`) **매장 쿠폰 목록에서는 영영 찾을 수 없다.**
+   *   이 값이 있으면 목록을 뒤지지 말고 곧장 온라인 당첨으로 처리해야 한다.
+   *
+   * **둘 다 옵셔널이고 없으면 키를 넣지 않는다** — `code`와 같은 이유다(아래).
    */
-  | { ok: true; won: true }
+  | { ok: true; won: true; couponId?: string; webCouponCode?: string }
   | { ok: true; won: false }
   /**
    * 서버가 의도적으로 거절(4xx) — 기간 제한/플레이 부족/설문 미완료.
@@ -69,5 +82,12 @@ export async function requestGatchaDraw(
     return { ok: true, won: false };
   }
 
-  return { ok: true, won: true };
+  // 값이 있을 때만 키를 만든다 — `code`와 같은 이유로, `undefined`를 실으면 값 없는
+  // 키가 생겨 호출부의 deepEqual 비교가 어긋난다.
+  const couponId = typeof body?.coupon_id === "string" ? { couponId: body.coupon_id } : null;
+  // 저쪽은 매장 쿠폰일 때 이 자리를 `undefined`로 둔다(JSON에서는 키가 통째로 빠진다).
+  const webCouponCode =
+    typeof body?.web_coupon_code === "string" ? { webCouponCode: body.web_coupon_code } : null;
+
+  return { ok: true, won: true, ...couponId, ...webCouponCode };
 }

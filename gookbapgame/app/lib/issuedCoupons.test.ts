@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   isFreshlyIssued,
+  matchIssuedCoupon,
   sortByIssuedAt,
   toIssuedCoupon,
   withoutOnlineCoupons,
@@ -113,4 +114,43 @@ test("withoutOnlineCoupons: 해당 없으면 원본 그대로", () => {
 test("withoutOnlineCoupons: 플래그를 못 읽으면 아무것도 지우지 않는다", () => {
   const rows = [at("a", "store-1"), at("b", "web-1")];
   assert.equal(withoutOnlineCoupons(rows, new Set()).length, 2);
+});
+
+/*
+ * 발급된 쿠폰 짝짓기(2026-08-17).
+ *
+ * 저쪽 draw 응답에는 `coupon_id`가 있는데(2026-08-04부터) 우리 문서가 "없다"고 적어둔
+ * 탓에 `fetchMyCoupons()[0]`을 "방금 그것"으로 추측해 왔다. 온라인몰 쿠폰이 뽑히면 그
+ * 행이 `withoutOnlineCoupons`에 걸려 사라지므로 그 추측은 **며칠 전 매장 쿠폰을 새
+ * 당첨으로** 집어 든다 — 2026-08-11에 rejected 경로에서 고쳤던 버그가 won 경로에
+ * 그대로 열려 있었다.
+ */
+const withId = (coupon_id: string, issued_at?: string) =>
+  toIssuedCoupon(row({ coupon_id, issued_at }), new Map());
+
+test("matchIssuedCoupon: couponId가 있으면 그것으로 짝짓는다", () => {
+  const list = [withId("new", "2026-08-11T11:59:00Z"), withId("old", "2026-08-08T12:00:00Z")];
+  assert.equal(matchIssuedCoupon(list, "old", NOW)?.couponId, "old");
+});
+
+// 발급은 됐는데 목록에 없다 = 읽기 실패. 아무거나 집어 들면 안 된다.
+test("matchIssuedCoupon: couponId가 목록에 없으면 null이다", () => {
+  assert.equal(matchIssuedCoupon([withId("a", "2026-08-11T11:59:00Z")], "missing", NOW), null);
+});
+
+// 회귀 방지의 핵심. id가 왔으면 목록 맨 앞(=남의 최신 쿠폰)을 절대 집지 않는다.
+test("matchIssuedCoupon: couponId가 있으면 [0]으로 폴백하지 않는다", () => {
+  const yesterday = [withId("yesterday", "2026-08-10T12:00:00Z")];
+  assert.equal(matchIssuedCoupon(yesterday, "web-coupon-id", NOW), null);
+});
+
+// 저쪽이 응답 형식을 되돌린 경우의 보험. 가드 없이 폴백하면 위 버그가 되살아난다.
+test("matchIssuedCoupon: couponId가 없으면 방금 발급된 [0]만 쓴다", () => {
+  assert.equal(matchIssuedCoupon([withId("fresh", "2026-08-11T11:59:00Z")], undefined, NOW)?.couponId, "fresh");
+  assert.equal(matchIssuedCoupon([withId("stale", "2026-08-10T12:00:00Z")], undefined, NOW), null);
+});
+
+test("matchIssuedCoupon: 목록이 비어 있으면 null이다", () => {
+  assert.equal(matchIssuedCoupon([], "c-1", NOW), null);
+  assert.equal(matchIssuedCoupon([], undefined, NOW), null);
 });

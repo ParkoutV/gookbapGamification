@@ -26,6 +26,7 @@ import type { LocalizedName } from "./lib/i18n/localizedName";
 import { requestGatchaDraw } from "./lib/gatchaApi";
 import { resolveInviteTrackId } from "./lib/inviteLink";
 import {
+  matchIssuedCoupon,
   sortByIssuedAt,
   toIssuedCoupon,
   withoutOnlineCoupons,
@@ -634,7 +635,28 @@ export async function submitSurveyResponses(
 
 export type DrawCouponResult =
   | { status: "won"; coupon: IssuedCoupon }
-  /** 발급은 됐는데 get_my_coupons로 읽지 못한 상태. 설계 문서 미해결 항목 1번. */
+  /**
+   * **온라인몰 전용 효과가 뽑혔다.** 저쪽이 `web_coupons` 한 장을 배정하고
+   * `web_coupon_code`를 돌려준 경우다(`gatchaApi.ts`).
+   *
+   * **`wonButHidden`으로 떨어뜨리지 말 것.** 그 발급도 `issued_coupons`에 남지만
+   * 우리는 그 행을 걷어내므로(`withoutOnlineCoupons`) 매장 쿠폰 목록에서는 영영
+   * 못 찾는다 — 예전에는 그래서 "발급되었지만 표시할 수 없어요"라는 막다른 길이
+   * 떴고, 카드 연출까지 통째로 건너뛰어 뽑기를 한 기억조차 남지 않았다
+   * (2026-08-17 실기 제보).
+   *
+   * **필터를 푸는 것으로 고치지 말 것.** 스캐너가 받지 않는 QR 카드에 서버가 준
+   * `is_used: true`로 '사용 완료' 도장이 찍히던 2026-08-15 사고가 되살아난다.
+   * 온라인 당첨은 매장 쿠폰과 **다른 결과**로 다뤄야 한다.
+   */
+  | { status: "wonOnline"; code: string }
+  /**
+   * 발급은 됐는데 그 쿠폰을 `get_my_coupons`에서 찾지 못한 상태.
+   *
+   * `coupon_id`로 짝짓게 된 뒤로는 **읽기 실패의 신호**다(예전에는 온라인 쿠폰이
+   * 뽑히기만 해도 여기로 떨어졌다 — 위 `wonOnline` 참고). 여기 오면 콘솔에
+   * `coupon_id`가 남으므로 그것으로 DB를 짚어볼 수 있다.
+   */
   | { status: "wonButHidden" }
   | { status: "miss" }
   /**
@@ -916,13 +938,27 @@ export async function drawCoupon(): Promise<DrawCouponResult> {
 
     if (!result.won) return { status: "miss" };
 
-    // draw 응답에는 coupon_id가 없다(insert에 .select()가 없음).
-    // 방금 발급된 쿠폰의 id는 get_my_coupons로 다시 읽어서 얻는다.
-    const coupons = await fetchMyCoupons();
-    const latest = coupons[0];
-    if (!latest) return { status: "wonButHidden" };
+    // 온라인몰 전용 효과가 뽑힌 경우. **목록을 뒤지지 않는다** — 그 발급은
+    // `withoutOnlineCoupons`에 걸려 매장 쿠폰 목록에 애초에 나타나지 않는다.
+    if (result.webCouponCode) {
+      return { status: "wonOnline", code: result.webCouponCode };
+    }
 
-    return { status: "won", coupon: latest };
+    // 표시는 여전히 `get_my_coupons`가 담당한다 — draw 응답의 이름·날짜를 화면에
+    // 쓰면 거절 복구 경로와 값이 갈려 "두 번째 진실"이 생긴다(`gatchaApi.ts`).
+    // 응답에서 가져오는 것은 **어느 행인지를 가리키는 id 하나뿐**이다.
+    const coupons = await fetchMyCoupons();
+    const issued = matchIssuedCoupon(coupons, result.couponId, Date.now());
+    if (!issued) {
+      // 여기 오면 발급은 됐는데 그 행을 읽지 못한 것이다. id를 남겨야 DB에서
+      // 짚을 수 있다 — 이 로그가 없으면 화면 증상만으로는 원인을 못 가른다.
+      console.error(
+        `[drawCoupon] 발급된 쿠폰을 목록에서 찾지 못했다 (coupon_id=${result.couponId ?? "없음"}, 목록 ${coupons.length}건)`
+      );
+      return { status: "wonButHidden" };
+    }
+
+    return { status: "won", coupon: issued };
   } catch (error) {
     console.error("[drawCoupon] 예기치 못한 예외:", error);
     return {

@@ -184,6 +184,8 @@ export const ja: Partial<Dictionary> = {
   "coupon.closeButton": "閉じる",
   "coupon.qrUnavailable": "このクーポンのQRコードを表示できません。",
   "coupon.issuedButHidden": "クーポンは発行されましたが、今は表示できません。しばらくしてから「自分のクーポン」でご確認ください。",
+  "coupon.wonOnlineDescription":
+    "オンラインストア用のクーポンのため、QRカードではなくクーポンコードでお渡しします。「自分のクーポン」でコードの確認とコピーができます。",
 
   "game.stageProgress": "{current} / {total} ステージ",
   "game.timeRemainingLabel": "残り時間:",

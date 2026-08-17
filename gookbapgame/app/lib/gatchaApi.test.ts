@@ -25,6 +25,80 @@ test("requestGatchaDraw: 당첨 응답이면 won:true를 반환한다(상품명�
   }
 });
 
+/*
+ * 저쪽 draw 응답은 2026-08-04(`9774e07`)부터 `coupon_id`를, 2026-08-06(`504cfa7`)부터
+ * `web_coupon_code`를 돌려준다. 우리 문서가 오래도록 "coupon_id는 없다"고 적어둔 탓에
+ * `drawCoupon()`이 목록의 `[0]`을 "방금 그것"으로 추측해 왔다 — 온라인몰 쿠폰이 뽑히면
+ * 그 행이 걸러져 추측이 무너진다.
+ */
+test("requestGatchaDraw: coupon_id를 실어 나른다", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({ success: true, coupon_type: { ko: "국밥 1그릇 무료" }, coupon_id: "c-1" }),
+      { status: 200 }
+    )) as typeof fetch;
+
+  try {
+    assert.deepEqual(await requestGatchaDraw(API_URL, "p"), {
+      ok: true,
+      won: true,
+      couponId: "c-1",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// 온라인몰 전용 효과가 뽑혔다는 유일한 신호다. 이게 오면 매장 쿠폰 목록을 뒤져도
+// 못 찾는다(withoutOnlineCoupons가 걷어낸다).
+test("requestGatchaDraw: web_coupon_code를 실어 나른다", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        success: true,
+        coupon_type: { ko: "웹 쿠폰" },
+        coupon_id: "c-2",
+        web_coupon_code: "8B0E1C3C2FEBE",
+      }),
+      { status: 200 }
+    )) as typeof fetch;
+
+  try {
+    assert.deepEqual(await requestGatchaDraw(API_URL, "p"), {
+      ok: true,
+      won: true,
+      couponId: "c-2",
+      webCouponCode: "8B0E1C3C2FEBE",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/*
+ * `code`와 같은 규칙이다 — 값이 없으면 **키 자체를 넣지 않는다.** `undefined`를 실으면
+ * 값 없는 키가 생겨 호출부의 deepEqual 비교가 어긋난다(예전에 테스트 2건이 깨졌다).
+ * 매장 쿠폰 당첨 응답에는 `web_coupon_code`가 아예 빠져서 온다.
+ */
+test("requestGatchaDraw: 없는 필드는 키를 만들지 않는다", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ success: true, coupon_type: { ko: "국밥" } }), {
+      status: 200,
+    })) as typeof fetch;
+
+  try {
+    const result = await requestGatchaDraw(API_URL, "p");
+    assert.deepEqual(result, { ok: true, won: true });
+    assert.equal("couponId" in result, false);
+    assert.equal("webCouponCode" in result, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("requestGatchaDraw: 꽝 응답(coupon_type: null)이면 won:false를 반환한다", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>

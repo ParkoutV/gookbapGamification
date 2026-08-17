@@ -244,6 +244,11 @@ export const ko: Dictionary = {
   "coupon.closeButton": "닫기",
   "coupon.qrUnavailable": "이 쿠폰의 QR 코드를 표시할 수 없어요.",
   "coupon.issuedButHidden": "쿠폰은 발급되었지만 지금 표시할 수 없어요. 잠시 후 '내 쿠폰'에서 확인해주세요.",
+  /* 카드 뽑기에서 **온라인몰 쿠폰**이 나왔을 때(2026-08-17). 위 issuedButHidden과
+     반드시 갈라야 한다 — 저쪽은 "못 찾았다"는 사고 보고이고 이쪽은 정상 당첨이다.
+     카드가 안 나오는 것이 결함으로 읽히지 않도록 **이유를 먼저** 말한다. */
+  "coupon.wonOnlineDescription":
+    "온라인몰에서 쓸 수 있는 쿠폰이라 QR 카드 대신 쿠폰 코드로 드려요. '내 쿠폰'에서 코드를 확인하고 복사할 수 있어요.",
 
   "game.stageProgress": "{current} / {total} 단계",
   "game.timeRemainingLabel": "남은 시간:",

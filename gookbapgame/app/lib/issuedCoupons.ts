@@ -100,6 +100,40 @@ export function isFreshlyIssued(coupon: IssuedCoupon, now: number): boolean {
 }
 
 /**
+ * draw가 "당첨"이라고 알려준 그 쿠폰을 목록에서 집어낸다.
+ *
+ * **`couponId`가 있으면 그것으로만 짝짓는다.** 저쪽 draw 응답은 2026-08-04부터
+ * `coupon_id`를 돌려주는데(`gatchaApi.ts`), 우리 문서가 "없다"고 적어둔 탓에
+ * 오래도록 `fetchMyCoupons()[0]`을 "방금 그것"으로 **추측**해 왔다. 그 추측은 두
+ * 자리에서 조용히 틀린다:
+ *
+ * 1. 뽑힌 것이 온라인몰 전용 효과면 `withoutOnlineCoupons`가 그 행을 걷어내므로
+ *    `[0]`은 **다른 쿠폰**이다. 보관함이 비어 있으면 "발급됐지만 표시할 수 없어요"로
+ *    떨어지고, 비어 있지 않으면 **며칠 전 매장 쿠폰이 새 당첨으로** 카드 뒤집기와
+ *    당첨 효과음까지 달고 나온다(2026-08-11에 rejected 경로에서 고쳤던 바로 그 버그가
+ *    won 경로에 그대로 열려 있었다).
+ * 2. `sortByIssuedAt`이 `issued_at` 누락으로 정렬을 건너뛰면 `[0]`의 의미가 사라진다.
+ *
+ * id로 짝지으면 시각 휴리스틱 없이 둘 다 원천 차단된다.
+ *
+ * **`couponId`가 없을 때만 `[0]` 폴백을 쓰고, 그때는 `isFreshlyIssued`를 건다.**
+ * 저쪽이 응답 형식을 되돌리는 경우의 보험이며, 폴백에 가드가 없으면 위 1번 증상이
+ * 그대로 되살아난다. 찾지 못하면 `null`이고, 호출부는 그것을 **읽기 실패**로 다뤄야
+ * 한다 — 발급 자체는 서버에서 이미 일어났다.
+ */
+export function matchIssuedCoupon(
+  coupons: IssuedCoupon[],
+  couponId: string | undefined,
+  now: number
+): IssuedCoupon | null {
+  if (couponId != null) {
+    return coupons.find((c) => c.couponId === couponId) ?? null;
+  }
+  const latest = coupons[0];
+  return latest && isFreshlyIssued(latest, now) ? latest : null;
+}
+
+/**
  * 온라인몰 전용 쿠폰 효과를 목록에서 걷어낸다.
  *
  * **`coupon_effects`의 '웹 쿠폰'은 손님에게 보여줄 상품이 아니라 지시자다**

@@ -68,6 +68,8 @@ export default function WheelScreen({
 
   /**
    * 카드를 쓰는 건 실제로 뽑기가 성립한 두 결과뿐이다.
+   * - wonOnline: 온라인몰 쿠폰이라 QR도 사용기한도 없다. 카드에 올릴 것이 없고,
+   *   앨범에서도 카드가 아니라 티켓으로 그린다(`WebCouponTicket`).
    * - wonButHidden: 앞면에 올릴 payload가 아예 없다(couponType도 couponId도 없음).
    * - rejected/error: 뽑기가 소진되지 않은 상태다. 카드를 뒤집으면 소비한 것처럼 보인다.
    *
@@ -113,36 +115,60 @@ export default function WheelScreen({
   const canFlip = !isDrawing && usesCard;
 
   /**
-   * 거절당했는데 보관함에 쿠폰이 있는 경우. 하단 버튼을 '내 쿠폰 보기 + →'로 바꾼다.
+   * 하단 버튼을 '내 쿠폰 보기 + →'로 바꾸는 두 경우.
    *
-   * `waiting`을 함께 보는 이유: `drawResult`가 도착하기 전에도 `hasCoupons`는 이미
-   * true일 수 있어(이전 화면에서 읽어둔 목록), 응답을 기다리는 동안 이 버튼이 잠깐
-   * 스쳐 지나간다. 결과가 확정된 뒤에만 띄운다.
+   * - `wonOnline`: 받은 것이 온라인몰 티켓이라 **볼 곳이 앨범뿐이다.** 여기서
+   *   티켓을 그리지 않는 이유는 문구가 DB(`web_coupon_settings`)에서 오는데
+   *   이 화면은 그 값을 받지 않기 때문이다 — 코드만 덩그러니 띄우면 어디에 쓰는
+   *   것인지 알 수 없다. 앨범은 티켓·문구·복사 버튼을 이미 갖췄다.
+   * - `rejected` + 보관함에 쿠폰 있음: 오늘 뽑기를 이미 쓴 사람이라 받은 쿠폰이
+   *   보관함에 있다(2026-08-14, 이란토).
+   *
+   * **결과가 확정된 뒤에만 띄워야 한다** — `drawResult`가 도착하기 전에도
+   * `hasCoupons`는 이미 true일 수 있어(이전 화면에서 읽어둔 목록) 응답을 기다리는
+   * 동안 이 버튼이 잠깐 스쳐 지나간다. 예전에는 여기에 `!waiting`을 걸어 막았는데,
+   * 지금은 대기 구간이 아래에서 통째로 조기 반환되므로 그 조건이 필요 없다.
    */
-  const showMyCouponsAction = !waiting && drawResult?.status === "rejected" && hasCoupons;
+  const showMyCouponsAction =
+    drawResult?.status === "wonOnline" ||
+    (drawResult?.status === "rejected" && hasCoupons);
+
+  /*
+   * 대기(1단계)·섞기(2단계) 동안은 **로딩 창만** 보여주고 패널은 아예 그리지 않는다.
+   *
+   * 예전에는 카드 뒷면을 미리 띄웠다가, 응답 전에도 카드가 나와 있어 "눌러도 안
+   * 뒤집히는 카드"가 됐다(2026-08-11, 이란토). 그래서 로딩 창으로 바꿨는데 **패널은
+   * 그대로 두고 그 위에 얹기만 해서**, '불러오는 중' 창 뒤로 아직 결과가 없는
+   * "행운의 카드" 화면이 비쳐 보였다(2026-08-17 제보).
+   *
+   * `GatchaLoading`은 화면 전체를 덮지만 배경을 칠하지 않는다 — 시간대 배경이
+   * 비쳐야 하기 때문이다(그쪽 주석). **스크림을 까는 방식으로 고치지 말 것**:
+   * 그러면 시간대 배경까지 함께 덮인다. 아래를 안 그리는 것이 유일한 해법이다.
+   *
+   * **조기 반환이지 언마운트가 아니다.** `<WheelScreen>` 자체를 부모에서 조건부로
+   * 빼면 draw를 부르는 마운트 이펙트가 다시 돌고 `drawStartedRef`에 걸려 뽑기가
+   * 조용히 죽는다. 훅은 전부 이 위에서 부르므로 여기서 갈라도 안전하다.
+   *
+   * 두 단계가 같은 컴포넌트를 쓰는 이유는 창 껍데기를 공유해 전환에서 창이 튀지
+   * 않게 하려는 것이다 — `GatchaLoading`의 주석 참고.
+   */
+  if (waiting || shuffling) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
+        <GatchaLoading variant={waiting ? "waiting" : "shuffle"} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("wheel.title")}</h1>
 
-        {/* 발급을 기다리는 동안은 카드가 아니라 로딩을 보여준다. 예전에는 이 자리에
-            카드 뒷면을 미리 띄웠는데, 응답 전에도 카드가 나와 있어서 "눌러도 안
-            뒤집히는 카드"가 됐다(2026-08-11, 이란토).
-
-            두 단계가 같은 컴포넌트를 쓰는 이유는 창 껍데기를 공유해 전환에서
-            창이 튀지 않게 하려는 것이다 — GatchaLoading의 주석 참고.
-
-            GatchaLoading은 이 패널 안이 아니라 화면 전체를 덮는 **별도 레이어**다
-            (PreloadScreen과 같은 구조). 그래서 여기서 자리를 비워둘 필요가 없고,
-            로딩 박스를 카드 크기에 맞추는 제약도 없다. */}
-        {waiting && <GatchaLoading variant="waiting" />}
-        {shuffling && <GatchaLoading variant="shuffle" />}
-
         {/* 주의: 카드 앞면(card-front.webp) 안쪽 색이 패널 배경(--surface)과 가깝다.
             지금은 앞면 테두리 덕에 형체가 유지되지만, 배경을 더 밝게 바꾸면 카드가
             묻힌다. 이 화면은 뽑기 연출용으로 따로 꾸밀 예정이라 그때 같이 볼 것. */}
-        {usesCard && !shuffling && (
+        {usesCard && (
           <div className="mb-6 w-full">
             <GatchaCard
               coupon={coupon}
@@ -156,6 +182,17 @@ export default function WheelScreen({
               faceRef={faceRef}
               dateLines={dateLines}
             />
+          </div>
+        )}
+
+        {/* 온라인몰 쿠폰 당첨. 카드가 없는 것은 결함이 아니라 상품의 성질이다 —
+            QR도 사용기한도 없고 평문 코드를 온라인몰에 붙여넣는 물건이다
+            (`WebCouponTicket`). 그래서 **매장 쿠폰과 다른 문구**를 쓴다:
+            "표시할 수 없어요"로 뭉뚱그리면 받은 사람이 잃어버린 줄 안다. */}
+        {drawResult?.status === "wonOnline" && (
+          <div className="mb-8">
+            <p className="font-extrabold mb-2 text-ink">{t("wheel.wonTitle")}</p>
+            <p className="text-muted text-sm">{t("coupon.wonOnlineDescription")}</p>
           </div>
         )}
 
@@ -260,7 +297,8 @@ export default function WheelScreen({
              아직 flipped가 아니므로 뒤 조건에 이미 걸린다. */
           <button
             onClick={onNext}
-            disabled={waiting || (usesCard && !flipped)}
+            /* `waiting`은 위에서 조기 반환하므로 여기서 볼 필요가 없다. */
+            disabled={usesCard && !flipped}
             className="pixel-mask-btn-solid w-full py-3 px-6 bg-accent text-accent-ink font-bold transition-opacity active:scale-95 disabled:opacity-50"
           >
             {t("wheel.nextButton")}
