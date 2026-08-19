@@ -330,9 +330,19 @@ export default function GameScreen({
       });
 
   /**
-   * 무판정 구역. 정답 영역 바깥 한 겹으로, 여기를 누르면 **아무 일도 일어나지
-   * 않는다**(2026-08-07, 이란토). 거의 맞힌 터치를 오답으로 세지 않기 위한
-   * 완충이다 — 오답은 3회 제한과 10점 감점이 걸려 있어 체감이 크다.
+   * 무판정 구역. 여기를 누르면 **아무 일도 일어나지 않는다**(2026-08-07, 이란토).
+   * 거의 맞힌 터치를 오답으로 세지 않기 위한 완충이다 — 오답은 3회 제한과
+   * 10점 감점이 걸려 있어 체감이 크다.
+   *
+   * **실루엣 모양을 따라가지 않는다. 슬롯 캔버스 전체를 덮는 사각형이다**
+   * (2026-08-19, 이란토). 파트 그림에 투명한 부분이 넓으면 그 자리가 실루엣
+   * 바깥이라 곧장 오답이 됐는데, 플레이어 눈에는 분명히 그 물건을 누른 것이라
+   * 납득이 안 된다. 근거와 규칙은 `hitTarget.ts`의 `DEAD_ZONE_PX`에 있다.
+   *
+   * **`clipPath`를 다시 걸지 말 것.** `buildClipPath(null)`은 "클립 없음"이 아니라
+   * `circle(25%)`를 돌려주므로, 폴리곤만 지우고 clipPath를 남기면 무판정 구역이
+   * 슬롯 1/4짜리 원으로 쪼그라든다 — 의도와 정반대인데 **에러도 나지 않는다.**
+   * `hitTarget.test.ts`가 이 줄을 소스에서 직접 검사하는 이유다.
    *
    * 배경(오답 판정)보다 위, 정답 영역보다 아래에 깔린다. 하는 일은
    * `stopPropagation`으로 클릭이 배경까지 내려가지 않게 막는 것뿐이다.
@@ -351,7 +361,7 @@ export default function GameScreen({
     differenceSlots.map((slot) => {
       const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
       const slotSizePx = 100 * slot.slotScale * scale;
-      const { deadZone, useClipPath } = resolveHitTargetBox(slotSizePx, polygon);
+      const { deadZone } = resolveHitTargetBox(slotSizePx, polygon);
 
       return (
         <div
@@ -362,7 +372,6 @@ export default function GameScreen({
             top: `${slot.y * scale - deadZone.offsetY}px`,
             width: `${deadZone.width}px`,
             height: `${deadZone.height}px`,
-            clipPath: useClipPath ? buildClipPath(deadZone.polygon) : undefined,
             zIndex: 0,
           }}
           onClick={(e) => e.stopPropagation()}

@@ -76,14 +76,23 @@ export default function StartScreen({
   }, [inviteMessage]);
 
   return (
-    // footer를 바닥에 붙이는 것은 `justify-center`가 아니라 auto margin이다
-    // (2026-08-19, 이란토 제보). 예전에는 루트가 `justify-center`라 패널과 footer가
-    // **한 묶음으로** 세로 가운데에 모였다 — 세로가 빠듯한 모바일에서는 내용이 화면을
-    // 꽉 채워 footer가 하단에 붙은 것처럼 보였지만, 데스크톱처럼 높이가 남으면 묶음째
-    // 가운데로 올라와 footer가 화면 한복판에 떴다. `justify-center`를 되살리지 말 것 —
-    // auto margin과 겹치면 auto가 이겨서 코드만 헷갈려진다.
-    <div className="flex flex-col items-center min-h-dvh text-ink p-6">
-      <PixelPanel size="card" title={t("window.brand")} className="my-auto max-w-md w-full text-center">
+    // **footer는 흐름 밖(absolute)이고 패널만 `justify-center`로 가운데에 둔다**
+    // (2026-08-19, 이란토). 세 번 자리를 옮긴 곳이라 지나온 경로를 적어둔다:
+    // 1. 루트 `justify-center` + 흐름 footer → 패널과 footer가 **한 묶음으로** 가운데
+    //    모여, 높이가 남는 데스크톱에서 footer가 화면 한복판에 떴다.
+    // 2. 패널 `my-auto` + footer `mt-auto` → footer는 바닥에 붙었지만, auto 마진이
+    //    셋(패널 위·아래, footer 위)이라 남는 높이가 **3등분**된다. 패널이 절반이
+    //    아니라 1/3 지점에 앉아 위로 밀려 올라간 것이 그 증상이다.
+    // footer를 흐름에서 빼면 패널이 뷰포트 정중앙에 온다. 기준은 뷰포트가 아니라
+    // 이 루트 요소(`relative`)라, 내용이 길어져 루트가 늘어나면 footer도 그 바닥으로
+    // 따라 내려간다 — `fixed`였다면 긴 내용 위에 겹쳐 떠서 2026-08-14에 걷어냈던
+    // 그 문제가 되살아난다. **`fixed`로 바꾸지 말 것.**
+    // ponytail: 패널 높이가 (뷰포트 - footer 높이 약 46px)를 넘는 좁은 기기에서는
+    // footer가 패널 아래쪽에 겹칠 수 있다. 실제로 겹치면 흐름 배치로 되돌리고
+    // 위 2번 대신 "패널을 감싼 `flex-1` 영역 안에서 가운데" 방식을 쓸 것
+    // (그러면 footer 높이의 절반만큼만 위로 치우친다).
+    <div className="relative flex flex-col items-center justify-center min-h-dvh text-ink p-6">
+      <PixelPanel size="card" title={t("window.brand")} className="max-w-md w-full text-center">
         {/* `break-keep`(word-break: keep-all)이 없으면 어절 중간에서 끊긴다 —
             "도전! 1953 틀 / 린그림찾기"처럼(2026-08-14, 320·390px 실측). 한국어는
             단어 사이 공백이 CJK 줄바꿈 규칙에 밀려 브라우저가 아무 글자에서나 끊는다.
@@ -184,8 +193,8 @@ export default function StartScreen({
         )}
       </PixelPanel>
 
-      {/* 푸터. **패널 바깥, 패널 바로 아래다** — 뷰포트 바닥에 fixed로 붙이면 이 화면의
-          `justify-center` 세로 중앙 정렬과 싸우게 된다(2026-08-14, 이란토).
+      {/* 푸터. **패널 바깥, 루트 바닥이다.** `fixed`가 아니라 `absolute`인 이유는
+          위 루트 주석에 있다(2026-08-14·2026-08-19, 이란토).
 
           **최초 고지 이후 법률 문서를 다시 볼 수 있는 유일한 진입점이라** 링크를
           copyright와 함께 둔다. 개인정보처리방침은 언제든 열람할 수 있어야 하는데,
@@ -208,7 +217,7 @@ export default function StartScreen({
           가독성은 배경 레이어 하단의 그라데이션이 만든다(`DaylightBackground`) —
           푸터 자리 국소 최악 **7.22:1**로 AA를 넘는다. 사각형 칩을 얹는 안은
           `day`처럼 밝은 배경에서 그 자리만 패인 것처럼 보여 버렸다(2026-08-15 이란토). */}
-      <footer className="mt-auto pt-4 flex flex-col items-center gap-1 text-center">
+      <footer className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-center">
         <button
           type="button"
           onClick={onOpenLegal}
