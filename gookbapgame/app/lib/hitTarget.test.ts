@@ -127,15 +127,16 @@ test("safe-zone: 실루엣이 확대되는 게 아니라 테두리에 여유가 
 });
 
 /*
- * 2026-08-19, 이란토. 파트 그림의 **투명한 부분**을 눌렀을 때 오답이 되던 것을
- * 막는 규칙이다. 무판정 구역이 실루엣 모양을 따라가던 시절에는 캔버스 안이어도
- * 실루엣 밖이면 곧장 오답이었다.
+ * 2026-08-19, 이란토. 무판정 구역은 **실루엣 bbox + 10px**이다. 낮에는 슬롯 캔버스
+ * 전체로 넓혔었는데, 붙어 있는 슬롯들의 사각형이 이어져 **명백한 오답에도 감점이
+ * 없었다.** 파트는 캔버스 정사각형에 letterbox로 들어가므로(284x110이면 높이의 39%),
+ * 캔버스만 한 무판정 구역은 물체보다 2.6배 높다.
  *
- * 얇은 실루엣이 큰 슬롯에 오는 조합이 핵심이다 — 그때 정답 박스는 최소 터치
- * 타깃(56px)까지만 커지므로 캔버스보다 작고, 바닥을 걸지 않으면 무판정 구역도
- * 함께 작아진다.
+ * 두 가지를 동시에 지켜야 한다: 정답으로 눌리는 자리는 **빠짐없이** 덮어야 하고
+ * (안 그러면 정답 영역 가장자리가 배경까지 뚫려 감점된다), letterbox 여백은 덮지
+ * 않아야 한다.
  */
-test("무판정 구역은 어떤 조합에서도 슬롯 캔버스 전체를 덮는다", () => {
+test("무판정 구역은 정답 영역을 모두 덮는다", () => {
   const cases: [number, Point[] | null][] = [
     [112, boxPolygon(0.62, 0.95)], // clip 경로
     [200, boxPolygon(1.0, 0.05)], // 큰 슬롯 + 얇은 실루엣 → 56px 보정 경로
@@ -144,18 +145,66 @@ test("무판정 구역은 어떤 조합에서도 슬롯 캔버스 전체를 덮�
   ];
   for (const [slot, polygon] of cases) {
     const box = resolveHitTargetBox(slot, polygon);
-    assert.ok(
-      box.deadZone.width >= slot + DEAD_ZONE_PX * 2,
-      `${slot}px: 무판정 폭 ${box.deadZone.width}이 캔버스보다 작다`
-    );
-    assert.ok(
-      box.deadZone.height >= slot + DEAD_ZONE_PX * 2,
-      `${slot}px: 무판정 높이 ${box.deadZone.height}이 캔버스보다 작다`
-    );
-    // 중심이 슬롯 중심과 같아야 한다 — 어긋나면 한쪽만 넓어진다.
-    assert.equal(box.deadZone.offsetX, (box.deadZone.width - slot) / 2);
-    assert.equal(box.deadZone.offsetY, (box.deadZone.height - slot) / 2);
+    const dz = box.deadZone;
+
+    // 정답 영역: clip 경로는 실루엣 + safe-zone, 아니면 박스 사각형 전체.
+    const hit = box.useClipPath
+      ? (() => {
+          const b = polygonBoundsRatio(box.polygon)!;
+          return {
+            left: -box.offsetX + b.minX * box.width,
+            top: -box.offsetY + b.minY * box.height,
+            right: -box.offsetX + (b.minX + b.widthRatio) * box.width,
+            bottom: -box.offsetY + (b.minY + b.heightRatio) * box.height,
+          };
+        })()
+      : {
+          left: -box.offsetX,
+          top: -box.offsetY,
+          right: -box.offsetX + box.width,
+          bottom: -box.offsetY + box.height,
+        };
+
+    assert.ok(dz.left <= hit.left, `${slot}px: 무판정 좌변이 정답 영역 안쪽이다`);
+    assert.ok(dz.top <= hit.top, `${slot}px: 무판정 상변이 정답 영역 안쪽이다`);
+    assert.ok(dz.left + dz.width >= hit.right, `${slot}px: 무판정 우변이 정답 영역 안쪽이다`);
+    assert.ok(dz.top + dz.height >= hit.bottom, `${slot}px: 무판정 하변이 정답 영역 안쪽이다`);
   }
+});
+
+/*
+ * letterbox 여백이 무판정으로 남으면 원래 문제(감점 실종)가 되돌아온다.
+ * 284x110 파트가 정사각 캔버스에 들어간 모양 — 높이는 캔버스의 39%뿐이다.
+ */
+test("무판정 구역이 캔버스의 letterbox 여백까지 먹지 않는다", () => {
+  const slot = 200;
+  const box = resolveHitTargetBox(slot, boxPolygon(0.95, 0.39));
+
+  assert.ok(
+    box.deadZone.height < slot,
+    `무판정 높이 ${box.deadZone.height}px가 캔버스 ${slot}px보다 작아야 한다`
+  );
+  // 실루엣(78px) + (safe 5 + dead 5) * 2 = 98px 언저리.
+  assert.ok(Math.abs(box.deadZone.height - (slot * 0.39 + (SAFE_ZONE_PX + DEAD_ZONE_PX) * 2)) < 1);
+});
+
+/*
+ * 실루엣이 캔버스 중앙에 있다는 보장이 없다. 한쪽으로 치우친 파트에서 무판정
+ * 구역을 슬롯 중심에 맞추면 반대쪽이 비어 정답 영역이 배경까지 뚫린다.
+ */
+test("무판정 구역은 실루엣을 따라 치우친다 — 슬롯 중심 대칭이 아니다", () => {
+  const slot = 200;
+  const offCenter: Point[] = [
+    { x: 0.55, y: 0.1 },
+    { x: 0.95, y: 0.1 },
+    { x: 0.95, y: 0.9 },
+    { x: 0.55, y: 0.9 },
+  ];
+  const box = resolveHitTargetBox(slot, offCenter);
+
+  const pad = SAFE_ZONE_PX + DEAD_ZONE_PX;
+  assert.ok(Math.abs(box.deadZone.left - (0.55 * slot - pad)) < 0.01);
+  assert.ok(Math.abs(box.deadZone.width - (0.4 * slot + pad * 2)) < 0.01);
 });
 
 /*
@@ -174,6 +223,20 @@ test("무판정 구역 div에는 clipPath가 없다", () => {
   assert.ok(start > 0, "무판정 구역 div를 찾지 못했다");
   const block = source.slice(start, source.indexOf("/>", start));
   assert.ok(!block.includes("clipPath"), "clipPath가 걸리면 슬롯 1/4 원으로 쪼그라든다");
+});
+
+/*
+ * 정답 표시(체크)는 캔버스 중심에 놓이는데 무판정 구역은 실루엣 bbox를 따라간다.
+ * 치우친 실루엣에서는 마커가 무판정 바깥이라, 클릭을 통과시키면 배경까지 내려가
+ * **다 맞힌 슬롯을 눌렀는데 10점 감점 + 오답 1회**가 된다(2026-08-14 회귀).
+ */
+test("정답 표시는 클릭을 통과시키지 않는다", () => {
+  const source = readFileSync("app/components/GameScreen.tsx", "utf8");
+  const start = source.indexOf('src="/icons/check-success.svg"');
+  assert.ok(start > 0, "정답 표시 마커를 찾지 못했다");
+  const block = source.slice(start, source.indexOf("/>", start));
+  assert.ok(!block.includes("pointer-events-none"), "클릭이 배경까지 내려가 감점된다");
+  assert.ok(block.includes("stopPropagation"), "클릭을 삼켜야 한다");
 });
 
 // 7단계 실측 최소 중심 거리는 73px이었다. 가장 크게 보정된 슬롯끼리 이웃해도

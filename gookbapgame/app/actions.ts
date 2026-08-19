@@ -13,8 +13,7 @@ import {
 import { selectSessionPlan } from "./lib/sessionPlan";
 import {
   getPartSilhouette,
-  mapSilhouetteToSlot,
-  pickPolygonSource,
+  unionSlotPolygon,
   type Point,
 } from "./lib/hitPolygon";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
@@ -92,24 +91,20 @@ async function computeSlotPolygons(
   const rightHull =
     rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.imageUrl);
 
-  // 투명 파트(= "없는 쪽")는 실루엣이 null이다. 규칙과 이유는 `pickPolygonSource`에.
-  const leftSource = pickPolygonSource(leftHull, rightHull, leftPart, rightPart);
-  const rightSource = pickPolygonSource(rightHull, leftHull, rightPart, leftPart);
+  // 양쪽 실루엣의 합집합 하나를 두 면이 같이 쓴다. 이유는 `unionSlotPolygon`에.
+  const toSource = (hull: Point[] | null, part: MasterPart) => ({
+    hull,
+    placement: {
+      offsetX: part.offsetX,
+      offsetY: part.offsetY,
+      partScale: part.scale,
+      slotScale,
+    },
+  });
 
-  const toPolygon = (source: typeof leftSource) =>
-    source
-      ? mapSilhouetteToSlot(source.hull, {
-          offsetX: source.placement.offsetX,
-          offsetY: source.placement.offsetY,
-          partScale: source.placement.scale,
-          slotScale,
-        })
-      : null;
+  const polygon = unionSlotPolygon(toSource(leftHull, leftPart), toSource(rightHull, rightPart));
 
-  const leftHitPolygon = toPolygon(leftSource);
-  const rightHitPolygon = toPolygon(rightSource);
-
-  return { leftHitPolygon, rightHitPolygon };
+  return { leftHitPolygon: polygon, rightHitPolygon: polygon };
 }
 
 /**

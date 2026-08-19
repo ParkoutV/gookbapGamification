@@ -334,10 +334,11 @@ export default function GameScreen({
    * 거의 맞힌 터치를 오답으로 세지 않기 위한 완충이다 — 오답은 3회 제한과
    * 10점 감점이 걸려 있어 체감이 크다.
    *
-   * **실루엣 모양을 따라가지 않는다. 슬롯 캔버스 전체를 덮는 사각형이다**
-   * (2026-08-19, 이란토). 파트 그림에 투명한 부분이 넓으면 그 자리가 실루엣
-   * 바깥이라 곧장 오답이 됐는데, 플레이어 눈에는 분명히 그 물건을 누른 것이라
-   * 납득이 안 된다. 근거와 규칙은 `hitTarget.ts`의 `DEAD_ZONE_PX`에 있다.
+   * **실루엣 모양을 따라가지 않는다. 실루엣 bbox를 감싸는 축정렬 사각형이다**
+   * (2026-08-19, 이란토). 오목한 자리·구멍은 bbox 안이라 무판정으로 남고, 캔버스의
+   * letterbox 여백은 배경만 보이는 자리라 오답으로 돌려준다 — 캔버스 전체를 덮던
+   * 시절에는 붙어 있는 슬롯들의 무판정 사각형이 이어져 **명백한 오답에도 감점이
+   * 없었다.** 근거와 규칙은 `hitTarget.ts`의 `DEAD_ZONE_PX`에 있다.
    *
    * **`clipPath`를 다시 걸지 말 것.** `buildClipPath(null)`은 "클립 없음"이 아니라
    * `circle(25%)`를 돌려주므로, 폴리곤만 지우고 clipPath를 남기면 무판정 구역이
@@ -368,8 +369,8 @@ export default function GameScreen({
           key={`dead-${slot.slotId}`}
           className="absolute"
           style={{
-            left: `${slot.x * scale - deadZone.offsetX}px`,
-            top: `${slot.y * scale - deadZone.offsetY}px`,
+            left: `${slot.x * scale + deadZone.left}px`,
+            top: `${slot.y * scale + deadZone.top}px`,
             width: `${deadZone.width}px`,
             height: `${deadZone.height}px`,
             zIndex: 0,
@@ -384,6 +385,13 @@ export default function GameScreen({
    * 실루엣 모양과 무관하게 항상 온전한 크기로 보인다.
    * 오답 표시(renderWrongMarks)와 같은 32px, 같은 중심 정렬 방식이다.
    */
+  /**
+   * **`pointer-events-none`을 붙이지 말 것**(2026-08-19). 마커는 캔버스 중심에
+   * 놓이는데 무판정 구역은 실루엣 bbox를 따라가므로, 치우친 실루엣에서는 마커가
+   * 무판정 바깥으로 삐져나간다. 클릭을 통과시키면 그 자리가 배경까지 내려가
+   * **다 맞힌 슬롯의 체크 표시를 눌렀는데 10점 감점 + 오답 1회**가 된다.
+   * 여기서 `stopPropagation`으로 삼킨다.
+   */
   const FOUND_MARK_SIZE = 32;
   const renderFoundMarks = () =>
     differenceSlots
@@ -395,7 +403,8 @@ export default function GameScreen({
             key={slot.slotId}
             src="/icons/check-success.svg"
             alt=""
-            className="absolute pointer-events-none animate-in zoom-in"
+            className="absolute animate-in zoom-in"
+            onClick={(e) => e.stopPropagation()}
             style={{
               left: slot.x * scale + size / 2 - FOUND_MARK_SIZE / 2,
               top: slot.y * scale + size / 2 - FOUND_MARK_SIZE / 2,
