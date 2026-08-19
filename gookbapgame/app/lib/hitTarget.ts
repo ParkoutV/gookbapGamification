@@ -15,7 +15,7 @@ export const MIN_TOUCH_TARGET_PX = 56;
  */
 export function polygonBoundsRatio(
   polygon: Point[] | null
-): { widthRatio: number; heightRatio: number } | null {
+): { widthRatio: number; heightRatio: number; minX: number; minY: number } | null {
   if (!polygon || polygon.length < 3) return null;
   if (polygon.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
 
@@ -24,6 +24,8 @@ export function polygonBoundsRatio(
   return {
     widthRatio: Math.max(...xs) - Math.min(...xs),
     heightRatio: Math.max(...ys) - Math.min(...ys),
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
   };
 }
 
@@ -39,21 +41,25 @@ export function polygonBoundsRatio(
 export const SAFE_ZONE_PX = 5;
 
 /**
- * **무판정 구역이 슬롯 캔버스 밖으로 더 나가는 두께(px)**(2026-08-07, 이란토).
+ * **무판정 구역이 실루엣 바깥으로 더 나가는 두께(px)**(2026-08-07, 이란토).
  *
  * 여기를 누르면 정답도 오답도 아니다 — 아무 일도 일어나지 않는다. safe-zone이
  * "아슬한 터치를 정답으로 살려주는" 구역이라면, 이쪽은 "명백히 빗나갔지만
  * 페널티를 주기엔 가혹한" 구역이다. 오답은 3회 제한과 10점 감점이 걸려 있어서,
  * 거의 맞힌 터치를 오답으로 세면 체감이 나쁘다.
  *
- * **2026-08-19에 범위를 캔버스 전체로 넓혔다**(이란토). 예전에는 실루엣 모양을
- * 그대로 따라가는 한 겹(테두리 바깥 5~10px)이었는데, 파트 그림에 투명한 부분이
- * 넓으면 — 같은 슬롯에 준비한 4종처럼 — **그 투명한 자리를 누르면 곧장 오답**이
- * 됐다. 플레이어 눈에는 분명히 그 물건을 누른 것이라 납득이 안 된다.
+ * **모양은 실루엣의 bounding box(축정렬 사각형)다**(2026-08-19). 08-19 낮에는
+ * 슬롯 캔버스 전체로 넓혔었는데, 그건 "파트의 투명한 자리를 눌렀는데 오답"이라는
+ * 증상을 덮은 것이었다. 진짜 원인은 히트 폴리곤이 한쪽 면의 실루엣만 썼다는 것이고
+ * (`unionSlotPolygon` 참고), 그쪽을 고쳤으므로 여기는 다시 좁힌다.
  *
- * 지금 규칙: 실루엣 + 5px = 정답 / **슬롯 캔버스 전체 + 5px = 무판정** /
- * 그 바깥 = 오답. 캔버스는 파트가 실제로 칠해진 영역보다 항상 크므로 후하게
- * 잡히는 쪽이며, 그게 의도한 방향이다.
+ * 캔버스 전체가 나쁜 이유: 파트는 캔버스 정사각형에 **letterbox**로 들어간다.
+ * 284x110짜리 납작한 파트는 캔버스 높이의 39%만 차지하므로, 캔버스만 한 무판정
+ * 구역은 물체보다 2.6배 높다. 슬롯이 붙어 있으면 그 사각형들이 이어져 판 전체가
+ * 무판정 카펫이 되고, **명백한 오답에도 감점이 일어나지 않는다**(이란토 제보).
+ *
+ * 지금 규칙: 실루엣 + 5px = 정답 / **실루엣 bbox + 10px = 무판정** / 그 바깥 = 오답.
+ * bbox라서 실루엣의 오목한 곳·구멍은 여전히 무판정 안쪽이다.
  */
 export const DEAD_ZONE_PX = 5;
 
@@ -76,18 +82,21 @@ export type HitTargetBox = {
    */
   polygon: Point[] | null;
   /**
-   * 무판정 구역. **언제나 사각형이고 슬롯 캔버스 전체를 덮는다** — 폴리곤이 없는
-   * 것이 이 구역의 정의다(`DEAD_ZONE_PX` 주석 참고). 클릭이 배경(오답 판정)까지
-   * 내려가지 않게 막기만 한다.
+   * 무판정 구역. **언제나 축정렬 사각형이다** — 폴리곤이 없는 것이 이 구역의
+   * 정의다(`DEAD_ZONE_PX` 주석 참고). 클릭이 배경(오답 판정)까지 내려가지 않게
+   * 막기만 한다.
    *
-   * **`polygon` 필드를 되살리지 말 것.** 되살리면 실루엣 모양으로 다시 좁아지고,
-   * 파트의 투명한 부분이 오답 판정으로 돌아간다.
+   * **`polygon` 필드를 되살리지 말 것.** 되살리면 실루엣 모양으로 좁아져 오목한
+   * 자리가 오답 판정으로 돌아간다.
+   *
+   * `left`/`top`은 **슬롯 원점 기준 px**이며 음수일 수 있다. 실루엣이 캔버스 중앙에
+   * 있지 않을 수 있어 중심 대칭을 가정하지 않는다.
    */
   deadZone: {
+    left: number;
+    top: number;
     width: number;
     height: number;
-    offsetX: number;
-    offsetY: number;
   };
 };
 
@@ -165,6 +174,46 @@ function rebaseAndExpand(
   return expandPolygon(rebased, pad / boxW, pad / boxH);
 }
 
+type Rect = { left: number; top: number; width: number; height: number };
+
+/** 슬롯 원점 기준 px 사각형. `pad`만큼 사방으로 넓힌다. */
+function padRect(rect: Rect, pad: number): Rect {
+  return {
+    left: rect.left - pad,
+    top: rect.top - pad,
+    width: rect.width + pad * 2,
+    height: rect.height + pad * 2,
+  };
+}
+
+function unionRect(a: Rect, b: Rect): Rect {
+  const left = Math.min(a.left, b.left);
+  const top = Math.min(a.top, b.top);
+  return {
+    left,
+    top,
+    width: Math.max(a.left + a.width, b.left + b.width) - left,
+    height: Math.max(a.top + a.height, b.top + b.height) - top,
+  };
+}
+
+/** 실루엣 bbox(0~1 비율)를 슬롯 원점 기준 px 사각형으로 바꾸고 `pad`만큼 넓힌다. */
+function silhouetteRect(
+  bounds: NonNullable<ReturnType<typeof polygonBoundsRatio>>,
+  slotSizePx: number,
+  pad: number
+): Rect {
+  return padRect(
+    {
+      left: bounds.minX * slotSizePx,
+      top: bounds.minY * slotSizePx,
+      width: bounds.widthRatio * slotSizePx,
+      height: bounds.heightRatio * slotSizePx,
+    },
+    pad
+  );
+}
+
 export function resolveHitTargetBox(
   slotSizePx: number,
   polygon: Point[] | null,
@@ -192,12 +241,19 @@ export function resolveHitTargetBox(
     // 결국 유효 면적은 원래대로 작게 남는다.
     const width = (effectiveW >= minTarget ? slotSizePx : minTarget) + safeZone * 2;
     const height = (effectiveH >= minTarget ? slotSizePx : minTarget) + safeZone * 2;
-    // **캔버스보다 작아지지 않게 축마다 바닥을 건다.** 이 분기는 부족한 축만
-    // 최소 터치 타깃(56px)으로 밀어올리므로, 200px짜리 슬롯에 얇은 실루엣이 오면
-    // 정답 박스 높이가 66px에 그친다 — 바닥이 없으면 무판정 구역이 캔버스보다
-    // 작아져 캔버스 안인데 오답이 되는 자리가 남는다.
-    const dzW = Math.max(width, slotSizePx) + deadZone * 2;
-    const dzH = Math.max(height, slotSizePx) + deadZone * 2;
+    // 무판정 구역은 정답 박스(사각형 전체가 눌린다)를 반드시 덮어야 하고, 실루엣이
+    // 그보다 옆으로 튀어나오면 그쪽도 덮는다. **캔버스 바닥은 걸지 않는다** —
+    // letterbox 여백까지 무판정으로 두면 명백한 오답에도 감점이 없다(`DEAD_ZONE_PX`).
+    // 실루엣 정보가 아예 없을 때(`!bounds`)만 예전처럼 캔버스를 바닥으로 쓴다.
+    const boxRect = {
+      left: -(width - slotSizePx) / 2,
+      top: -(height - slotSizePx) / 2,
+      width,
+      height,
+    };
+    const floor = bounds
+      ? silhouetteRect(bounds, slotSizePx, deadZone)
+      : { left: -deadZone, top: -deadZone, width: slotSizePx + deadZone * 2, height: slotSizePx + deadZone * 2 };
     return {
       width,
       height,
@@ -205,12 +261,7 @@ export function resolveHitTargetBox(
       offsetY: (height - slotSizePx) / 2,
       useClipPath: false,
       polygon: null,
-      deadZone: {
-        width: dzW,
-        height: dzH,
-        offsetX: (dzW - slotSizePx) / 2,
-        offsetY: (dzH - slotSizePx) / 2,
-      },
+      deadZone: unionRect(padRect(boxRect, deadZone), floor),
     };
   }
 
@@ -228,12 +279,9 @@ export function resolveHitTargetBox(
   const width = slotSizePx + safeZone * 2;
   const height = slotSizePx + safeZone * 2;
 
-  // 3단계: 무판정 구역은 **모양을 따라가지 않는다** — 슬롯 캔버스 전체를 덮는
-  // 사각형이다(위 `DEAD_ZONE_PX` 주석). 여기서 정답 박스(slot + safe*2)가 이미
-  // 캔버스보다 크므로 별도 바닥은 필요 없다.
-  const dzW = slotSizePx + (safeZone + deadZone) * 2;
-  const dzH = slotSizePx + (safeZone + deadZone) * 2;
-
+  // 3단계: 무판정 구역은 **모양을 따라가지 않는다** — 실루엣 bbox를 감싸는
+  // 사각형이다(위 `DEAD_ZONE_PX` 주석). 정답 영역이 실루엣 + safe-zone이므로
+  // 여기에 deadZone만 더 얹으면 된다.
   return {
     width,
     height,
@@ -241,11 +289,6 @@ export function resolveHitTargetBox(
     offsetY: safeZone,
     useClipPath: true,
     polygon: rebaseAndExpand(polygon, slotSizePx, width, height, safeZone),
-    deadZone: {
-      width: dzW,
-      height: dzH,
-      offsetX: safeZone + deadZone,
-      offsetY: safeZone + deadZone,
-    },
+    deadZone: silhouetteRect(bounds, slotSizePx, safeZone + deadZone),
   };
 }

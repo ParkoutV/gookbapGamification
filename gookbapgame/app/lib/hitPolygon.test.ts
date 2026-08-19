@@ -5,7 +5,7 @@ import {
   extractSilhouetteFromRaw,
   getPartSilhouette,
   mapSilhouetteToSlot,
-  pickPolygonSource,
+  unionSlotPolygon,
 } from "./hitPolygon.ts";
 
 function makeRawAlpha(
@@ -147,44 +147,94 @@ test("mapSilhouetteToSlot: 박스를 벗어나는 극단값은 0~1로 clamp된�
 });
 
 /**
- * "있고 없고" 차이 슬롯의 회귀 테스트(2026-08-14, 을숙도 산책로 제보).
+ * "있고 없고" 차이 슬롯의 회귀 테스트(2026-08-14 을숙도 산책로, 2026-08-19 주방 솥밥).
  *
- * 없는 쪽 파트는 완전 투명이라 hull이 null인데, 그걸 그대로 흘리면
- * `resolveHitTargetBox`가 실루엣을 포기하고 슬롯 크기의 정사각형을 만든다.
- * 납작한 파트일수록 세로로 부풀어 이웃 슬롯을 덮는다.
+ * 차이는 물체의 **존재 여부**라서 정답 자리는 "물체가 있는 자리"와 "없어진 자리"
+ * 둘 다다. 한 면의 실루엣만 쓰면 없는 쪽에서 빈자리를 눌렀을 때 오답이 된다.
  */
-test("pickPolygonSource: 자기 실루엣이 있으면 자기 것을 쓴다", () => {
-  const own = [{ x: 0, y: 0 }];
-  const other = [{ x: 1, y: 1 }];
-  const result = pickPolygonSource(own, other, "ownPlacement", "otherPlacement");
+const PLACEMENT = { offsetX: 0, offsetY: 0, partScale: 1, slotScale: 1 };
 
-  assert.deepEqual(result, { hull: own, placement: "ownPlacement" });
-});
+function bboxOf(polygon: { x: number; y: number }[]) {
+  const xs = polygon.map((p) => p.x);
+  const ys = polygon.map((p) => p.y);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
 
-test("pickPolygonSource: 투명한 면은 반대쪽 실루엣과 배치를 함께 빌려온다", () => {
-  const other = [{ x: 1, y: 1 }];
-  const result = pickPolygonSource(null, other, "ownPlacement", "otherPlacement");
+test("unionSlotPolygon: 한쪽이 완전 투명이면 반대쪽 실루엣이 그대로 쓰인다", () => {
+  const hull = [
+    { x: 0.1, y: 0.4 },
+    { x: 0.9, y: 0.4 },
+    { x: 0.9, y: 0.6 },
+  ];
 
-  // 배치까지 반대쪽 것이어야 한다 — 투명 파트의 offset/scale은 화면에 아무것도
-  // 그리지 않아 검증된 적이 없고, 어긋나면 히트 영역이 엉뚱한 자리에 생긴다.
-  assert.deepEqual(result, { hull: other, placement: "otherPlacement" });
-});
-
-test("pickPolygonSource: 양쪽 다 없으면 null — 실루엣 추출이 실제로 실패한 경우다", () => {
-  assert.equal(pickPolygonSource(null, null, "a", "b"), null);
-});
-
-test("pickPolygonSource: 차이 슬롯의 양쪽 면이 같은 실루엣을 갖는다", () => {
-  // 한쪽만 물체가 있는 슬롯(을숙도 산책로). 양쪽 히트 모양이 같아야
-  // 어느 면을 눌러도 같은 자리가 반응한다.
-  const hull = [{ x: 0.1, y: 0.4 }, { x: 0.9, y: 0.4 }, { x: 0.9, y: 0.6 }];
-  const placement = { offsetX: 0, offsetY: 0, partScale: 1, slotScale: 1 };
-
-  const left = pickPolygonSource(hull, null, placement, placement);
-  const right = pickPolygonSource(null, hull, placement, placement);
-
-  assert.deepEqual(
-    mapSilhouetteToSlot(left!.hull, left!.placement),
-    mapSilhouetteToSlot(right!.hull, right!.placement)
+  const result = unionSlotPolygon(
+    { hull, placement: PLACEMENT },
+    { hull: null, placement: PLACEMENT }
   );
+
+  assert.deepEqual(bboxOf(result!), bboxOf(mapSilhouetteToSlot(hull, PLACEMENT)));
+});
+
+test("unionSlotPolygon: 양쪽 다 없으면 null — 실루엣 추출이 실제로 실패한 경우다", () => {
+  assert.equal(
+    unionSlotPolygon({ hull: null, placement: PLACEMENT }, { hull: null, placement: PLACEMENT }),
+    null
+  );
+});
+
+/*
+ * 주방 `솥밥_2_1`(284x110 전체 불투명) vs `솥밥_2_2`(x156~269만 불투명). 파트 한 장에
+ * 물체가 둘 있고 그중 왼쪽 하나가 사라지는 차이다. 예전 `pickPolygonSource`는 자기
+ * hull이 **null일 때만** 반대쪽을 빌려왔기 때문에 이 경우를 놓쳤고, 사라진 물체
+ * 자리(x < 0.55)를 누르면 실루엣 바깥이라 곧장 오답이었다.
+ */
+test("unionSlotPolygon: 물체 하나만 사라지는 차이도 사라진 자리를 포함한다", () => {
+  const bothPresent = [
+    { x: 0.0, y: 0.4 },
+    { x: 0.95, y: 0.4 },
+    { x: 0.95, y: 0.6 },
+    { x: 0.0, y: 0.6 },
+  ];
+  const oneMissing = [
+    { x: 0.55, y: 0.4 },
+    { x: 0.95, y: 0.4 },
+    { x: 0.95, y: 0.6 },
+    { x: 0.55, y: 0.6 },
+  ];
+
+  const result = unionSlotPolygon(
+    { hull: oneMissing, placement: PLACEMENT },
+    { hull: bothPresent, placement: PLACEMENT }
+  );
+
+  const box = bboxOf(result!);
+  assert.equal(box.minX, 0, "사라진 물체 자리까지 덮어야 한다");
+  assert.equal(box.maxX, 0.95);
+});
+
+test("unionSlotPolygon: 양쪽 면이 같은 폴리곤을 쓴다 — 인자 순서가 결과를 바꾸지 않는다", () => {
+  const a = [{ x: 0.1, y: 0.1 }, { x: 0.4, y: 0.1 }, { x: 0.4, y: 0.4 }];
+  const b = [{ x: 0.6, y: 0.6 }, { x: 0.9, y: 0.6 }, { x: 0.9, y: 0.9 }];
+
+  const left = unionSlotPolygon({ hull: a, placement: PLACEMENT }, { hull: b, placement: PLACEMENT });
+  const right = unionSlotPolygon({ hull: b, placement: PLACEMENT }, { hull: a, placement: PLACEMENT });
+
+  assert.deepEqual(bboxOf(left!), bboxOf(right!));
+});
+
+/*
+ * 같은 슬롯이라도 파트마다 offset/scale이 다를 수 있다. 정규화 좌표에서 합치면
+ * 서로 다른 기준끼리 섞이므로, 슬롯 좌표로 옮긴 **뒤에** 합쳐야 한다.
+ */
+test("unionSlotPolygon: 배치가 서로 다른 두 파트를 슬롯 좌표에서 합친다", () => {
+  const hull = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+
+  const result = unionSlotPolygon(
+    { hull, placement: { offsetX: 0, offsetY: 0, partScale: 0.5, slotScale: 1 } },
+    { hull, placement: { offsetX: 40, offsetY: 0, partScale: 0.5, slotScale: 1 } }
+  );
+
+  const box = bboxOf(result!);
+  assert.equal(box.minX, 0.25, "왼쪽 파트의 왼쪽 끝");
+  assert.equal(box.maxX, 1, "오른쪽 파트가 40px 밀린 끝(0.75 + 0.4 = 1.15 → clamp)");
 });
