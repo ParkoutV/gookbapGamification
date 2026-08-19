@@ -35,11 +35,10 @@ test("쿠폰 이용안내는 약관 창의 탭이 아니다", () => {
   assert.deepEqual([...LEGAL_DOC_IDS], ["terms", "privacy"]);
 });
 
-/* 연락처 4개는 2026-08-19에 실제 값으로 채웠다(근거: 1953bros.com 본사 개인정보처리방침
-   9·10조). **시행일 하나만 남았다** — 기획자에게 확인 후 채운다(2026-08-19, 이란토).
-   목록을 좁게 유지해서 다른 자리표시자가 새로 끼어들거나 오타로 생긴 대괄호가 조용히
-   배포되는 것은 계속 막는다. */
-const ALLOWED_PLACEHOLDERS = new Set(["[YYYY년 MM월 DD일]"]);
+/* 연락처 4개(2026-08-19)에 이어 시행일까지 채워, **남은 자리표시자가 없다**
+   (2026-08-19, 이란토가 2026년 8월 21일로 지정). 목록을 비워 둬서 새 자리표시자나
+   오타로 생긴 대괄호가 조용히 배포되는 것을 막는다. */
+const ALLOWED_PLACEHOLDERS = new Set<string>([]);
 
 test("본문의 자리표시자는 아는 것뿐이다", () => {
   for (const locale of ["ko", "en"] as const) {
@@ -71,9 +70,9 @@ test("담당자 연락처가 ko·en 양쪽에 실제 값으로 들어 있다", (
    원문에 항이 추가되면 이 숫자도 함께 올릴 것. */
 test("개인정보처리방침이 마지막 항까지 전사돼 있다", () => {
   assert.match(legalDocBody("ko", "privacy"), /11\. 개인정보처리방침의 변경/);
-  assert.match(legalDocBody("ko", "privacy"), /시행일:/);
+  assert.match(legalDocBody("ko", "privacy"), /시행일: 2026년 8월 21일/);
   assert.match(legalDocBody("en", "privacy"), /11\. Changes to This Privacy Policy/);
-  assert.match(legalDocBody("en", "privacy"), /Effective date:/);
+  assert.match(legalDocBody("en", "privacy"), /Effective date: August 21, 2026/);
 });
 
 /* 이용약관은 7조, 쿠폰안내는 '기타'가 마지막이다(원문 실측). 위와 같은 이유. */
