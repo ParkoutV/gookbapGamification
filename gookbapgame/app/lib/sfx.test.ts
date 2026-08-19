@@ -1,5 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { isSfxMuted, setSfxMuted, playSfx, SFX } from "./sfx.ts";
 
 // node 런타임에는 window도 localStorage도 없으므로 최소 스텁을 심는다.
@@ -181,4 +182,14 @@ test("preloadSfx: BGM 파일은 요청하지 않는다", async () => {
     delete (globalThis as any).AudioContext;
     delete (globalThis as any).fetch;
   }
+});
+
+// 이름만 등록하고 파일을 안 넣으면 **아무 에러 없이 그 소리만 안 난다** —
+// `load()`가 fetch 실패를 삼키고, `playSfx`는 버퍼가 없으면 조용히 건너뛴다.
+// 만점 축하음처럼 재현 조건이 까다로운 소리는 실기에서도 눈치채기 어렵다.
+test("SFX 이름마다 public/sfx에 파일이 있다", () => {
+  const missing = (Object.values(SFX) as string[]).filter(
+    (n) => !existsSync(new URL(`../../public/sfx/${n}.m4a`, import.meta.url)),
+  );
+  assert.deepEqual(missing, [], `음원 파일이 없다: ${missing.join(", ")}`);
 });

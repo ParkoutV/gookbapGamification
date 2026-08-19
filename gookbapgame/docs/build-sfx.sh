@@ -73,6 +73,25 @@ for entry in "${RENAMED[@]}"; do
   echo "  OK $name.m4a"
 done
 
+# 만점자 전용 축하음. **다른 효과음과 달리 원본이 m4a여도 재인코딩한다.**
+#
+# 1. 원본이 203kbps/103KB로 나머지 효과음을 다 합친 것보다 크다. 96k면 54KB로 절반이
+#    되고, 4초짜리 축하음이라 그 정도 손실은 들리지 않는다. 매장에서 모바일 데이터로
+#    받는 상황이라 프리로드에 100KB를 얹을 이유가 없다(`preloadSfx`는 전부 받는다).
+# 2. **음량을 굽는다.** 원본이 -19.9 LUFS로 이 소리가 대체하는 coindrop(-29.0 LUFS)보다
+#    9dB 크다 — 같은 자리에서 같은 순간에 나는 소리라 그대로 두면 만점자에게만 소리가
+#    두 배로 튄다. `volume=0.55`로 -25.1 LUFS까지 내렸다(축하음이라 coindrop보다 4dB
+#    큰 선은 남겼다). 런타임에서 못 낮추는 이유는 BGM 절의 iOS 설명과 같다.
+if [ -f "$SRC/gratulate.m4a" ]; then
+  ffmpeg -v error -y -i "$SRC/gratulate.m4a" \
+    -af "volume=0.55" \
+    -c:a aac -b:a 96k -movflags +faststart \
+    "$DEST/gratulate.m4a"
+  echo "  OK gratulate.m4a (만점 전용 — 96k, -25 LUFS)"
+else
+  echo "  건너뜀 (원본 없음): gratulate.m4a" >&2
+fi
+
 # ── BGM ───────────────────────────────────────────────────────────────────
 # 효과음과 인코딩 설정이 다르다.
 #
