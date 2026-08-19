@@ -204,8 +204,7 @@ export const zh: Partial<Dictionary> = {
   "coupon.closeButton": "关闭",
   "coupon.qrUnavailable": "无法显示此优惠券的二维码。",
   "coupon.issuedButHidden": "优惠券已发放，但目前无法显示。请稍后在「我的优惠券」中查看。",
-  "coupon.wonOnlineDescription":
-    "这是网上商城专用的优惠券，因此以优惠码形式发放，而非二维码卡片。您可以在「我的优惠券」中查看并复制优惠码。",
+  "coupon.wonOnlineTitle": "网上商城优惠券已发放！",
 
   "game.stageProgress": "第 {current} / {total} 关",
   "game.timeRemainingLabel": "剩余时间：",

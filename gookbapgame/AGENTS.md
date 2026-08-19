@@ -105,6 +105,12 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
   저쪽이 `web_coupons` 한 장을 배정했다는 뜻이고, 그 발급도 `issued_coupons`에 남지만
   우리가 걷어내므로(`withoutOnlineCoupons`) **매장 쿠폰 목록에서는 영영 못 찾는다.**
   그래서 `wonOnline` 상태로 갈라 앨범의 티켓으로 안내한다.
+  - **왜 QR 카드가 아닌지는 화면에서 설명하지 않는다**(2026-08-19, 이란토).
+    "온라인몰 쿠폰이 발급되었어요!" 한 줄과 티켓이 튀어오르는 애니메이션
+    (`.coupon-issued__anim`)이 전부다. 코드를 어떻게 쓰는지는 실제로 코드가 있는
+    자리('내 쿠폰'의 `WebCouponTicket`)에 적혀 있고, 발급 직후 화면에서 QR/코드의
+    차이를 늘어놓는 것은 **우리 쪽 사정**이라 손님에게 불필요하다. 안내가 없다고
+    `coupon.wonOnlineDescription`류의 설명문을 되살리지 말 것.
   - 예전에는 `wonButHidden`("발급되었지만 표시할 수 없어요")으로 떨어졌고, 그 상태는
     `usesCard`가 false라 **카드 연출이 통째로 건너뛰어져** 뽑기를 한 기억조차 남지
     않았다(2026-08-17 실기 제보 — "랜덤뽑기를 그대로 건너뛴다"가 이 증상이다).

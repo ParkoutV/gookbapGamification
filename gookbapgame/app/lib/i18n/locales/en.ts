@@ -193,8 +193,7 @@ export const en: Partial<Dictionary> = {
   "coupon.closeButton": "Close",
   "coupon.qrUnavailable": "This coupon's QR code can't be displayed.",
   "coupon.issuedButHidden": "Your coupon was issued but can't be shown right now. Check \"My Coupons\" in a moment.",
-  "coupon.wonOnlineDescription":
-    "This one is for the online store, so it comes as a code instead of a QR card. You can view and copy it under \"My Coupons\".",
+  "coupon.wonOnlineTitle": "Your online store coupon is here!",
 
   "game.stageProgress": "Stage {current} / {total}",
   "game.timeRemainingLabel": "Time Remaining:",
