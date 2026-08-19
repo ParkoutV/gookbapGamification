@@ -334,11 +334,15 @@ export default function GameScreen({
    * 거의 맞힌 터치를 오답으로 세지 않기 위한 완충이다 — 오답은 3회 제한과
    * 10점 감점이 걸려 있어 체감이 크다.
    *
-   * **실루엣 모양을 따라가지 않는다. 실루엣 bbox를 감싸는 축정렬 사각형이다**
-   * (2026-08-19, 이란토). 오목한 자리·구멍은 bbox 안이라 무판정으로 남고, 캔버스의
-   * letterbox 여백은 배경만 보이는 자리라 오답으로 돌려준다 — 캔버스 전체를 덮던
-   * 시절에는 붙어 있는 슬롯들의 무판정 사각형이 이어져 **명백한 오답에도 감점이
-   * 없었다.** 근거와 규칙은 `hitTarget.ts`의 `DEAD_ZONE_PX`에 있다.
+   * **실루엣 모양을 따라간다**(2026-08-19 저녁, 실기 확인 후). 사각형이던 동안에는
+   * 비스듬히 놓인 큰 파트(7단계 반찬상)의 무판정 사각형이 판 면적의 88%를 덮어
+   * **명백한 오답에도 감점이 불가능**했다. 근거와 규칙은 `hitTarget.ts`의
+   * `DEAD_ZONE_PX`에 있다.
+   *
+   * **`deadZone.polygon`이 없을 때 `clipPath`를 걸지 말 것.** `buildClipPath(null)`은
+   * "클립 없음"이 아니라 `circle(25%)`를 돌려주므로, 폴리곤 없이 clipPath를 남기면
+   * 무판정 구역이 슬롯 1/4짜리 원으로 쪼그라든다 — 의도와 정반대인데 **에러도 나지
+   * 않는다.** `hitTarget.test.ts`가 이 줄을 소스에서 직접 검사하는 이유다.
    *
    * **`clipPath`를 다시 걸지 말 것.** `buildClipPath(null)`은 "클립 없음"이 아니라
    * `circle(25%)`를 돌려주므로, 폴리곤만 지우고 clipPath를 남기면 무판정 구역이
@@ -373,12 +377,60 @@ export default function GameScreen({
             top: `${slot.y * scale + deadZone.top}px`,
             width: `${deadZone.width}px`,
             height: `${deadZone.height}px`,
+            clipPath: deadZone.polygon ? buildClipPath(deadZone.polygon) : undefined,
             zIndex: 0,
           }}
           onClick={(e) => e.stopPropagation()}
         />
       );
     });
+
+  /**
+   * **출제되지 않은 슬롯의 오답 영역**(2026-08-19, 이란토 제보 + 실기 확인).
+   *
+   * 무판정 구역은 차이 슬롯에만 그려지지만 그 사각형이 **이웃한 미출제 슬롯 위를
+   * 덮는다.** 실기(1단계)에서 오른쪽 위 대추가 옆 슬롯(새우)의 무판정 구역 안에
+   * 통째로 들어가, 대추를 눌러도 감점이 일어나지 않았다. 무판정은 "빗나간 터치"를
+   * 봐주는 완충이지 **다른 물체를 정확히 누른 터치**를 봐주는 장치가 아니다.
+   *
+   * 무판정에서 이웃 실루엣을 도려내는 것은 사각형 하나로 표현할 수 없어서, 반대로
+   * 미출제 슬롯이 자기 실루엣을 **무판정 위에** 얹는다. 폴리곤은 이미 전 슬롯에
+   * 대해 계산돼 있다(`computeSlotPolygons`는 차이 슬롯만 도는 게 아니다).
+   *
+   * **핸들러를 달지 말 것.** 클릭이 그대로 배경까지 올라가 `handleBackgroundClick`이
+   * 오답으로 세는 것이 이 레이어의 전부다 — 하는 일은 무판정 구역이 먼저 삼키지
+   * 못하게 위에 서 있는 것뿐이다.
+   *
+   * **여유(safe-zone)나 56px 보정을 주지 말 것.** 이건 눌러야 하는 표적이 아니라
+   * 감점 판정이라, 넓히면 정답 슬롯의 여유를 거꾸로 잡아먹는다. 슬롯 캔버스 크기
+   * 그대로에 실루엣 clip만 씌운다(폴리곤 좌표가 캔버스 기준 %라 재배치도 필요 없다).
+   *
+   * 폴리곤이 없으면 그리지 않는다 — 실루엣을 모르는 채 캔버스를 통째로 깔면
+   * 이웃 차이 슬롯의 정답 영역까지 덮는다.
+   */
+  const renderDecoyZones = (side: "left" | "right") =>
+    session.slots
+      .filter((slot) => !slot.isDifference)
+      .map((slot) => {
+        const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
+        if (!polygon || polygon.length < 3) return null;
+        const slotSizePx = 100 * slot.slotScale * scale;
+
+        return (
+          <div
+            key={`decoy-${slot.slotId}`}
+            className="absolute"
+            style={{
+              left: `${slot.x * scale}px`,
+              top: `${slot.y * scale}px`,
+              width: `${slotSizePx}px`,
+              height: `${slotSizePx}px`,
+              clipPath: buildClipPath(polygon),
+              zIndex: 0,
+            }}
+          />
+        );
+      });
 
   /**
    * 정답 표시. 슬롯 중심에 고정 크기로 놓는다 — 히트 영역의 clip-path 바깥이라
@@ -504,6 +556,7 @@ export default function GameScreen({
                 onLoad={handleImageLoad}
               />
               {renderDeadZones("left")}
+              {renderDecoyZones("left")}
               {renderClickOverlays("left")}
               {renderFoundMarks()}
               {renderWrongMarks("left")}
@@ -654,6 +707,7 @@ export default function GameScreen({
                 }`}
               />
               {renderDeadZones("right")}
+              {renderDecoyZones("right")}
               {renderClickOverlays("right")}
               {renderFoundMarks()}
               {renderWrongMarks("right")}

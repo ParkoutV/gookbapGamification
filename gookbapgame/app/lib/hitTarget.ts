@@ -48,18 +48,19 @@ export const SAFE_ZONE_PX = 5;
  * 페널티를 주기엔 가혹한" 구역이다. 오답은 3회 제한과 10점 감점이 걸려 있어서,
  * 거의 맞힌 터치를 오답으로 세면 체감이 나쁘다.
  *
- * **모양은 실루엣의 bounding box(축정렬 사각형)다**(2026-08-19). 08-19 낮에는
- * 슬롯 캔버스 전체로 넓혔었는데, 그건 "파트의 투명한 자리를 눌렀는데 오답"이라는
- * 증상을 덮은 것이었다. 진짜 원인은 히트 폴리곤이 한쪽 면의 실루엣만 썼다는 것이고
- * (`unionSlotPolygon` 참고), 그쪽을 고쳤으므로 여기는 다시 좁힌다.
+ * **모양은 실루엣을 따라간다**(2026-08-19 저녁, 실기 확인 후). 그날 낮에 슬롯 캔버스
+ * 전체로 넓혔다가 bounding box로 좁혔는데, 실기에서 7단계 무판정 사각형 셋이 판
+ * 면적의 88%를 덮는 것이 나왔다(184x220짜리 하나가 판 높이 전체). 반찬상처럼 비스듬히
+ * 놓인 큰 파트는 bbox가 실루엣보다 훨씬 크고, 그 안에 든 야채 그릇을 눌러도 감점이
+ * 없었다 — **명백한 오답에 페널티가 물리적으로 불가능**해진다.
  *
- * 캔버스 전체가 나쁜 이유: 파트는 캔버스 정사각형에 **letterbox**로 들어간다.
- * 284x110짜리 납작한 파트는 캔버스 높이의 39%만 차지하므로, 캔버스만 한 무판정
- * 구역은 물체보다 2.6배 높다. 슬롯이 붙어 있으면 그 사각형들이 이어져 판 전체가
- * 무판정 카펫이 되고, **명백한 오답에도 감점이 일어나지 않는다**(이란토 제보).
+ * 캔버스 전체로 넓혔던 이유(파트의 투명한 자리를 눌렀는데 오답)는 이제 원인 쪽에서
+ * 해결됐다 — 히트 폴리곤이 양쪽 실루엣의 합집합이라 "물체가 사라진 자리"가 정답
+ * 영역 안이다(`unionSlotPolygon`). 그래서 모양을 따라가도 그 제보가 재발하지 않는다.
+ * **이 근거가 무너지면(합집합을 되돌리면) 여기도 함께 되돌려야 한다.**
  *
- * 지금 규칙: 실루엣 + 5px = 정답 / **실루엣 bbox + 10px = 무판정** / 그 바깥 = 오답.
- * bbox라서 실루엣의 오목한 곳·구멍은 여전히 무판정 안쪽이다.
+ * 지금 규칙: 실루엣 + 5px = 정답 / **실루엣 + 10px = 무판정** / 그 바깥 = 오답.
+ * 실루엣은 볼록 껍질이라 오목한 곳·구멍은 애초에 그 안이다.
  */
 export const DEAD_ZONE_PX = 5;
 
@@ -82,21 +83,22 @@ export type HitTargetBox = {
    */
   polygon: Point[] | null;
   /**
-   * 무판정 구역. **언제나 축정렬 사각형이다** — 폴리곤이 없는 것이 이 구역의
-   * 정의다(`DEAD_ZONE_PX` 주석 참고). 클릭이 배경(오답 판정)까지 내려가지 않게
-   * 막기만 한다.
-   *
-   * **`polygon` 필드를 되살리지 말 것.** 되살리면 실루엣 모양으로 좁아져 오목한
-   * 자리가 오답 판정으로 돌아간다.
+   * 무판정 구역. 클릭이 배경(오답 판정)까지 내려가지 않게 막기만 한다.
    *
    * `left`/`top`은 **슬롯 원점 기준 px**이며 음수일 수 있다. 실루엣이 캔버스 중앙에
    * 있지 않을 수 있어 중심 대칭을 가정하지 않는다.
+   *
+   * `polygon`이 있으면 그 모양으로 clip한다. 없으면(실루엣을 못 쓰는 경로) 사각형
+   * 그대로다 — 그때는 렌더 지점에서 **clipPath를 걸지 말 것.**
+   * `buildClipPath(null)`은 "클립 없음"이 아니라 `circle(25%)`를 돌려주므로 무판정
+   * 구역이 슬롯 1/4짜리 원으로 쪼그라든다(에러도 나지 않는다).
    */
   deadZone: {
     left: number;
     top: number;
     width: number;
     height: number;
+    polygon: Point[] | null;
   };
 };
 
@@ -261,7 +263,8 @@ export function resolveHitTargetBox(
       offsetY: (height - slotSizePx) / 2,
       useClipPath: false,
       polygon: null,
-      deadZone: unionRect(padRect(boxRect, deadZone), floor),
+      // 이 경로는 정답 영역이 사각형이라 무판정도 사각형이다.
+      deadZone: { ...unionRect(padRect(boxRect, deadZone), floor), polygon: null },
     };
   }
 
@@ -279,9 +282,12 @@ export function resolveHitTargetBox(
   const width = slotSizePx + safeZone * 2;
   const height = slotSizePx + safeZone * 2;
 
-  // 3단계: 무판정 구역은 **모양을 따라가지 않는다** — 실루엣 bbox를 감싸는
-  // 사각형이다(위 `DEAD_ZONE_PX` 주석). 정답 영역이 실루엣 + safe-zone이므로
-  // 여기에 deadZone만 더 얹으면 된다.
+  // 3단계: 무판정 구역은 **실루엣 모양을 따라간다**(위 `DEAD_ZONE_PX` 주석).
+  // 정답 영역이 실루엣 + safe-zone이므로 여기에 deadZone을 더 얹은 한 겹이다.
+  const dzPad = safeZone + deadZone;
+  const dzW = slotSizePx + dzPad * 2;
+  const dzH = slotSizePx + dzPad * 2;
+
   return {
     width,
     height,
@@ -289,6 +295,12 @@ export function resolveHitTargetBox(
     offsetY: safeZone,
     useClipPath: true,
     polygon: rebaseAndExpand(polygon, slotSizePx, width, height, safeZone),
-    deadZone: silhouetteRect(bounds, slotSizePx, safeZone + deadZone),
+    deadZone: {
+      left: -dzPad,
+      top: -dzPad,
+      width: dzW,
+      height: dzH,
+      polygon: rebaseAndExpand(polygon, slotSizePx, dzW, dzH, dzPad),
+    },
   };
 }
