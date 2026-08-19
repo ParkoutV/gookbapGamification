@@ -122,7 +122,7 @@ function load(name: SfxName): Promise<void> {
 }
 
 /**
- * 효과음을 미리 받아 디코드한다(BGM 제외 전부 합쳐 180KB — 절반이 gratulate다).
+ * 효과음을 미리 받아 디코드한다(BGM 제외 전부 합쳐 195KB — 4분의 1이 gratulate다).
  *
  * **첫 버튼을 누르기 한참 전에 끝나 있어야 한다.** decodeAudioData가 비동기라
  * 버퍼가 없으면 그 재생은 조용히 건너뛰어진다. 그래서 시작 버튼이 아니라
