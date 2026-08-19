@@ -79,7 +79,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
 
   const copyToClipboard = () => {
     if (!storeTrackId) return;
-    const url = `https://1953-brother-gookbap.vercel.app/?q=${storeTrackId}`;
+    const url = `https://game.1953bros.com/?q=${storeTrackId}`;
     navigator.clipboard.writeText(url);
     alert('가게 링크가 클립보드에 복사되었습니다.');
   };
@@ -347,7 +347,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
               <div style={{ display: qrImageUrl ? 'none' : 'block' }}>
                 <QRCodeCanvas 
                   id="dashboard-qr-canvas"
-                  value={`https://1953-brother-gookbap.vercel.app/?q=${storeTrackId}`} 
+                  value={`https://game.1953bros.com/?q=${storeTrackId}`} 
                   size={200}
                   level="H"
                   includeMargin={false}
@@ -359,7 +359,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
             </div>
             
             <p className="mt-6 text-xs text-gray-400 break-all w-full bg-gray-50 dark:bg-zinc-950 p-3 rounded-lg border border-gray-100 dark:border-zinc-800">
-              https://1953-brother-gookbap.vercel.app/?q={storeTrackId}
+              https://game.1953bros.com/?q={storeTrackId}
             </p>
 
             <button

@@ -149,7 +149,7 @@ export default function TracksListPage() {
   }
 
   const copyToClipboard = (id: string) => {
-    const url = `https://1953-brother-gookbap.vercel.app/?q=${id}`
+    const url = `https://game.1953bros.com/?q=${id}`
     navigator.clipboard.writeText(url)
     alert('링크가 클립보드에 복사되었습니다.')
   }
@@ -392,7 +392,7 @@ export default function TracksListPage() {
               <div style={{ display: qrImageUrl ? 'none' : 'block' }}>
                 <QRCodeCanvas 
                   id="qr-canvas"
-                  value={`https://1953-brother-gookbap.vercel.app/?q=${qrModalData.id}`} 
+                  value={`https://game.1953bros.com/?q=${qrModalData.id}`} 
                   size={200}
                   level="H"
                   includeMargin={false}
@@ -404,7 +404,7 @@ export default function TracksListPage() {
             </div>
             
             <p className="mt-6 text-xs text-gray-400 break-all w-full bg-gray-50 dark:bg-zinc-950 p-3 rounded-lg border border-gray-100 dark:border-zinc-800">
-              https://1953-brother-gookbap.vercel.app/?q={qrModalData.id}
+              https://game.1953bros.com/?q={qrModalData.id}
             </p>
 
             <button
