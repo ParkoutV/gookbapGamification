@@ -239,6 +239,32 @@ test("정답 표시는 클릭을 통과시키지 않는다", () => {
   assert.ok(block.includes("stopPropagation"), "클릭을 삼켜야 한다");
 });
 
+/*
+ * 무판정 사각형은 이웃한 **미출제 슬롯** 위를 덮는다(2026-08-19 실기: 1단계에서
+ * 대추가 옆 슬롯의 무판정 안에 통째로 들어가 눌러도 감점이 없었다). 미출제 슬롯이
+ * 자기 실루엣을 무판정 **위에** 얹어 클릭을 배경까지 흘려보내는 것이 해법이라,
+ * 세 가지가 함께 지켜져야 한다: 미출제 슬롯을 그릴 것 / 핸들러를 달지 말 것 /
+ * 무판정보다 뒤(위)에 그릴 것.
+ */
+test("미출제 슬롯의 오답 영역이 무판정 위에 깔린다", () => {
+  const source = readFileSync("app/components/GameScreen.tsx", "utf8");
+
+  const start = source.indexOf("key={`decoy-${slot.slotId}`}");
+  assert.ok(start > 0, "미출제 슬롯 레이어를 찾지 못했다");
+  const block = source.slice(start, source.indexOf("/>", start));
+  assert.ok(!block.includes("onClick"), "핸들러를 달면 배경까지 올라가지 않아 감점이 사라진다");
+  assert.ok(block.includes("clipPath"), "실루엣 clip이 없으면 캔버스째 덮어 이웃 정답을 가린다");
+
+  // 같은 zIndex(0)라 DOM 순서가 승패를 가른다 — 무판정보다 **뒤**에 와야 이긴다.
+  for (const side of ["left", "right"]) {
+    const dead = source.indexOf(`renderDeadZones("${side}")`);
+    const decoy = source.indexOf(`renderDecoyZones("${side}")`);
+    const hit = source.indexOf(`renderClickOverlays("${side}")`);
+    assert.ok(dead > 0 && decoy > dead, `${side}: 미출제 레이어가 무판정보다 앞에 있다`);
+    assert.ok(hit > decoy, `${side}: 정답 영역이 미출제 레이어에 가린다`);
+  }
+});
+
 // 7단계 실측 최소 중심 거리는 73px이었다. 가장 크게 보정된 슬롯끼리 이웃해도
 // 무판정 구역이 서로의 정답 영역을 침범하면 안 된다.
 test("최대 보정 크기가 실측 최소 중심 거리 안에 들어온다", () => {

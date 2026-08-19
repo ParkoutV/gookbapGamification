@@ -381,6 +381,53 @@ export default function GameScreen({
     });
 
   /**
+   * **출제되지 않은 슬롯의 오답 영역**(2026-08-19, 이란토 제보 + 실기 확인).
+   *
+   * 무판정 구역은 차이 슬롯에만 그려지지만 그 사각형이 **이웃한 미출제 슬롯 위를
+   * 덮는다.** 실기(1단계)에서 오른쪽 위 대추가 옆 슬롯(새우)의 무판정 구역 안에
+   * 통째로 들어가, 대추를 눌러도 감점이 일어나지 않았다. 무판정은 "빗나간 터치"를
+   * 봐주는 완충이지 **다른 물체를 정확히 누른 터치**를 봐주는 장치가 아니다.
+   *
+   * 무판정에서 이웃 실루엣을 도려내는 것은 사각형 하나로 표현할 수 없어서, 반대로
+   * 미출제 슬롯이 자기 실루엣을 **무판정 위에** 얹는다. 폴리곤은 이미 전 슬롯에
+   * 대해 계산돼 있다(`computeSlotPolygons`는 차이 슬롯만 도는 게 아니다).
+   *
+   * **핸들러를 달지 말 것.** 클릭이 그대로 배경까지 올라가 `handleBackgroundClick`이
+   * 오답으로 세는 것이 이 레이어의 전부다 — 하는 일은 무판정 구역이 먼저 삼키지
+   * 못하게 위에 서 있는 것뿐이다.
+   *
+   * **여유(safe-zone)나 56px 보정을 주지 말 것.** 이건 눌러야 하는 표적이 아니라
+   * 감점 판정이라, 넓히면 정답 슬롯의 여유를 거꾸로 잡아먹는다. 슬롯 캔버스 크기
+   * 그대로에 실루엣 clip만 씌운다(폴리곤 좌표가 캔버스 기준 %라 재배치도 필요 없다).
+   *
+   * 폴리곤이 없으면 그리지 않는다 — 실루엣을 모르는 채 캔버스를 통째로 깔면
+   * 이웃 차이 슬롯의 정답 영역까지 덮는다.
+   */
+  const renderDecoyZones = (side: "left" | "right") =>
+    session.slots
+      .filter((slot) => !slot.isDifference)
+      .map((slot) => {
+        const polygon = side === "left" ? slot.leftHitPolygon : slot.rightHitPolygon;
+        if (!polygon || polygon.length < 3) return null;
+        const slotSizePx = 100 * slot.slotScale * scale;
+
+        return (
+          <div
+            key={`decoy-${slot.slotId}`}
+            className="absolute"
+            style={{
+              left: `${slot.x * scale}px`,
+              top: `${slot.y * scale}px`,
+              width: `${slotSizePx}px`,
+              height: `${slotSizePx}px`,
+              clipPath: buildClipPath(polygon),
+              zIndex: 0,
+            }}
+          />
+        );
+      });
+
+  /**
    * 정답 표시. 슬롯 중심에 고정 크기로 놓는다 — 히트 영역의 clip-path 바깥이라
    * 실루엣 모양과 무관하게 항상 온전한 크기로 보인다.
    * 오답 표시(renderWrongMarks)와 같은 32px, 같은 중심 정렬 방식이다.
@@ -504,6 +551,7 @@ export default function GameScreen({
                 onLoad={handleImageLoad}
               />
               {renderDeadZones("left")}
+              {renderDecoyZones("left")}
               {renderClickOverlays("left")}
               {renderFoundMarks()}
               {renderWrongMarks("left")}
@@ -654,6 +702,7 @@ export default function GameScreen({
                 }`}
               />
               {renderDeadZones("right")}
+              {renderDecoyZones("right")}
               {renderClickOverlays("right")}
               {renderFoundMarks()}
               {renderWrongMarks("right")}
