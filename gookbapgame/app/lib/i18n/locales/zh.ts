@@ -80,7 +80,7 @@ export const zh: Partial<Dictionary> = {
 
   "tutorial.limit.title": "时间与机会",
   "tutorial.limit.body":
-    "限时不是按关卡计算，而是全程共 300 秒。\n" +
+    "限时不是按关卡计算，而是全程共 180 秒。\n" +
     "在同一关中错 3 次，该关即结束并进入下一关。\n" +
     "每错一次扣 10 分。",
 

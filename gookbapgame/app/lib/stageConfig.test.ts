@@ -32,13 +32,20 @@ test("TOTAL_STAGE_SCORE: 레벨 배점 합은 800이다", () => {
 });
 
 test("전역 상수: 시간/오답/미완주 관련 값이 스펙과 일치한다", () => {
-  assert.equal(GLOBAL_TIME_LIMIT_SEC, 300);
+  assert.equal(GLOBAL_TIME_LIMIT_SEC, 180);
   assert.equal(WRONG_TOUCH_LIMIT_PER_LEVEL, 3);
   assert.equal(WRONG_TOUCH_PENALTY, 10);
   assert.equal(INCOMPLETE_LEVEL_PENALTY, 10);
 });
 
-import { calcAccuracyTierPoints, calcTimeBonus } from "./stageConfig.ts";
+import {
+  calcAccuracyTierPoints,
+  calcTimeBonus,
+  TIME_BONUS_MAX,
+  TIME_BONUS_FAST_THRESHOLD_SEC,
+  TIME_BONUS_STEP_SEC,
+  TIME_BONUS_STEP_VALUE,
+} from "./stageConfig.ts";
 
 test("calcAccuracyTierPoints: 6단계 정답률 구간 경계값", () => {
   assert.equal(calcAccuracyTierPoints(0), 0);
@@ -55,28 +62,45 @@ test("calcAccuracyTierPoints: 6단계 정답률 구간 경계값", () => {
   assert.equal(calcAccuracyTierPoints(100), 600);
 });
 
-test("calcTimeBonus: 100초 이내는 정답률 티어 그대로", () => {
-  assert.equal(calcTimeBonus(50, 100), 600);
-  assert.equal(calcTimeBonus(100, 100), 600);
-  assert.equal(calcTimeBonus(100, 70), 200);
+test("calcTimeBonus: 60초 이내는 정답률 티어 그대로", () => {
+  assert.equal(calcTimeBonus(30, 100), 600);
+  assert.equal(calcTimeBonus(60, 100), 600);
+  assert.equal(calcTimeBonus(60, 70), 200);
 });
 
-test("calcTimeBonus: 100초 초과는 10초 단위로 30점씩 감소한다", () => {
-  assert.equal(calcTimeBonus(105, 100), 570);
-  assert.equal(calcTimeBonus(110, 100), 570);
-  assert.equal(calcTimeBonus(111, 100), 540);
-  assert.equal(calcTimeBonus(300, 100), 0);
+test("calcTimeBonus: 60초 초과는 10초 단위로 50점씩 감소한다", () => {
+  assert.equal(calcTimeBonus(65, 100), 550);
+  assert.equal(calcTimeBonus(70, 100), 550);
+  assert.equal(calcTimeBonus(71, 100), 500);
+  assert.equal(calcTimeBonus(180, 100), 0);
 });
 
 test("calcTimeBonus: 정답률이 낮으면 더 일찍 0에 도달한다", () => {
-  assert.equal(calcTimeBonus(150, 70), 50);
-  assert.equal(calcTimeBonus(161, 70), 0);
+  assert.equal(calcTimeBonus(90, 70), 50);
+  assert.equal(calcTimeBonus(101, 70), 0);
 });
 
 test("calcTimeBonus: 정답률 0%면 어떤 시간에도 0이다(악용 방지 검증)", () => {
   assert.equal(calcTimeBonus(30, 0), 0);
-  assert.equal(calcTimeBonus(105, 0), 0);
-  assert.equal(calcTimeBonus(250, 0), 0);
+  assert.equal(calcTimeBonus(65, 0), 0);
+  assert.equal(calcTimeBonus(150, 0), 0);
+});
+
+/**
+ * 이 넷은 독립이 아니다 — 최고 티어가 0에 닿는 시각이 제한시간과 어긋나면
+ * "시간을 다 써도 보너스가 남는" 구멍이 생긴다(2026-08-19에 실제로 밟았다).
+ * 수치를 조정할 때 이 테스트가 먼저 깨져야 한다.
+ */
+test("시간 보너스는 제한시간에 정확히 소진된다", () => {
+  const zeroAt =
+    TIME_BONUS_FAST_THRESHOLD_SEC + (TIME_BONUS_MAX / TIME_BONUS_STEP_VALUE) * TIME_BONUS_STEP_SEC;
+  assert.equal(zeroAt, GLOBAL_TIME_LIMIT_SEC);
+
+  // 계단은 ceil이라 마지막 한 칸(170초 초과)이 통째로 0이다. "제한 직전까지 남는다"가
+  // 아니라 "제한을 넘겨서까지 남지는 않는다"가 지켜야 할 성질이다.
+  assert.ok(calcTimeBonus(zeroAt - TIME_BONUS_STEP_SEC, 100) > 0);
+  assert.equal(calcTimeBonus(zeroAt, 100), 0);
+  assert.equal(calcTimeBonus(GLOBAL_TIME_LIMIT_SEC, 100), 0);
 });
 
 import { COMBO_BONUS_MAX, calcComboBonusForStreak } from "./stageConfig.ts";
@@ -178,11 +202,11 @@ function perfectLevelResults() {
   }));
 }
 
-test("calcFinalScore: 완전 무결점 + 100초 이내 완주 = 1953", () => {
+test("calcFinalScore: 완전 무결점 + 60초 이내 완주 = 1953", () => {
   const totalAnswers = STAGE_CONFIG.reduce((sum, s) => sum + s.diffCount, 0);
   const breakdown = calcFinalScore({
     levelResults: perfectLevelResults(),
-    elapsedSec: 90,
+    elapsedSec: 55,
     totalWrongTouches: 0,
     comboBankedScore: 0,
     comboCurrentStreak: totalAnswers,

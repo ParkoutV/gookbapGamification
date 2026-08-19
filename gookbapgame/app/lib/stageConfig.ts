@@ -26,7 +26,7 @@ export const TOTAL_STAGE_SCORE = STAGE_CONFIG.reduce((sum, s) => sum + s.pointPo
 // 이제 환산 대상이 아니라 총점의 실제 만점이다(총점은 항상 0~1953으로 계산된다).
 export const DISPLAY_MAX_SCORE = 1953;
 
-export const GLOBAL_TIME_LIMIT_SEC = 300;
+export const GLOBAL_TIME_LIMIT_SEC = 180;
 export const WRONG_TOUCH_LIMIT_PER_LEVEL = 3;
 /**
  * 힌트 사용 한도. **단계당이 아니라 게임 전체 기준이다.**
@@ -40,9 +40,26 @@ export const WRONG_TOUCH_PENALTY = 10;
 export const INCOMPLETE_LEVEL_PENALTY = 10;
 
 export const TIME_BONUS_MAX = 600;
-export const TIME_BONUS_FAST_THRESHOLD_SEC = 100;
+/**
+ * 이 시간 안에 끝내면 정답률 티어 점수를 깎지 않는다. 넘기면 `TIME_BONUS_STEP_SEC`마다
+ * `TIME_BONUS_STEP_VALUE`씩 깎인다.
+ *
+ * **아래 세 상수와 `GLOBAL_TIME_LIMIT_SEC`은 독립이 아니다.** 최고 티어(600점)가 0에
+ * 닿는 시각이 곧 `FAST_THRESHOLD + (600 / STEP_VALUE) * STEP_SEC`이고, 이것이 제한시간과
+ * 어긋나면 설계 의도가 깨진다:
+ *   - 제한시간보다 **뒤**면 시간을 다 쓰고 초과로 끝나도 시간 보너스가 남는다.
+ *     (300s/100s/30점 → 180s/30s/30점으로 줄이려다 실제로 밟은 함정, 2026-08-19)
+ *   - 너무 **앞**이면 후반이 통째로 0점 구간이라 시간 압박이 사라진다.
+ * 현재 값은 60 + (600/50)*10 = 180으로 제한시간과 정확히 일치한다. **하나를 바꾸면
+ * 나머지도 같이 계산할 것.**
+ *
+ * 60초는 "실력자는 닿고 초심자는 못 닿는" 자리다(2026-08-19, 이란토). 더 짧게 잡으면
+ * 대부분의 손님이 감점 구간에서 시작해 보너스가 상이 아니라 벌점이 된다. 출제자는
+ * 정답 위치를 알아 30초에도 끝내지만 그 시간을 기준으로 삼지 않는 이유다.
+ */
+export const TIME_BONUS_FAST_THRESHOLD_SEC = 60;
 export const TIME_BONUS_STEP_SEC = 10;
-export const TIME_BONUS_STEP_VALUE = 30;
+export const TIME_BONUS_STEP_VALUE = 50;
 
 const ACCURACY_TIME_BONUS_TIERS: { minPercent: number; points: number }[] = [
   { minPercent: 91, points: 600 },
