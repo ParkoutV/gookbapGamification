@@ -188,11 +188,31 @@ export default function WheelScreen({
         {/* 온라인몰 쿠폰 당첨. 카드가 없는 것은 결함이 아니라 상품의 성질이다 —
             QR도 사용기한도 없고 평문 코드를 온라인몰에 붙여넣는 물건이다
             (`WebCouponTicket`). 그래서 **매장 쿠폰과 다른 문구**를 쓴다:
-            "표시할 수 없어요"로 뭉뚱그리면 받은 사람이 잃어버린 줄 안다. */}
+            "표시할 수 없어요"로 뭉뚱그리면 받은 사람이 잃어버린 줄 안다.
+
+            **왜 그런지는 설명하지 않는다**(2026-08-19, 이란토). "QR 카드 대신 코드로
+            드려요"는 우리 쪽 사정이지 손님이 알 일이 아니다. 티켓이 통통 튀는 그림과
+            "발급되었어요" 한 줄이면 무슨 일이 일어났는지 전달된다 —
+            자세한 안내는 실제로 코드를 쓰는 자리('내 쿠폰'의 `WebCouponTicket`)에 있다.
+
+            애니메이션 WebP 한 장이라 재생 제어 코드가 없다. `GatchaLoading`의 카드
+            섞기와 같은 방식이며, reduced-motion에서 정지본으로 갈아끼우는 것도 같다
+            (원본: 기획 폴더 gfx/assets/icon_coupon/). */}
         {drawResult?.status === "wonOnline" && (
           <div className="mb-8">
-            <p className="font-extrabold mb-2 text-ink">{t("wheel.wonTitle")}</p>
-            <p className="text-muted text-sm">{t("coupon.wonOnlineDescription")}</p>
+            <img
+              src="/icons/coupon-issued.webp"
+              alt=""
+              aria-hidden="true"
+              className="coupon-issued__anim"
+            />
+            <img
+              src="/icons/coupon-issued-static.webp"
+              alt=""
+              aria-hidden="true"
+              className="coupon-issued__static"
+            />
+            <p className="font-extrabold text-ink">{t("coupon.wonOnlineTitle")}</p>
           </div>
         )}
 
