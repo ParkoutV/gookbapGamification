@@ -1,5 +1,4 @@
 import { convexHull, type Point } from "./convexHull.ts";
-import sharp from "sharp";
 
 export type { Point };
 
@@ -56,6 +55,22 @@ export async function getPartSilhouette(
       console.warn(`[getPartSilhouette] fetch 실패 (status=${res.status}): ${imageUrl}`);
     } else {
       const buffer = Buffer.from(await res.arrayBuffer());
+      /*
+       * **`sharp`를 최상위에서 import하지 말 것**(2026-08-19 장애). 예전에는 이 파일이
+       * 모듈 최상위에서 `import sharp from "sharp"`를 했는데, `actions.ts`가 이 파일을
+       * import하므로 sharp 로드가 실패하면 **서버 액션이 통째로 죽었다** — 닉네임 배정·
+       * 랭킹·쿠폰 뽑기·가챠 한도까지 전부 500이 되고, 화면에는 "게임 데이터를 불러오는데
+       * 실패했습니다"만 떴다(시작 화면 닉네임이 빈칸이던 것도 같은 원인).
+       *
+       * 실제로 Vercel 함수에 `@img/sharp-libvips-linux-x64`의 `libvips-cpp.so`가 빠져
+       * `ERR_DLOPEN_FAILED`가 났다. 이미지 라이브러리 하나가 게임 전체를 멈추는 것은
+       * 폭발 반경이 하는 일에 비해 터무니없다.
+       *
+       * 여기서 받으면 실패가 아래 catch에 걸려 `null`이 되고, 그 판은 실루엣 대신
+       * **정사각형 히트박스**로 떨어진다(`pickPolygonSource`가 이미 그 경로를 갖고 있다).
+       * 히트 영역이 헐거워질 뿐 게임은 돌아간다.
+       */
+      const { default: sharp } = await import("sharp");
       const { data, info } = await sharp(buffer)
         .ensureAlpha()
         .raw()
