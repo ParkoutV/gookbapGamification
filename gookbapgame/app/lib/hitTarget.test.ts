@@ -173,6 +173,36 @@ test("무판정 박스는 정답 박스를 모두 덮는다(clip 이전, 사각�
 });
 
 /*
+ * 정답 폴리곤이 두 그림의 **차이 영역**이 된 뒤로(`getDiffSilhouette`) 폴리곤이 캔버스
+ * 한구석에 몰릴 수 있다. 56px 보정 경로가 박스를 캔버스 중심에 놓으면 표적이 달라진
+ * 자리가 아닌 곳에 생긴다 — 에러 없이 "맞는 데를 눌렀는데 안 먹는다"가 된다.
+ */
+test("56px 보정 박스는 실루엣 중심에 놓인다 — 캔버스 중심이 아니다", () => {
+  const slot = 200;
+  // 오른쪽 아래 구석의 작은 차이(0.8~0.9)
+  const corner: Point[] = [
+    { x: 0.8, y: 0.8 },
+    { x: 0.9, y: 0.8 },
+    { x: 0.9, y: 0.9 },
+    { x: 0.8, y: 0.9 },
+  ];
+  const box = resolveHitTargetBox(slot, corner);
+
+  assert.equal(box.useClipPath, false, "20px짜리 차이라 56px 보정 경로여야 한다");
+  // 박스 중심(슬롯 원점 기준) = 실루엣 중심 = 0.85 * 200 = 170px
+  assert.ok(Math.abs(-box.offsetX + box.width / 2 - 170) < 0.01, `가로 중심 ${-box.offsetX + box.width / 2}`);
+  assert.ok(Math.abs(-box.offsetY + box.height / 2 - 170) < 0.01, `세로 중심 ${-box.offsetY + box.height / 2}`);
+});
+
+test("실루엣이 캔버스 중앙이면 예전과 같은 자리에 놓인다", () => {
+  const slot = 200;
+  const box = resolveHitTargetBox(slot, boxPolygon(0.1, 0.1));
+
+  assert.equal(box.offsetX, (box.width - slot) / 2);
+  assert.equal(box.offsetY, (box.height - slot) / 2);
+});
+
+/*
  * 2026-08-19 저녁 실기: 7단계 무판정 사각형 셋이 판 면적의 88%를 덮었다(184x220짜리
  * 하나가 판 높이 전체). 비스듬히 놓인 큰 파트는 bbox가 실루엣보다 훨씬 크다 —
  * 그래서 무판정도 실루엣 모양을 따라간다. 사각형으로 되돌리면 이 값이 다시 튄다.

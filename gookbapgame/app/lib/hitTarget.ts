@@ -243,24 +243,28 @@ export function resolveHitTargetBox(
     // 결국 유효 면적은 원래대로 작게 남는다.
     const width = (effectiveW >= minTarget ? slotSizePx : minTarget) + safeZone * 2;
     const height = (effectiveH >= minTarget ? slotSizePx : minTarget) + safeZone * 2;
+
+    // **박스는 캔버스 중심이 아니라 실루엣 중심에 놓는다**(2026-08-19). 정답 폴리곤이
+    // 두 그림의 차이 영역이 된 뒤로(`getDiffSilhouette`) 폴리곤이 캔버스 한구석에
+    // 몰릴 수 있다 — 캔버스 중심에 놓으면 표적이 **달라진 자리가 아닌 곳**에 생긴다.
+    // 실루엣이 캔버스 중앙을 채우던 시절에는 두 값이 같았다.
+    const centerX = bounds ? (bounds.minX + bounds.widthRatio / 2) * slotSizePx : slotSizePx / 2;
+    const centerY = bounds ? (bounds.minY + bounds.heightRatio / 2) * slotSizePx : slotSizePx / 2;
+    const offsetX = width / 2 - centerX;
+    const offsetY = height / 2 - centerY;
     // 무판정 구역은 정답 박스(사각형 전체가 눌린다)를 반드시 덮어야 하고, 실루엣이
     // 그보다 옆으로 튀어나오면 그쪽도 덮는다. **캔버스 바닥은 걸지 않는다** —
     // letterbox 여백까지 무판정으로 두면 명백한 오답에도 감점이 없다(`DEAD_ZONE_PX`).
     // 실루엣 정보가 아예 없을 때(`!bounds`)만 예전처럼 캔버스를 바닥으로 쓴다.
-    const boxRect = {
-      left: -(width - slotSizePx) / 2,
-      top: -(height - slotSizePx) / 2,
-      width,
-      height,
-    };
+    const boxRect = { left: -offsetX, top: -offsetY, width, height };
     const floor = bounds
       ? silhouetteRect(bounds, slotSizePx, deadZone)
       : { left: -deadZone, top: -deadZone, width: slotSizePx + deadZone * 2, height: slotSizePx + deadZone * 2 };
     return {
       width,
       height,
-      offsetX: (width - slotSizePx) / 2,
-      offsetY: (height - slotSizePx) / 2,
+      offsetX,
+      offsetY,
       useClipPath: false,
       polygon: null,
       // 이 경로는 정답 영역이 사각형이라 무판정도 사각형이다.

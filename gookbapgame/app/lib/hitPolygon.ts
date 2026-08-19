@@ -24,35 +24,46 @@ const ALPHA_THRESHOLD = 16;
  *
  * 행 극점은 필요 없다 — 위 근거가 열 하나로 완결되므로 후보만 늘고 결과는 같다.
  */
-export function extractSilhouetteFromRaw(
+/**
+ * 마스크(`isSet`)의 볼록 껍질을 열 극점만으로 만든다. 근거와 실측은 위 주석에.
+ * 3점 미만으로 축약되면(빈 마스크·직선) null이다 — 호출부의 폴백 신호다.
+ */
+export function hullFromColumnExtremes(
   width: number,
   height: number,
-  data: Uint8Array | Buffer
+  isSet: (x: number, y: number) => boolean
 ): Point[] | null {
-  const opaquePoints: Point[] = [];
+  const points: Point[] = [];
   for (let x = 0; x < width; x++) {
     let top = -1;
     let bottom = -1;
     for (let y = 0; y < height; y++) {
-      if (data[(y * width + x) * 4 + 3] >= ALPHA_THRESHOLD) {
+      if (isSet(x, y)) {
         if (top < 0) top = y;
         bottom = y;
       }
     }
     if (top < 0) continue;
-    opaquePoints.push({ x, y: top });
-    if (bottom !== top) opaquePoints.push({ x, y: bottom });
+    points.push({ x, y: top });
+    if (bottom !== top) points.push({ x, y: bottom });
   }
 
-  if (opaquePoints.length < 3) {
-    return null;
-  }
+  if (points.length < 3) return null;
+  const hull = convexHull(points);
+  return hull.length < 3 ? null : hull;
+}
 
-  const hull = convexHull(opaquePoints);
-  if (hull.length < 3) {
-    return null;
-  }
-
+export function extractSilhouetteFromRaw(
+  width: number,
+  height: number,
+  data: Uint8Array | Buffer
+): Point[] | null {
+  const hull = hullFromColumnExtremes(
+    width,
+    height,
+    (x, y) => data[(y * width + x) * 4 + 3] >= ALPHA_THRESHOLD
+  );
+  if (!hull) return null;
   const maxDim = Math.max(width, height);
   const padX = (maxDim - width) / 2;
   const padY = (maxDim - height) / 2;

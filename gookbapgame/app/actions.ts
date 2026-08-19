@@ -16,6 +16,7 @@ import {
   unionSlotPolygon,
   type Point,
 } from "./lib/hitPolygon";
+import { getDiffSilhouette } from "./lib/diffSilhouette";
 import { getOrIssueToken, hashToken } from "./lib/participantToken";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { nicknameFromParticipantRows } from "./lib/existingNickname";
@@ -91,18 +92,36 @@ async function computeSlotPolygons(
   const rightHull =
     rightPart.id === leftPart.id ? leftHull : await getPartSilhouette(rightPart.imageUrl);
 
-  // 양쪽 실루엣의 합집합 하나를 두 면이 같이 쓴다. 이유는 `unionSlotPolygon`에.
+  const placementOf = (part: MasterPart) => ({
+    offsetX: part.offsetX,
+    offsetY: part.offsetY,
+    partScale: part.scale,
+    slotScale,
+  });
   const toSource = (hull: Point[] | null, part: MasterPart) => ({
     hull,
-    placement: {
-      offsetX: part.offsetX,
-      offsetY: part.offsetY,
-      partScale: part.scale,
-      slotScale,
-    },
+    placement: placementOf(part),
   });
 
-  const polygon = unionSlotPolygon(toSource(leftHull, leftPart), toSource(rightHull, rightPart));
+  // 차이 슬롯은 **실제로 달라진 자리**를 정답으로 쓴다(`getDiffSilhouette`). 파트
+  // 실루엣을 쓰면 7단계 반찬상처럼 큰 파트에서 상 전체가 정답이 된다 — 바뀐 것은
+  // 반찬 하나인데 판의 4분의 1이 정답 영역이었다(2026-08-19 실기).
+  //
+  // 못 찾으면(노이즈만 있거나 디코딩 실패) 양쪽 실루엣의 합집합으로 떨어진다.
+  // **diff를 합집합에 더하지 말 것** — 넓어져서 정확도가 되레 떨어진다.
+  //
+  // 같은 파트인 슬롯(미출제)은 diff가 빈다. 애초에 부를 이유가 없고, 그쪽은
+  // 실루엣 전체가 맞다 — "다른 물체를 눌렀다"를 잡는 오답 레이어이기 때문이다.
+  const diffPolygon =
+    rightPart.id === leftPart.id
+      ? null
+      : await getDiffSilhouette(
+          { imageUrl: leftPart.imageUrl, placement: placementOf(leftPart) },
+          { imageUrl: rightPart.imageUrl, placement: placementOf(rightPart) }
+        );
+
+  const polygon =
+    diffPolygon ?? unionSlotPolygon(toSource(leftHull, leftPart), toSource(rightHull, rightPart));
 
   return { leftHitPolygon: polygon, rightHitPolygon: polygon };
 }
