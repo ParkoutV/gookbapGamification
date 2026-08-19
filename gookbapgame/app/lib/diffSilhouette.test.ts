@@ -123,4 +123,36 @@ test("getDiffSilhouette: 배치를 반영해 슬롯 좌표에서 뺀다", async 
   assert.ok(hull, "사라진 4분면을 찾아야 한다");
   const box = bboxPx(hull!);
   assert.ok(box.x1 <= SIZE / 2 + 1 && box.y1 <= SIZE / 2 + 1, `왼쪽 위 4분면이어야 한다: ${JSON.stringify(box)}`);
+
+  /*
+   * **오프셋과 축소가 실제로 걸리는 경로**(2026-08-19). 위 케이스는 offset 0 /
+   * partScale 1이라 배치 항이 전부 0으로 사라져 아무것도 검증하지 못한다.
+   *
+   * 규칙은 합성기(`gookbapanalyze/utils/imageProcessor.ts`)와 같아야 한다:
+   * 파트를 한 변 `슬롯 * partScale`인 정사각에 넣고 `offset + (슬롯 - 안쪽)/2`만큼
+   * 옮긴다. 어긋나면 판정이 **물체 옆**에 생기는데 에러는 나지 않는다.
+   */
+  const empty = await png(() => false);
+  const shifted = { offsetX: 20, offsetY: 0, partScale: 0.5, slotScale: 1 };
+  const placed = await getDiffSilhouette(
+    { imageUrl: "a", placement: shifted },
+    { imageUrl: "c", placement: shifted }, // c = 전부 투명 → 파트가 놓인 자리 전체가 차이다
+    (async (url: string) =>
+      ({
+        ok: true,
+        arrayBuffer: async () => (url === "a" ? filled : empty),
+      }) as unknown as Response) as unknown as typeof fetch,
+    SIZE
+  );
+
+  assert.ok(placed, "놓인 자리를 찾아야 한다");
+  const p = bboxPx(placed!);
+  // inner = 64 * 0.5 = 32, left = (20/100)*64 + (64-32)/2 = 12.8 + 16 = 28.8 → 29, top = 16
+  // 침식으로 테두리 한 겹이 깎이므로 ±2px 여유.
+  // (오프셋이 더 크면 파트가 슬롯 정사각을 넘어가 잘린다 — `mapSilhouetteToSlot`의
+  //  clamp01과 같은 동작이라 의도된 것이다.)
+  assert.ok(Math.abs(p.x0 - 29) <= 2, `왼쪽 ${p.x0} (기대 29)`);
+  assert.ok(Math.abs(p.x1 - 60) <= 2, `오른쪽 ${p.x1} (기대 60)`);
+  assert.ok(Math.abs(p.y0 - 16) <= 2, `위 ${p.y0} (기대 16)`);
+  assert.ok(Math.abs(p.y1 - 47) <= 2, `아래 ${p.y1} (기대 47)`);
 });
