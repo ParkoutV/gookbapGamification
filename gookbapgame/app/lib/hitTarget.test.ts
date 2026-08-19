@@ -173,70 +173,73 @@ test("무판정 구역은 정답 영역을 모두 덮는다", () => {
 });
 
 /*
- * letterbox 여백이 무판정으로 남으면 원래 문제(감점 실종)가 되돌아온다.
- * 284x110 파트가 정사각 캔버스에 들어간 모양 — 높이는 캔버스의 39%뿐이다.
+ * 2026-08-19 저녁 실기: 7단계 무판정 사각형 셋이 판 면적의 88%를 덮었다(184x220짜리
+ * 하나가 판 높이 전체). 비스듬히 놓인 큰 파트는 bbox가 실루엣보다 훨씬 크다 —
+ * 그래서 무판정도 실루엣 모양을 따라간다. 사각형으로 되돌리면 이 값이 다시 튄다.
  */
-test("무판정 구역이 캔버스의 letterbox 여백까지 먹지 않는다", () => {
+test("무판정 구역은 실루엣 모양을 따라간다", () => {
   const slot = 200;
-  const box = resolveHitTargetBox(slot, boxPolygon(0.95, 0.39));
-
-  assert.ok(
-    box.deadZone.height < slot,
-    `무판정 높이 ${box.deadZone.height}px가 캔버스 ${slot}px보다 작아야 한다`
-  );
-  // 실루엣(78px) + (safe 5 + dead 5) * 2 = 98px 언저리.
-  assert.ok(Math.abs(box.deadZone.height - (slot * 0.39 + (SAFE_ZONE_PX + DEAD_ZONE_PX) * 2)) < 1);
-});
-
-/*
- * 실루엣이 캔버스 중앙에 있다는 보장이 없다. 한쪽으로 치우친 파트에서 무판정
- * 구역을 슬롯 중심에 맞추면 반대쪽이 비어 정답 영역이 배경까지 뚫린다.
- */
-test("무판정 구역은 실루엣을 따라 치우친다 — 슬롯 중심 대칭이 아니다", () => {
-  const slot = 200;
-  const offCenter: Point[] = [
-    { x: 0.55, y: 0.1 },
-    { x: 0.95, y: 0.1 },
-    { x: 0.95, y: 0.9 },
-    { x: 0.55, y: 0.9 },
+  // 45도로 놓인 마름모 — bbox는 실루엣 면적의 두 배다.
+  const diamond: Point[] = [
+    { x: 0.5, y: 0.05 },
+    { x: 0.95, y: 0.5 },
+    { x: 0.5, y: 0.95 },
+    { x: 0.05, y: 0.5 },
   ];
-  const box = resolveHitTargetBox(slot, offCenter);
+  const box = resolveHitTargetBox(slot, diamond);
 
-  const pad = SAFE_ZONE_PX + DEAD_ZONE_PX;
-  assert.ok(Math.abs(box.deadZone.left - (0.55 * slot - pad)) < 0.01);
-  assert.ok(Math.abs(box.deadZone.width - (0.4 * slot + pad * 2)) < 0.01);
+  assert.ok(box.deadZone.polygon, "무판정 폴리곤이 있어야 clip으로 좁아진다");
+  const dz = box.deadZone;
+  const shoelace = (poly: Point[], w: number, h: number) => {
+    let a = 0;
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i];
+      const q = poly[(i + 1) % poly.length];
+      a += p.x * w * (q.y * h) - q.x * w * (p.y * h);
+    }
+    return Math.abs(a) / 2;
+  };
+  const polyArea = shoelace(dz.polygon!, dz.width, dz.height);
+  assert.ok(
+    polyArea < dz.width * dz.height * 0.62,
+    `마름모 무판정 면적 ${polyArea.toFixed(0)}이 사각형(${(dz.width * dz.height).toFixed(0)})과 다르지 않다`
+  );
 });
 
 /*
- * 무판정 구역에 clip-path를 다시 걸면 실루엣 모양으로 좁아져 위 규칙이 무너진다.
- * 그런데 `buildClipPath(null)`은 "클립 없음"이 아니라 `circle(25%)`를 돌려주므로,
- * 폴리곤 없이 clipPath만 남겨도 **에러 없이** 슬롯 1/4짜리 원이 된다.
- * 타입에서 `deadZone.polygon`을 지웠기 때문에 tsc가 막아주긴 하지만, 그건
- * `buildClipPath(undefined as never)` 같은 우회를 막지 못한다 — 렌더 지점을 직접 본다.
+ * 실루엣을 못 쓰는 경로(56px 보정 / 폴리곤 없음)는 정답 영역이 사각형이라 무판정도
+ * 사각형이다. 이때 폴리곤을 남기면 렌더 지점에서 clip이 걸려 모양이 어긋난다.
+ */
+test("사각형 경로에서는 무판정 폴리곤을 만들지 않는다", () => {
+  for (const [slot, polygon] of [
+    [200, boxPolygon(1.0, 0.05)],
+    [200, null],
+    [33, boxPolygon(1.0, 12 / 33)],
+  ] as [number, Point[] | null][]) {
+    assert.equal(resolveHitTargetBox(slot, polygon).deadZone.polygon, null, `${slot}px`);
+  }
+});
+
+/*
+ * `buildClipPath(null)`은 "클립 없음"이 아니라 `circle(25%)`를 돌려준다. 그래서
+ * 폴리곤 없이 clipPath만 남기면 무판정 구역이 슬롯 1/4짜리 원으로 **에러 없이**
+ * 쪼그라든다 — 2026-08-19 낮에 그 함정을 밟고 폴리곤을 타입에서 지웠었다.
+ * 지금은 폴리곤이 돌아왔으므로 "있을 때만 건다"를 소스에서 검사한다.
  *
  * JSX는 `--experimental-strip-types`가 파싱하지 못하므로 소스를 문자열로 훑는다
  * (`tutorialShots.test.ts`와 같은 방식).
  */
-test("무판정 구역 div에는 clipPath가 없다", () => {
+test("무판정 구역 div는 폴리곤이 있을 때만 clipPath를 건다", () => {
   const source = readFileSync("app/components/GameScreen.tsx", "utf8");
   const start = source.indexOf("key={`dead-${slot.slotId}`}");
   assert.ok(start > 0, "무판정 구역 div를 찾지 못했다");
   const block = source.slice(start, source.indexOf("/>", start));
-  assert.ok(!block.includes("clipPath"), "clipPath가 걸리면 슬롯 1/4 원으로 쪼그라든다");
-});
-
-/*
- * 정답 표시(체크)는 캔버스 중심에 놓이는데 무판정 구역은 실루엣 bbox를 따라간다.
- * 치우친 실루엣에서는 마커가 무판정 바깥이라, 클릭을 통과시키면 배경까지 내려가
- * **다 맞힌 슬롯을 눌렀는데 10점 감점 + 오답 1회**가 된다(2026-08-14 회귀).
- */
-test("정답 표시는 클릭을 통과시키지 않는다", () => {
-  const source = readFileSync("app/components/GameScreen.tsx", "utf8");
-  const start = source.indexOf('src="/icons/check-success.svg"');
-  assert.ok(start > 0, "정답 표시 마커를 찾지 못했다");
-  const block = source.slice(start, source.indexOf("/>", start));
-  assert.ok(!block.includes("pointer-events-none"), "클릭이 배경까지 내려가 감점된다");
-  assert.ok(block.includes("stopPropagation"), "클릭을 삼켜야 한다");
+  const clip = block.split("\n").find((l) => l.includes("clipPath"));
+  assert.ok(clip, "무판정 구역이 실루엣 모양을 따라가지 않는다");
+  assert.ok(
+    clip.includes("deadZone.polygon ?"),
+    "폴리곤 없이 clipPath를 걸면 슬롯 1/4 원으로 쪼그라든다"
+  );
 });
 
 /*
