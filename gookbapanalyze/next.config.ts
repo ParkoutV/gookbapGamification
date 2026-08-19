@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
    */
   outputFileTracingIncludes: {
     "/api/**": ["./node_modules/@img/**"],
+    "/main/spot-difference/**": ["./node_modules/@img/**"],
   },
   async headers() {
     return [
