@@ -76,8 +76,14 @@ export default function StartScreen({
   }, [inviteMessage]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
-      <PixelPanel size="card" title={t("window.brand")} className="max-w-md w-full text-center">
+    // footer를 바닥에 붙이는 것은 `justify-center`가 아니라 auto margin이다
+    // (2026-08-19, 이란토 제보). 예전에는 루트가 `justify-center`라 패널과 footer가
+    // **한 묶음으로** 세로 가운데에 모였다 — 세로가 빠듯한 모바일에서는 내용이 화면을
+    // 꽉 채워 footer가 하단에 붙은 것처럼 보였지만, 데스크톱처럼 높이가 남으면 묶음째
+    // 가운데로 올라와 footer가 화면 한복판에 떴다. `justify-center`를 되살리지 말 것 —
+    // auto margin과 겹치면 auto가 이겨서 코드만 헷갈려진다.
+    <div className="flex flex-col items-center min-h-dvh text-ink p-6">
+      <PixelPanel size="card" title={t("window.brand")} className="my-auto max-w-md w-full text-center">
         {/* `break-keep`(word-break: keep-all)이 없으면 어절 중간에서 끊긴다 —
             "도전! 1953 틀 / 린그림찾기"처럼(2026-08-14, 320·390px 실측). 한국어는
             단어 사이 공백이 CJK 줄바꿈 규칙에 밀려 브라우저가 아무 글자에서나 끊는다.
@@ -202,7 +208,7 @@ export default function StartScreen({
           가독성은 배경 레이어 하단의 그라데이션이 만든다(`DaylightBackground`) —
           푸터 자리 국소 최악 **7.22:1**로 AA를 넘는다. 사각형 칩을 얹는 안은
           `day`처럼 밝은 배경에서 그 자리만 패인 것처럼 보여 버렸다(2026-08-15 이란토). */}
-      <footer className="mt-4 flex flex-col items-center gap-1 text-center">
+      <footer className="mt-auto pt-4 flex flex-col items-center gap-1 text-center">
         <button
           type="button"
           onClick={onOpenLegal}
