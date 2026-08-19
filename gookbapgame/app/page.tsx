@@ -444,7 +444,7 @@ export default function Home({ searchParams }: PageProps) {
           뒤에 판이 남아 있어야 한다. 예전에는 phase가 갈리는 순간 GameScreen이
           언마운트돼서, 종료 화면이 bg-bg로 덮지 않으면 빈 배경 위에 창만 뜬다.
 
-          phase 자체는 그대로 playing을 벗어난다 — 300초 타이머 가드
+          phase 자체는 그대로 playing을 벗어난다 — 180초 타이머 가드
           (useGameProgress의 `phase !== "playing"`)가 그 전제로 멈추므로
           이 조건만 넓히고 훅은 건드리지 않는다.
 

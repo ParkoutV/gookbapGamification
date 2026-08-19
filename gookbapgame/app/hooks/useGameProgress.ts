@@ -30,7 +30,7 @@ export type GamePhase =
   // 카운트다운(isCountingDown)은 playing 안의 불리언인데 이쪽만 별도 phase인
   // 이유는 각자 얻는 불변식이 다르기 때문이다. 카운트다운은 뒤에 GameScreen이
   // 보여야 해서 playing을 유지해야 하고(별도 phase면 렌더 조건이 무너진다),
-  // 종료는 반대로 300초 타이머가 멈춰야 해서 playing을 벗어나는 편이 공짜다
+  // 종료는 반대로 180초 타이머가 멈춰야 해서 playing을 벗어나는 편이 공짜다
   // (타이머 이펙트의 `phase !== "playing"` 가드가 그대로 처리한다).
   | "gameEnd"
   | "gameResult"
@@ -151,7 +151,7 @@ export function useGameProgress(trackId: string | null) {
    * 별도 phase로 만들면 page.tsx의 `phase === "playing" && session` 렌더 조건에
    * 걸려 뒤에 GameScreen이 보이지 않는다(오버레이 방식이 요구사항).
    *
-   * 대신 300초 타이머가 이 구간에 흐르지 않도록 타이머 이펙트의 가드를 이 값까지
+   * 대신 180초 타이머가 이 구간에 흐르지 않도록 타이머 이펙트의 가드를 이 값까지
    * 넓혔다 — 그게 playing을 유지하는 대가로 치르는 유일한 추가 가드다.
    */
   const [isCountingDown, setIsCountingDown] = useState(false);
@@ -218,7 +218,7 @@ export function useGameProgress(trackId: string | null) {
     []
   );
 
-  // 전체 300초 단일 타이머: playing 구간 내내 흐르고, 0이 되면 그 자리에서 즉시 종료한다.
+  // 전체 180초 단일 타이머: playing 구간 내내 흐르고, 0이 되면 그 자리에서 즉시 종료한다.
   // 타임아웃되면 그 순간 진행 중이던 레벨에서 찾은 정답(currentLevelFoundCountRef)을 합성한
   // LevelResult를 만들어 반드시 점수에 포함시킨다 — 그렇지 않으면 "그때까지 찾은 정답은
   // 인정한다"는 스펙을 어기고 그 레벨이 0점 처리된다.
@@ -458,7 +458,7 @@ export function useGameProgress(trackId: string | null) {
   // 정답을 다 맞힌 경우와 오답 기회를 다 쓴 경우의 **처리는 여전히 같다** — 둘 다
   // 축하 모달 없이 그 자리에서 다음 레벨로 넘어간다(advanceStage 하나가 처리한다).
   // 예전에는 다 맞히면 "stageClear" phase로 가서 StageTransitionModal의 "다음"
-  // 버튼을 눌러야 했는데, 제한시간이 레벨당 60초에서 전체 300초로 바뀌면서 진행을
+  // 버튼을 눌러야 했는데, 제한시간이 레벨별에서 게임 전체 단일 타이머로 바뀌면서 진행을
   // 멈춰 세울 이유가 없어져 그 단계를 걷어냈다.
   //
   // 다만 예전처럼 `const handleStageClear = handleForceAdvance`로 **별칭을 두지는

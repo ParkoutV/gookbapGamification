@@ -69,15 +69,15 @@ test("게이지 칸: 100%면 20칸, 0이면 0칸", () => {
   assert.equal(resolveGaugeCells(0, GLOBAL_TIME_LIMIT_SEC), 0);
 });
 
-test("게이지 칸: 20%(60초)가 경고 시작 경계 — 4칸", () => {
-  assert.equal(resolveGaugeCells(60, GLOBAL_TIME_LIMIT_SEC), GAUGE_WARN_CELLS);
+test("게이지 칸: 20%(36초)가 경고 시작 경계 — 4칸", () => {
+  assert.equal(resolveGaugeCells(36, GLOBAL_TIME_LIMIT_SEC), GAUGE_WARN_CELLS);
   // 1초만 더 남아도 아직 경고가 아니다(5칸).
-  assert.equal(resolveGaugeCells(61, GLOBAL_TIME_LIMIT_SEC), 5);
+  assert.equal(resolveGaugeCells(37, GLOBAL_TIME_LIMIT_SEC), 5);
 });
 
-test("게이지 칸: 5%(15초)가 breath 가속 경계 — 1칸", () => {
-  assert.equal(resolveGaugeCells(15, GLOBAL_TIME_LIMIT_SEC), 1);
-  assert.equal(resolveGaugeCells(16, GLOBAL_TIME_LIMIT_SEC), 2);
+test("게이지 칸: 5%(9초)가 breath 가속 경계 — 1칸", () => {
+  assert.equal(resolveGaugeCells(9, GLOBAL_TIME_LIMIT_SEC), 1);
+  assert.equal(resolveGaugeCells(10, GLOBAL_TIME_LIMIT_SEC), 2);
 });
 
 test("게이지 칸: 조금이라도 남으면 0칸이 되지 않는다(ceil)", () => {

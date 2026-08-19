@@ -28,6 +28,21 @@
  * 게인 조작만으로는 멎지 않는다. 그래서 `sfx.ts`가 이 모듈의 `applyBgmMuted`를 부른다.
  * **음소거 처리를 컴포넌트에 흩지 말 것** — 토글이 여러 곳에 있어서(시작 화면,
  * 게임 화면) 한 곳이라도 빠지면 소리가 남는다.
+ *
+ * ## 화면을 벗어나면 멎는다
+ *
+ * `<audio>`는 브라우저가 "사용자가 듣고 싶어 하는 미디어"로 취급하므로, 그냥 두면
+ * **브라우저를 빠져나가도 계속 울리고 iOS 잠금화면 미디어 컨트롤러에 뜬다**
+ * (2026-08-19 실기 제보). 유튜브·스포티파이와 동급으로 다뤄지는 것이다.
+ * 게임 배경음악은 화면을 보고 있을 때만 의미가 있으므로 `visibilitychange`에서 멎는다.
+ *
+ * **다른 앱의 음악을 끊는 것은 이걸로 해결되지 않는다.** 그건 iOS 오디오 세션
+ * 카테고리(네이티브 `AVAudioSession`의 `ambient` 등)의 몫인데 **웹에는 대응 API가
+ * 없다.** 접속하는 순간 듣던 음악이 멎는 것 자체는 웹에서 못 막는다.
+ * `mediaSession.playbackState`도 컨트롤러 표시를 없애주지 않는다(재생 상태를
+ * 알리는 용도이지 부인하는 용도가 아니다) — 실제로 컨트롤러에서 빼려면 `<audio>`를
+ * 버리고 Web Audio로 가야 하는데, 그러면 이 파일 맨 위의 41MB 상주 문제를 만난다.
+ * **그 교환을 하기 전에 실기에서 실제로 거슬리는지부터 확인할 것.**
  */
 
 export const BGM = {
@@ -105,6 +120,25 @@ export function playBgm(name: BgmName, muted: boolean): void {
 export function resumeBgm(muted: boolean): void {
   if (muted || !el || !current || !el.paused) return;
   void el.play().catch(() => {});
+}
+
+/**
+ * 탭이 숨겨지면 멎고, 돌아오면 아무것도 하지 않는다.
+ *
+ * **복귀 처리가 없는 것이 의도다.** `resumeBgm`이 매 pointerdown마다 불리고
+ * `paused`만 보므로(`useButtonClickSfx`), 돌아와서 화면을 한 번 건드리면 저절로
+ * 이어진다. 여기서 직접 `play()`하면 **자동재생 정책에 막혀 어차피 거부되고**,
+ * 사용자가 음소거한 상태까지 되살릴 위험만 생긴다.
+ *
+ * `pagehide`를 따로 걸지 않는다 — iOS에서 앱을 벗어나면 `visibilitychange`가 먼저
+ * 불리고, bfcache로 돌아온 페이지는 위 제스처 경로가 그대로 살린다.
+ */
+function onVisibilityChange(): void {
+  if (document.visibilityState === "hidden") el?.pause();
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", onVisibilityChange);
 }
 
 /** 화면을 벗어날 때 등. `current`를 비워 다음 `playBgm`이 처음부터 틀게 한다. */

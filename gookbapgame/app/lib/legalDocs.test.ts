@@ -35,19 +35,13 @@ test("쿠폰 이용안내는 약관 창의 탭이 아니다", () => {
   assert.deepEqual([...LEGAL_DOC_IDS], ["terms", "privacy"]);
 });
 
-/* 원문에 있는 자리표시자는 그대로 두기로 했다(2026-08-14, 이란토) — 회사에서 값을
-   받지 못한 상태에서 줄을 빼면 무엇을 어디에 채워야 하는지가 문서에서 사라진다.
-   대신 **아는 두 개만 허용**해서, 다른 자리표시자가 새로 끼어들거나 오타로 생긴
-   대괄호가 조용히 배포되는 것은 막는다. */
-const ALLOWED_PLACEHOLDERS = new Set([
-  "[담당자명]",
-  "[대표 연락처]",
-  "[이메일]",
-  "[전화번호]",
-  "[YYYY년 MM월 DD일]",
-]);
+/* 연락처 4개는 2026-08-19에 실제 값으로 채웠다(근거: 1953bros.com 본사 개인정보처리방침
+   9·10조). **시행일 하나만 남았다** — 기획자에게 확인 후 채운다(2026-08-19, 이란토).
+   목록을 좁게 유지해서 다른 자리표시자가 새로 끼어들거나 오타로 생긴 대괄호가 조용히
+   배포되는 것은 계속 막는다. */
+const ALLOWED_PLACEHOLDERS = new Set(["[YYYY년 MM월 DD일]"]);
 
-test("본문의 자리표시자는 아는 두 개뿐이다", () => {
+test("본문의 자리표시자는 아는 것뿐이다", () => {
   for (const locale of ["ko", "en"] as const) {
     const bodies = [...LEGAL_DOC_IDS.map((id) => legalDocBody(locale, id)), couponGuideBody(locale)];
     for (const body of bodies) {
@@ -58,13 +52,15 @@ test("본문의 자리표시자는 아는 두 개뿐이다", () => {
   }
 });
 
-/* 원문을 그대로 옮긴다는 것이 이번 결정이므로, 그 두 줄이 사라지는 쪽도 회귀다.
-   개인정보보호법상 처리방침에는 보호담당자 연락처가 있어야 하는데, 줄째로 빠지면
-   배포 전에 채워야 할 자리가 있다는 것조차 드러나지 않는다. */
-test("담당자·연락처 자리가 ko·en 양쪽에 남아 있다", () => {
+/* 개인정보보호법상 처리방침에는 보호담당자 연락처가 있어야 한다. 예전에는 자리표시자가
+   남아 있는지를 검사했는데, 값을 채운 지금은 **줄째로 사라지는 것**이 회귀다.
+   실제로 전사 중에 문서 끝이 잘려 이 줄들이 통째로 빠진 적이 있다(아래 11항 테스트 참고). */
+test("담당자 연락처가 ko·en 양쪽에 실제 값으로 들어 있다", () => {
   for (const locale of ["ko", "en"] as const) {
-    assert.match(legalDocBody(locale, "privacy"), /\[담당자명\]/);
-    assert.match(legalDocBody(locale, "terms"), /\[대표 연락처\]/);
+    const privacy = legalDocBody(locale, "privacy");
+    assert.match(privacy, /official@wavenvibe\.com/);
+    assert.match(privacy, /8302-3932/);
+    assert.match(legalDocBody(locale, "terms"), /official@wavenvibe\.com/);
   }
 });
 

@@ -73,7 +73,7 @@ export const en: Partial<Dictionary> = {
 
   "tutorial.limit.title": "Time and Chances",
   "tutorial.limit.body":
-    "You get 300 seconds for the whole game, not per stage.\n" +
+    "You get 180 seconds for the whole game, not per stage.\n" +
     "Three wrong taps in a stage ends that stage and moves you on.\n" +
     "Each wrong tap costs 10 points.",
 
