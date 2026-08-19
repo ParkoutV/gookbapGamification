@@ -55,7 +55,7 @@ export default function HintSurveyOverlay({
             <p className="font-bold text-ink">{resolveLocalizedName(question.text, locale)}</p>
 
             {/* 선택지를 누르는 것이 곧 제출이다. 제출 버튼을 따로 두면 게임 시간이
-                흐르는 중에 탭이 두 번 필요해진다(설문 중에도 300초는 계속 흐른다). */}
+                흐르는 중에 탭이 두 번 필요해진다(설문 중에도 180초는 계속 흐른다). */}
             <div className="flex flex-col gap-2">
               {question.options.map((option, index) => (
                 <button
