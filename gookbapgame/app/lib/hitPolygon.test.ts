@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
+import { convexHull } from "./convexHull.ts";
 import {
   extractSilhouetteFromRaw,
   getPartSilhouette,
@@ -51,6 +52,40 @@ test("extractSilhouetteFromRaw: 가로가 긴 이미지에서 사각 블록의 �
   for (const e of expected) {
     const found = hull!.some((p) => Math.abs(p.x - e.x) < 1e-9 && Math.abs(p.y - e.y) < 1e-9);
     assert.ok(found, `expected point (${e.x}, ${e.y}) not found in hull`);
+  }
+});
+
+/*
+ * 열 극점 최적화가 **무손실**임을 잠근다(2026-08-19). 모든 불투명 픽셀로 만든 껍질과
+ * 한 점도 달라선 안 된다 — 오목·구멍·비연결 같은 고약한 모양에서 특히 그렇다.
+ * 근거는 `extractSilhouetteFromRaw` 주석에 있고, 여기서는 무식하게 다시 계산해 맞춘다.
+ */
+function hullFromEveryPixel(w: number, h: number, data: Buffer): string {
+  const pts: { x: number; y: number }[] = [];
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) if (data[(y * w + x) * 4 + 3] >= 16) pts.push({ x, y });
+  if (pts.length < 3) return "null";
+  const hull = convexHull(pts);
+  return hull.length < 3 ? "null" : hull.map((p) => `${p.x},${p.y}`).join(" ");
+}
+
+test("extractSilhouetteFromRaw: 열 극점만 써도 껍질이 전수 계산과 같다", () => {
+  const S = 60;
+  const shapes: [string, (x: number, y: number) => boolean][] = [
+    ["초승달", (x, y) => Math.hypot(x - 30, y - 30) < 27 && Math.hypot(x - 39, y - 30) > 21],
+    ["도넛", (x, y) => { const r = Math.hypot(x - 30, y - 30); return r < 27 && r > 15; }],
+    ["ㄱ자", (x, y) => x < 18 || y > 42],
+    ["흩어진 3덩어리", (x, y) =>
+      Math.hypot(x - 8, y - 8) < 4 || Math.hypot(x - 52, y - 10) < 4 || Math.hypot(x - 30, y - 52) < 4],
+    ["대각선 톱니", (x, y) => Math.abs(y - x) < 3 || (y > 45 && x % 5 < 3)],
+  ];
+
+  for (const [name, isOpaque] of shapes) {
+    const data = makeRawAlpha(S, S, isOpaque);
+    const hull = extractSilhouetteFromRaw(S, S, data);
+    // 정규화를 되돌려 픽셀 좌표로 비교한다(정사각이라 maxDim = S, 패딩 0).
+    const got = hull ? hull.map((p) => `${Math.round(p.x * S)},${Math.round(p.y * S)}`).join(" ") : "null";
+    assert.equal(got, hullFromEveryPixel(S, S, data), name);
   }
 });
 

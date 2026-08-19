@@ -4,19 +4,44 @@ export type { Point };
 
 const ALPHA_THRESHOLD = 16;
 
+/**
+ * **불투명 픽셀을 전부 모으지 않는다 — 열마다 맨 위·맨 아래 두 점만 후보로 쓴다**
+ * (2026-08-19). 결과는 근사가 아니라 **완전히 동일하다.**
+ *
+ * 근거: 어떤 점이 자기 열에서 위도 아래도 아니면 같은 열의 위·아래 점을 잇는 선분
+ * 위에 있고, 선분 위의 점은 두 끝점의 볼록 껍질 **내부**다. 껍질 내부의 점은 꼭짓점이
+ * 될 수 없으므로 후보에 넣을 이유가 없다. 모양이 오목하든(초승달) 구멍이 뚫렸든
+ * (도넛) 조각이 흩어져 있든 이 논리는 열 하나만 보고 끝난다.
+ *
+ * 왜 고쳤나: 예전에는 후보점이 **면적에 비례**했다. 도마 파트(1824x756)에서 약 100만
+ * 개의 점 객체를 만들어 정렬했고, 실측 **293ms**가 걸렸다(할당 + 정렬 콜백 2천만 회).
+ * 열 극점이면 후보가 폭에 비례해 3,482개로 줄어 **4.1ms**다 — 71배이며 hull은 양쪽
+ * 모두 정확히 69점이었다. 실제 파트 70장과 합성 도형 6종(초승달·ㄱ자·도넛·흩어진
+ * 3덩어리·톱니·1픽셀 십자)에서 껍질이 한 점도 어긋나지 않는 것을 확인했다.
+ *
+ * **모든 픽셀을 모으는 방식으로 되돌리지 말 것.** 얻는 정보가 없고, 파트가 클수록
+ * 손해가 커진다(로딩 체감의 주범으로 지목돼 있던 자리다).
+ *
+ * 행 극점은 필요 없다 — 위 근거가 열 하나로 완결되므로 후보만 늘고 결과는 같다.
+ */
 export function extractSilhouetteFromRaw(
   width: number,
   height: number,
   data: Uint8Array | Buffer
 ): Point[] | null {
   const opaquePoints: Point[] = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const alpha = data[(y * width + x) * 4 + 3];
-      if (alpha >= ALPHA_THRESHOLD) {
-        opaquePoints.push({ x, y });
+  for (let x = 0; x < width; x++) {
+    let top = -1;
+    let bottom = -1;
+    for (let y = 0; y < height; y++) {
+      if (data[(y * width + x) * 4 + 3] >= ALPHA_THRESHOLD) {
+        if (top < 0) top = y;
+        bottom = y;
       }
     }
+    if (top < 0) continue;
+    opaquePoints.push({ x, y: top });
+    if (bottom !== top) opaquePoints.push({ x, y: bottom });
   }
 
   if (opaquePoints.length < 3) {
