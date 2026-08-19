@@ -155,6 +155,40 @@ export function setSfxMuted(muted: boolean): void {
 }
 
 /**
+ * 숫자가 한 칸 올라갈 때 나는 아주 짧은 "틱". **파일이 없다 — 그 자리에서 합성한다.**
+ *
+ * 결과표의 카운트업은 1초 남짓 동안 수십 번 울려야 해서, 30ms짜리 음원을 만들어
+ * 반복 재생하는 것보다 오실레이터 하나를 띄웠다 죽이는 편이 싸고 (fetch도 디코드도
+ * 없다) 음높이를 항목마다 바꿀 수 있다. square는 90s 데스크톱 톤에 맞춘 것.
+ *
+ * 음량은 `playSfx`와 같은 마스터 게인을 거치므로 음소거 토글이 그대로 먹는다.
+ */
+export function playTick(freq = 880): void {
+  if (isSfxMuted()) return;
+
+  const audio = getCtx();
+  // 제스처 전(suspended)이면 조용히 포기한다. 여기서 resume을 걸면 틱마다
+  // 프라미스가 쌓이는데, 어차피 이 화면 전에 다른 소리가 context를 깨워둔다.
+  if (!audio || audio.ctx.state !== "running") return;
+
+  try {
+    const t = audio.ctx.currentTime;
+    const osc = audio.ctx.createOscillator();
+    const env = audio.ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = freq;
+    // 감쇠는 exponential이라 0을 못 받는다. 0.0001이 사실상 무음.
+    env.gain.setValueAtTime(0.06, t);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    osc.connect(env).connect(audio.gain);
+    osc.start(t);
+    osc.stop(t + 0.035);
+  } catch {
+    // 재생 실패는 삼킨다.
+  }
+}
+
+/**
  * 효과음 재생. 실패해도 절대 던지지 않는다 — 소리가 안 나는 것은 게임 진행을
  * 막을 이유가 없고, 자동재생 정책 때문에 첫 제스처 전에는 거부되는 게 정상이다.
  *
