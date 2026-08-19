@@ -1,5 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { isSfxMuted, setSfxMuted, playSfx, SFX } from "./sfx.ts";
 
 // node 런타임에는 window도 localStorage도 없으므로 최소 스텁을 심는다.
@@ -145,7 +146,7 @@ test("playSfx: 음소거 상태면 AudioContext를 만들지도 않는다", () =
 // BGM이 효과음 경로로 새어 들어가는 것을 막는 가드.
 //
 // preloadSfx()는 SFX 전체를 fetch해서 decodeAudioData로 **압축을 풀어 상주시킨다.**
-// 효과음은 전부 합쳐 166KB라 괜찮지만, BGM은 58초·64초짜리라 디코드하면 각각
+// 효과음은 전부 합쳐 195KB라 괜찮지만, BGM은 58초·64초짜리라 디코드하면 각각
 // 20MB·21MB의 PCM이 된다. SFX에 BGM 이름을 하나 넣는 순간 마운트에서 500KB를 받고
 // 41MB를 물고 있게 된다 — 데스크톱에서는 티가 나지 않고 실기에서만 드러난다.
 // BGM은 `bgm.ts`가 <audio>로 스트리밍한다.
@@ -181,4 +182,14 @@ test("preloadSfx: BGM 파일은 요청하지 않는다", async () => {
     delete (globalThis as any).AudioContext;
     delete (globalThis as any).fetch;
   }
+});
+
+// 이름만 등록하고 파일을 안 넣으면 **아무 에러 없이 그 소리만 안 난다** —
+// `load()`가 fetch 실패를 삼키고, `playSfx`는 버퍼가 없으면 조용히 건너뛴다.
+// 만점 축하음처럼 재현 조건이 까다로운 소리는 실기에서도 눈치채기 어렵다.
+test("SFX 이름마다 public/sfx에 파일이 있다", () => {
+  const missing = (Object.values(SFX) as string[]).filter(
+    (n) => !existsSync(new URL(`../../public/sfx/${n}.m4a`, import.meta.url)),
+  );
+  assert.deepEqual(missing, [], `음원 파일이 없다: ${missing.join(", ")}`);
 });

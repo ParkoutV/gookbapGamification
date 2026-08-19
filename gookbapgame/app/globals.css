@@ -1382,3 +1382,48 @@ body {
     display: block;
   }
 }
+
+/* 결과표 총점 주변에서 튀는 반짝임(`ScoreTwinkle`). 폭죽과 달리 만점자 전용이 아니라
+   모든 점수에서 뜬다 — 총점이 결과표의 주인공이라는 표시다(2026-08-19, 이란토).
+
+   canvas가 아니라 DOM인 것은 파티클이 십수 개뿐이고 총점 줄이라는 좁은 범위에만
+   머물기 때문이다. 화면 전체를 덮는 폭죽(`Confetti`)과는 규모가 다르다.
+
+   좌표·색·지연은 인라인 커스텀 속성으로 들어온다. 조각마다 값이 달라야 하므로
+   클래스로 뺄 수 없다. `scale(0)`으로 시작해 부풀었다 사그라들며, 회전은 사각형이
+   마름모를 거치게 해 "반짝"으로 읽히게 하는 몫이다. */
+@keyframes score-twinkle {
+  0% {
+    transform: translate(0, 0) scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  30% {
+    transform: translate(calc(var(--tw-x) * 0.45), calc(var(--tw-y) * 0.45)) scale(1)
+      rotate(45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tw-x), var(--tw-y)) scale(0) rotate(120deg);
+    opacity: 0;
+  }
+}
+
+.score-twinkle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--tw-size);
+  height: var(--tw-size);
+  margin: calc(var(--tw-size) / -2) 0 0 calc(var(--tw-size) / -2);
+  background: var(--tw-color);
+  opacity: 0;
+  animation: score-twinkle 900ms ease-out var(--tw-delay) 1 both;
+}
+
+/* 움직임을 줄여달라고 한 사용자에게는 그리지 않는다. 컴포넌트도 마운트 시 걸러내지만,
+   `revealDone`이 그 설정에서 즉시 참이 되므로 CSS 쪽에도 빗장을 하나 더 둔다. */
+@media (prefers-reduced-motion: reduce) {
+  .score-twinkle {
+    display: none;
+  }
+}
