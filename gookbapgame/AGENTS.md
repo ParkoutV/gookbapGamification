@@ -4,6 +4,34 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# 이 문서에 무엇이 있나
+
+증상과 원인이 어긋나기 쉬운 자리, 되돌리면 재발하는 결정만 모아둔 사고 기록이다.
+코드를 고치기 **전에** 해당 절을 읽을 것 — 대부분의 항목이 "그럴듯해 보이는 수정이
+실제로는 회귀"라는 형태다.
+
+| 절 | 언제 읽나 |
+|---|---|
+| 게임을 실제로 띄워서 확인해야 할 때 | 로컬 구동. 서버가 **두 개** 떠야 한다 |
+| Script Files Policy | `.mjs` 유틸을 새로 만들 때 |
+| Participant Identity | 익명 식별, 닉네임, KPI 집계(`track_logs`) |
+| 친구 초대하기 | 초대 링크·공유 유입 분류 |
+| 설문 · 쿠폰 | 뽑기·QR·발급 흐름 전반. **가장 길다** |
+| 내 쿠폰 앨범 | 쿠폰 격자 화면 |
+| 출제는 클라이언트가 한다 | 문제 생성, 벌크 합성 API, 마스터 데이터 RPC |
+| 게임 화면 | 히트 영역·마커, 문항 인디케이터 |
+| 화면 높이 — `vh`를 쓰지 말 것 | 레이아웃 전반. 모바일 툴바 문제 |
+| 연출 글자(`.game-cue`) | 카운트다운·종료 화면 글자 크기 |
+| 효과음 | `sfx.ts`. iOS Web Audio 제약 |
+| 온라인몰 쿠폰 | 평문 코드 티켓(매장 쿠폰과 별개) |
+| 랭킹 | `ranking_view`. 실물과 저쪽 문서가 어긋난 자리 |
+| 로케일 | ko/en/ja/zh. 폴백 순서, 중국어 폰트 |
+| 픽셀 폰트 서브셋 | 문구·언어를 추가했을 때 |
+| BGM | `bgm.ts`. 효과음과 경로가 다르다 |
+
+**저쪽 저장소(`gookbapanalyze`) 문서를 반환 컬럼의 완전한 목록으로 신뢰하지 말 것** —
+이 문서에서 가장 여러 번 반복되는 교훈이다.
+
 # 게임을 실제로 띄워서 확인해야 할 때
 `docs/local-test-setup.md`를 먼저 읽을 것. 단위 테스트(`npm test`)만 돌릴 거면 필요 없다.
 
