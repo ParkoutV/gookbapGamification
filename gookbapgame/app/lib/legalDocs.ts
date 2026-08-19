@@ -20,15 +20,20 @@
  * - 원본 docx의 표 2개(위탁 / 국외이전)는 `라벨: 값` 줄로 폈다. 표를 그대로
  *   덤프하면 값이 라벨 없이 이어져 읽을 수 없다.
  *
- * **`[담당자명]`·`[대표 연락처]`는 원문 그대로 남겨둔 자리표시자다**(2026-08-14,
- * 이란토). 회사에서 아직 값을 주지 않았는데, 그 줄을 빼면 나중에 무엇을 어디에
- * 채워야 하는지가 문서에서 사라진다 — 원문을 그대로 옮겨두고 배포 시점에 값만
- * 바꿔 넣는다. `legalDocs.test.ts`가 이 두 개만 허용하고 다른 자리표시자가
- * 새로 끼어드는 것은 막는다.
+ * **연락처 4개는 2026-08-19에 채웠다**(이란토). 기획자에게서 직접 받은 값이 아니라
+ * **본사 개인정보처리방침(1953bros.com)의 9·10조에서 가져온 것**이다 — 이 프로젝트
+ * 산출물이 그 도메인의 서브도메인(game.1953bros.com)으로 연결됐고, 법인명도
+ * (주)웨이브앤바이브로 일치한다. 기획자가 별도 지침을 주면 그쪽이 우선한다.
+ *   개인정보 보호책임자 최석윤 / official@wavenvibe.com / 010-8302-3932
  *
- * 개인정보보호법상 처리방침에는 보호담당자 연락처가 있어야 하므로 **대외 배포
- * 전에는 반드시 실제 값으로 채워야 한다.** 채울 곳은 `privacy` 10항과
- * `terms` 7조, ko·en 양쪽이다.
+ * **시행일(`[YYYY년 MM월 DD일]`)만 자리표시자로 남아 있다.** 본사 방침의 시행일
+ * (2025-09-01)은 이 문서의 것이 아니고, 서브도메인 연결일(2026-08-17)과 방침 확정일
+ * 중 무엇을 쓸지는 법률 문서라 임의로 정하지 않기로 했다(2026-08-19, 이란토).
+ * **기획자 확인 후 채울 것.**
+ *
+ * `legalDocs.test.ts`가 (1) 남은 자리표시자는 시행일 하나뿐이고 (2) 연락처 줄이
+ * ko·en 양쪽에 실제 값으로 살아 있는지를 검사한다. 전사 중에 문서 끝이 잘려 그
+ * 줄들이 통째로 빠진 적이 있어서(2026-08-14) 존재 자체를 박아둔 것이다.
  */
 
 /**
@@ -92,7 +97,7 @@ const ko: Record<DocId, string> = {
 
 제7조 문의
 운영사: (주)웨이브앤바이브
-문의처: [대표 연락처]`,
+문의처: official@wavenvibe.com / 010-8302-3932`,
 
   privacy: `개인정보처리방침
 
@@ -191,9 +196,9 @@ const ko: Record<DocId, string> = {
 
 10. 개인정보 보호 관련 문의
 운영사: (주)웨이브앤바이브
-개인정보 보호담당자: [담당자명]
-이메일: [이메일]
-연락처: [전화번호]
+개인정보 보호담당자: 최석윤
+이메일: official@wavenvibe.com
+연락처: 010-8302-3932
 
 11. 개인정보처리방침의 변경
 본 개인정보처리방침의 내용이 변경되는 경우 이벤트 페이지 등을 통해 변경사항을 안내합니다.
@@ -260,7 +265,7 @@ The Company is not liable for damages arising from causes not attributable to th
 
 Article 7 (Contact)
 Operator: Wave&Vibe Co., Ltd.
-Contact: [대표 연락처]`,
+Contact: official@wavenvibe.com / +82-10-8302-3932`,
 
   privacy: `Privacy Policy
 
@@ -359,9 +364,9 @@ A user who refuses the overseas transfer may stop using the event and delete the
 
 10. Privacy Inquiries
 Operator: Wave&Vibe Co., Ltd.
-Personal information protection officer: [담당자명]
-Email: [이메일]
-Phone: [전화번호]
+Personal information protection officer: Choi Seok-yun
+Email: official@wavenvibe.com
+Phone: +82-10-8302-3932
 
 11. Changes to This Privacy Policy
 If the contents of this privacy policy change, we will announce the changes through the event page or other means.
