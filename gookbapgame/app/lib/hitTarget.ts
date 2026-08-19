@@ -39,15 +39,21 @@ export function polygonBoundsRatio(
 export const SAFE_ZONE_PX = 5;
 
 /**
- * safe-zone 바깥에 한 겹 더 두는 **무판정 구역**의 두께(px)(2026-08-07, 이란토).
+ * **무판정 구역이 슬롯 캔버스 밖으로 더 나가는 두께(px)**(2026-08-07, 이란토).
  *
  * 여기를 누르면 정답도 오답도 아니다 — 아무 일도 일어나지 않는다. safe-zone이
  * "아슬한 터치를 정답으로 살려주는" 구역이라면, 이쪽은 "명백히 빗나갔지만
  * 페널티를 주기엔 가혹한" 구역이다. 오답은 3회 제한과 10점 감점이 걸려 있어서,
  * 거의 맞힌 터치를 오답으로 세면 체감이 나쁘다.
  *
- * 결과적으로 실루엣 테두리에서 바깥으로 5px까지는 정답, 그다음 5px은 무반응,
- * 그 바깥이 오답이다(총 10px 완충).
+ * **2026-08-19에 범위를 캔버스 전체로 넓혔다**(이란토). 예전에는 실루엣 모양을
+ * 그대로 따라가는 한 겹(테두리 바깥 5~10px)이었는데, 파트 그림에 투명한 부분이
+ * 넓으면 — 같은 슬롯에 준비한 4종처럼 — **그 투명한 자리를 누르면 곧장 오답**이
+ * 됐다. 플레이어 눈에는 분명히 그 물건을 누른 것이라 납득이 안 된다.
+ *
+ * 지금 규칙: 실루엣 + 5px = 정답 / **슬롯 캔버스 전체 + 5px = 무판정** /
+ * 그 바깥 = 오답. 캔버스는 파트가 실제로 칠해진 영역보다 항상 크므로 후하게
+ * 잡히는 쪽이며, 그게 의도한 방향이다.
  */
 export const DEAD_ZONE_PX = 5;
 
@@ -70,16 +76,18 @@ export type HitTargetBox = {
    */
   polygon: Point[] | null;
   /**
-   * 무판정 구역(정답 영역 바깥 한 겹). 정답 박스와 같은 중심에 `DEAD_ZONE_PX`만큼
-   * 더 크다. 클릭이 배경(오답 판정)까지 내려가지 않게 막기만 한다.
+   * 무판정 구역. **언제나 사각형이고 슬롯 캔버스 전체를 덮는다** — 폴리곤이 없는
+   * 것이 이 구역의 정의다(`DEAD_ZONE_PX` 주석 참고). 클릭이 배경(오답 판정)까지
+   * 내려가지 않게 막기만 한다.
+   *
+   * **`polygon` 필드를 되살리지 말 것.** 되살리면 실루엣 모양으로 다시 좁아지고,
+   * 파트의 투명한 부분이 오답 판정으로 돌아간다.
    */
   deadZone: {
     width: number;
     height: number;
     offsetX: number;
     offsetY: number;
-    /** 정답 폴리곤을 무판정 구역 박스 기준으로 다시 잡고 한 번 더 밀어낸 것. */
-    polygon: Point[] | null;
   };
 };
 
@@ -184,8 +192,12 @@ export function resolveHitTargetBox(
     // 결국 유효 면적은 원래대로 작게 남는다.
     const width = (effectiveW >= minTarget ? slotSizePx : minTarget) + safeZone * 2;
     const height = (effectiveH >= minTarget ? slotSizePx : minTarget) + safeZone * 2;
-    const dzW = width + deadZone * 2;
-    const dzH = height + deadZone * 2;
+    // **캔버스보다 작아지지 않게 축마다 바닥을 건다.** 이 분기는 부족한 축만
+    // 최소 터치 타깃(56px)으로 밀어올리므로, 200px짜리 슬롯에 얇은 실루엣이 오면
+    // 정답 박스 높이가 66px에 그친다 — 바닥이 없으면 무판정 구역이 캔버스보다
+    // 작아져 캔버스 안인데 오답이 되는 자리가 남는다.
+    const dzW = Math.max(width, slotSizePx) + deadZone * 2;
+    const dzH = Math.max(height, slotSizePx) + deadZone * 2;
     return {
       width,
       height,
@@ -198,8 +210,6 @@ export function resolveHitTargetBox(
         height: dzH,
         offsetX: (dzW - slotSizePx) / 2,
         offsetY: (dzH - slotSizePx) / 2,
-        // 정답 영역이 사각형이므로 무판정 구역도 사각형이다.
-        polygon: null,
       },
     };
   }
@@ -218,7 +228,9 @@ export function resolveHitTargetBox(
   const width = slotSizePx + safeZone * 2;
   const height = slotSizePx + safeZone * 2;
 
-  // 3단계: 무판정 구역은 정답 영역보다 deadZone만큼 더 밀어낸 같은 모양이다.
+  // 3단계: 무판정 구역은 **모양을 따라가지 않는다** — 슬롯 캔버스 전체를 덮는
+  // 사각형이다(위 `DEAD_ZONE_PX` 주석). 여기서 정답 박스(slot + safe*2)가 이미
+  // 캔버스보다 크므로 별도 바닥은 필요 없다.
   const dzW = slotSizePx + (safeZone + deadZone) * 2;
   const dzH = slotSizePx + (safeZone + deadZone) * 2;
 
@@ -234,7 +246,6 @@ export function resolveHitTargetBox(
       height: dzH,
       offsetX: safeZone + deadZone,
       offsetY: safeZone + deadZone,
-      polygon: rebaseAndExpand(polygon, slotSizePx, dzW, dzH, safeZone + deadZone),
     },
   };
 }

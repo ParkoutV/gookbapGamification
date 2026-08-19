@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   resolveHitTargetBox,
   polygonBoundsRatio,
@@ -69,7 +70,6 @@ test("폴리곤이 없으면 슬롯이 커도 사각형으로 처리한다(터�
     const box = resolveHitTargetBox(slot, null);
     assert.equal(box.useClipPath, false, `${slot}px: clip을 쓰면 안 된다`);
     assert.equal(box.polygon, null);
-    assert.equal(box.deadZone.polygon, null);
     assert.ok(Number.isFinite(box.width) && box.width > 0);
   }
 });
@@ -126,31 +126,54 @@ test("safe-zone: 실루엣이 확대되는 게 아니라 테두리에 여유가 
   );
 });
 
-test("무판정 구역은 정답 영역보다 deadZone만큼 더 크다", () => {
-  const slot = 112;
-  const box = resolveHitTargetBox(slot, boxPolygon(0.62, 0.95));
-
-  assert.equal(box.deadZone.width, box.width + DEAD_ZONE_PX * 2);
-  assert.equal(box.deadZone.height, box.height + DEAD_ZONE_PX * 2);
+/*
+ * 2026-08-19, 이란토. 파트 그림의 **투명한 부분**을 눌렀을 때 오답이 되던 것을
+ * 막는 규칙이다. 무판정 구역이 실루엣 모양을 따라가던 시절에는 캔버스 안이어도
+ * 실루엣 밖이면 곧장 오답이었다.
+ *
+ * 얇은 실루엣이 큰 슬롯에 오는 조합이 핵심이다 — 그때 정답 박스는 최소 터치
+ * 타깃(56px)까지만 커지므로 캔버스보다 작고, 바닥을 걸지 않으면 무판정 구역도
+ * 함께 작아진다.
+ */
+test("무판정 구역은 어떤 조합에서도 슬롯 캔버스 전체를 덮는다", () => {
+  const cases: [number, Point[] | null][] = [
+    [112, boxPolygon(0.62, 0.95)], // clip 경로
+    [200, boxPolygon(1.0, 0.05)], // 큰 슬롯 + 얇은 실루엣 → 56px 보정 경로
+    [200, null], // 폴리곤 없음
+    [33, boxPolygon(1.0, 12 / 33)], // 작은 슬롯
+  ];
+  for (const [slot, polygon] of cases) {
+    const box = resolveHitTargetBox(slot, polygon);
+    assert.ok(
+      box.deadZone.width >= slot + DEAD_ZONE_PX * 2,
+      `${slot}px: 무판정 폭 ${box.deadZone.width}이 캔버스보다 작다`
+    );
+    assert.ok(
+      box.deadZone.height >= slot + DEAD_ZONE_PX * 2,
+      `${slot}px: 무판정 높이 ${box.deadZone.height}이 캔버스보다 작다`
+    );
+    // 중심이 슬롯 중심과 같아야 한다 — 어긋나면 한쪽만 넓어진다.
+    assert.equal(box.deadZone.offsetX, (box.deadZone.width - slot) / 2);
+    assert.equal(box.deadZone.offsetY, (box.deadZone.height - slot) / 2);
+  }
 });
 
-test("무판정 구역의 실루엣도 정답 영역보다 한 겹 바깥이다", () => {
-  const slot = 112;
-  const box = resolveHitTargetBox(slot, boxPolygon(0.62, 0.95));
-
-  const answer = boundsPx(box.polygon!, box.width, box.height);
-  const dead = boundsPx(box.deadZone.polygon!, box.deadZone.width, box.deadZone.height);
-
-  assert.ok(
-    Math.abs(dead.w - (answer.w + DEAD_ZONE_PX * 2)) < 1.5,
-    `무판정 폭 ${dead.w.toFixed(1)}이 정답 폭 ${answer.w.toFixed(1)}보다 ${DEAD_ZONE_PX * 2}px 커야 한다`
-  );
-});
-
-test("작은 슬롯도 무판정 구역을 갖는다(사각형)", () => {
-  const box = resolveHitTargetBox(33, boxPolygon(1.0, 12 / 33));
-  assert.equal(box.deadZone.polygon, null, "사각 영역이므로 clip이 없다");
-  assert.equal(box.deadZone.width, box.width + DEAD_ZONE_PX * 2);
+/*
+ * 무판정 구역에 clip-path를 다시 걸면 실루엣 모양으로 좁아져 위 규칙이 무너진다.
+ * 그런데 `buildClipPath(null)`은 "클립 없음"이 아니라 `circle(25%)`를 돌려주므로,
+ * 폴리곤 없이 clipPath만 남겨도 **에러 없이** 슬롯 1/4짜리 원이 된다.
+ * 타입에서 `deadZone.polygon`을 지웠기 때문에 tsc가 막아주긴 하지만, 그건
+ * `buildClipPath(undefined as never)` 같은 우회를 막지 못한다 — 렌더 지점을 직접 본다.
+ *
+ * JSX는 `--experimental-strip-types`가 파싱하지 못하므로 소스를 문자열로 훑는다
+ * (`tutorialShots.test.ts`와 같은 방식).
+ */
+test("무판정 구역 div에는 clipPath가 없다", () => {
+  const source = readFileSync("app/components/GameScreen.tsx", "utf8");
+  const start = source.indexOf("key={`dead-${slot.slotId}`}");
+  assert.ok(start > 0, "무판정 구역 div를 찾지 못했다");
+  const block = source.slice(start, source.indexOf("/>", start));
+  assert.ok(!block.includes("clipPath"), "clipPath가 걸리면 슬롯 1/4 원으로 쪼그라든다");
 });
 
 // 7단계 실측 최소 중심 거리는 73px이었다. 가장 크게 보정된 슬롯끼리 이웃해도

@@ -96,8 +96,14 @@ export default function GameResultScreen({
     <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
       {/* 만점자 축하 연출. 1953점이 총점의 실제 만점이고 그때만 이 등급이 나온다
           (stageConfig의 GUKBAP_TIER_CUTOFFS). 소리는 따로 내지 않는다 — 결과표의
-          coindrop이 이미 울린다. */}
-      {gukbapTier === "1953 Master" && <Confetti />}
+          coindrop이 이미 울린다.
+
+          **점수가 다 차오른 뒤에 터진다**(2026-08-19, 이란토). 카운트업과 겹치면
+          축하가 무엇에 대한 것인지 흐려진다 — 총점이 1953으로 확정되는 순간이
+          터뜨릴 자리다. `progress`가 마지막 칸(총점)까지 찼는지가 그 신호다.
+
+          reduced-motion에서는 progress가 즉시 count가 되므로 예전처럼 바로 뜬다. */}
+      {gukbapTier === "1953 Master" && progress >= rows.length + 1 && <Confetti />}
 
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full text-center">
         <h1 className="text-2xl font-extrabold mb-6 text-ink">{t("gameResult.title")}</h1>
