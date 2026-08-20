@@ -366,6 +366,16 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`best_score` / `gookbap_score`** (`integer`): 유저가 해당 게임에서 획득한 점수.
 * **`joined_time`** (`timestamp with time zone`): 동점자 발생 시 랭킹을 판가름하기 위해 정렬 시 참조되는 시간입니다. 1명의 유저가 여러 번 플레이한 경우, 필터링 없이 **모든 기록(중복 포함)이 그대로 노출**됩니다.
 
+### 16. `agreements` (약관 관리)
+이용 약관, 개인정보처리방침, 쿠폰 이용 안내 등 장문의 서비스 약관을 다국어로 관리합니다.
+
+**[RLS Policies]**
+- `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: Admin ALL agreements)*
+- `SELECT` (공개): `모두 허용` *(Policy: Everyone SELECT agreements)*
+* **`doc_id`** (`varchar`, Primary Key): 문서 식별자 ('terms', 'privacy', 'coupon' 등).
+* **`body`** (`jsonb`): 약관 본문의 다국어 데이터.
+* **`updated_at`** (`timestamp with time zone`): 문서 마지막 수정 시간.
+
 # Frontend RPC Guidelines & Anonymous Users
 일반 유저(게임 참가자)는 Supabase Auth 로그인을 사용하지 않고 LocalStorage의 `participant_id` (UUID)를 사용해 익명(Anon)으로 동작합니다. 
 데이터베이스 전체 탈취(Table Dump)를 방지하기 위해 익명 유저의 테이블 직접 조회(`SELECT`) 권한은 RLS로 막혀 있습니다. 따라서 본인의 데이터를 조회할 때는 반드시 아래의 **RPC 함수**를 호출해야 합니다.
