@@ -233,7 +233,7 @@ export default function AgreementsPage() {
                     [selectedLang]: e.target.value
                   }
                 }))}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-transparent outline-none transition-all resize-none overflow-hidden min-h-[300px]"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-zinc-900 focus:border-transparent outline-none transition-all resize-none overflow-hidden min-h-[300px]"
               />
             </div>
           </div>
