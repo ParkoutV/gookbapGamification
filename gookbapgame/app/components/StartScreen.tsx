@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
+import CreditsScreen from "./CreditsScreen";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { formatNickname, type Nickname } from "../lib/nicknameParts";
 import { fetchSharedTrackId, recordShareClick } from "../actions";
@@ -48,6 +49,10 @@ export default function StartScreen({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteFeedback, setInviteFeedback] = useState<"copied" | "failed" | null>(null);
 
+  // 크레딧 상태는 page.tsx로 올리지 않는다 — 여는 곳도 닫는 곳도 이 화면뿐이고,
+  // 다른 phase에서는 열릴 일이 없다(법률 고지가 루트에 있는 것은 최초 실행 게이트라서다).
+  const [showCredits, setShowCredits] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     void fetchSharedTrackId(trackId).then((sharedTrackId) => {
@@ -92,6 +97,23 @@ export default function StartScreen({
     // 위 2번 대신 "패널을 감싼 `flex-1` 영역 안에서 가운데" 방식을 쓸 것
     // (그러면 footer 높이의 절반만큼만 위로 치우친다).
     <div className="relative flex flex-col items-center justify-center min-h-dvh text-ink p-6">
+      {/* 크레딧 진입. 좌상단 툴바(page.tsx)와 대칭인 우상단 끝이고, 같은 `z-[60]`이다.
+          이 게임의 주 동선이 아니라 일부러 작게 둔다. */}
+      {/* 높이는 `PixelPanel`의 `.pixel-frame-inner--btn`(상하 .7rem)이 정한다 —
+          버튼의 py만 줄여봐야 꿈쩍도 안 한다. 이 자리에서만 그 패딩을 눌러 낮춘다. */}
+      <div className="fixed top-2 right-2 z-[60] [&_.pixel-frame-inner]:!py-1">
+        <PixelPanel size="btn">
+          <button
+            type="button"
+            onClick={() => setShowCredits(true)}
+            className="px-1.5 py-0.5 text-[0.6rem] font-bold text-ink leading-tight"
+          >
+            만든 사람들
+          </button>
+        </PixelPanel>
+      </div>
+      {showCredits && <CreditsScreen onClose={() => setShowCredits(false)} />}
+
       <PixelPanel size="card" title={t("window.brand")} className="max-w-md w-full text-center">
         {/* `break-keep`(word-break: keep-all)이 없으면 어절 중간에서 끊긴다 —
             "도전! 1953 틀 / 린그림찾기"처럼(2026-08-14, 320·390px 실측). 한국어는
