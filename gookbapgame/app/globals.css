@@ -1427,3 +1427,49 @@ body {
     display: none;
   }
 }
+
+/* 크레딧 등장 페이드(`CreditsScreen`). 나가는 쪽은 컴포넌트가 `transition-opacity`로
+   처리하지만, 들어오는 쪽은 마운트 직후 state를 바꿔야 전이가 생겨 그 방식을 쓸 수
+   없다(`react-hooks/set-state-in-effect`). 애니메이션은 첫 프레임부터 도므로 CSS 몫이다. */
+@keyframes credits-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* **들어올 때와 나갈 때 모두 애니메이션이다 — 한쪽만 transition으로 섞지 말 것.**
+   `animation`은 `transition`보다 우선하므로, 등장 애니메이션이 걸린 요소에 클래스
+   교체로 `opacity: 0` 전이를 걸어봐야 **값이 1에서 꿈쩍도 하지 않는다**(실측:
+   `opacity-0`이 붙고 `transition-duration: .5s`인데 computed opacity는 계속 1).
+   fill-mode를 떼도 마찬가지였다. 두 방향을 같은 방식으로 두면 서로 교체된다. */
+.credits-fade-in {
+  animation: credits-fade-in 500ms ease-out;
+}
+@keyframes credits-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.credits-fade-out {
+  animation: credits-fade-out 500ms ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .credits-fade-in,
+  .credits-fade-out {
+    animation: none;
+  }
+}
+
+/* 스티커 테두리(크레딧 국밥 그림). 알파 실루엣을 8방향으로 밀어 흰색으로 깔면
+   오려 붙인 스티커처럼 보인다 — `drop-shadow`가 `box-shadow`와 달리 상자가 아니라
+   **알파 모양**을 따라가므로 마스크나 SVG 없이 이것만으로 된다.
+   4방향만 쓰면 대각선 모서리가 패여 두께가 들쭉날쭉해진다. */
+.sticker-outline {
+  --sticker-w: 3px;
+  filter:
+    drop-shadow(var(--sticker-w) 0 0 #fff)
+    drop-shadow(calc(var(--sticker-w) * -1) 0 0 #fff)
+    drop-shadow(0 var(--sticker-w) 0 #fff)
+    drop-shadow(0 calc(var(--sticker-w) * -1) 0 #fff)
+    drop-shadow(calc(var(--sticker-w) * .7) calc(var(--sticker-w) * .7) 0 #fff)
+    drop-shadow(calc(var(--sticker-w) * -.7) calc(var(--sticker-w) * .7) 0 #fff)
+    drop-shadow(calc(var(--sticker-w) * .7) calc(var(--sticker-w) * -.7) 0 #fff)
+    drop-shadow(calc(var(--sticker-w) * -.7) calc(var(--sticker-w) * -.7) 0 #fff);
+}

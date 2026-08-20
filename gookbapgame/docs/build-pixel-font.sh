@@ -60,6 +60,9 @@ for loc in ("ko", "en", "ja"):
 #    `app/lib/gameEnd.ts`와 `app/components/CountdownOverlay.tsx` 참고 —
 #    로케일 3종이 전부 같은 영문이라 i18n에서 뺐다.
 chars |= set("GAME OVER") | set("CLEAR!") | set("START")
+#    크레딧 화면 제목도 하드코딩이다(`CreditsScreen.tsx`, 2026-08-20).
+#    "프"·"젝"·"뚝"은 로케일 문구 어디에도 없어서 이 줄이 없으면 두부가 된다.
+chars |= set("프로젝트 완뚝")
 
 # 4. 일본어 여유분(`docs/kanji-subset.txt`, 1529자).
 #    **2번만으로는 일본어 문구를 추가할 때마다 이 스크립트를 다시 돌려야 하고,
@@ -102,6 +105,7 @@ from fontTools.ttLib import TTFont
 cmap = TTFont(dest).getBestCmap()
 must = {
     "연출(하드코딩)": "GAMEOVRCLS!T",
+    "크레딧 제목": "프로젝트 완뚝",
     "숫자·기호": "0123456789/:%.,",
     "ko 제목·등급": "다른그림찾기게임결과오늘의국밥력단골미식가탐험입문생",
     "ja 제목·등급": "間違い探しゲーム結果今日のクッパ常連美食家検初心者",
