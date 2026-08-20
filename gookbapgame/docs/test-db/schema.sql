@@ -355,3 +355,18 @@ $$;
 
 grant insert on public.game_score_logs to anon;
 grant execute on function get_my_score_logs(uuid) to anon;
+
+-- 약관·개인정보처리방침·쿠폰 이용안내 본문(2026-08-20 대시보드 이관).
+-- 실물은 `doc_id` varchar PK / `body` jsonb / `updated_at` timestamptz이고 RLS가
+-- `Everyone SELECT`다(저쪽 AGENTS.md 16번). 여기서는 anon select 권한만 흉내낸다.
+--
+-- **없어도 게임은 돈다** — 클라이언트가 조회 실패를 번들 본문으로 덮기 때문이다
+-- (`useAgreementBody`). 그래서 이 픽스처가 없으면 **DB 경로가 한 번도 실행되지 않은 채
+-- 통과한다.** 폴백만 보고 "붙었다"고 판단하지 말 것.
+create table if not exists public.agreements (
+  doc_id varchar primary key,
+  body jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+grant select on public.agreements to anon;

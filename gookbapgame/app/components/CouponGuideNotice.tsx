@@ -2,7 +2,7 @@
 
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { couponGuideBody, pickLegalLocale } from "../lib/legalDocs";
+import { useAgreementBody } from "../hooks/useAgreementBody";
 
 /**
  * 쿠폰 이용안내 팝업.
@@ -12,12 +12,12 @@ import { couponGuideBody, pickLegalLocale } from "../lib/legalDocs";
  * 볼 때** 필요한 설명이라 뽑기 화면(`WheelScreen`)과 보관함(`MyCouponsScreen`)에서
  * 각자 연다 — 사용기한·1회 사용·재발급 불가처럼 그 자리에서 바로 알아야 하는 내용이다.
  *
- * 본문 로케일이 UI 로케일과 다른 것은 약관 창과 같다(`pickLegalLocale`) — ja·zh
- * 사용자는 en 본문을 본다.
+ * 본문은 대시보드가 관리한다(`agreements`). 조회 전·실패 시에는 번들 본문으로
+ * 떨어지며, 그 경로에서만 ja·zh가 en으로 접힌다 — `useAgreementBody` 참고.
  */
 export default function CouponGuideNotice({ onClose }: { onClose: () => void }) {
   const { t, locale } = useLocale();
-  const legalLocale = pickLegalLocale(locale);
+  const { body, bodyLocale } = useAgreementBody("coupon", locale);
 
   return (
     <div
@@ -36,9 +36,9 @@ export default function CouponGuideNotice({ onClose }: { onClose: () => void }) 
         <h2 className="text-lg font-bold text-ink mb-3 text-center">{t("couponGuide.title")}</h2>
         {/* 높이 상한이 `dvh`인 이유는 `LegalNotice`의 같은 자리 주석 참고. */}
         <div className="legal-doc-body text-xs text-ink text-left whitespace-pre-line max-h-[45dvh] overflow-y-auto leading-relaxed">
-          {couponGuideBody(legalLocale)}
+          {body}
         </div>
-        {legalLocale !== "ko" && (
+        {bodyLocale !== "ko" && (
           <p className="text-[0.65rem] text-muted text-left mt-3">{t("legal.originalNotice")}</p>
         )}
         {/* **닫기는 타이틀바 ✕뿐이다.** 본문 아래에 '확인'을 또 두지 않는다 —

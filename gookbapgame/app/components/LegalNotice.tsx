@@ -3,12 +3,8 @@
 import { useState } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import {
-  LEGAL_DOC_IDS,
-  legalDocBody,
-  pickLegalLocale,
-  type LegalDocId,
-} from "../lib/legalDocs";
+import { LEGAL_DOC_IDS, type LegalDocId } from "../lib/legalDocs";
+import { useAgreementBody } from "../hooks/useAgreementBody";
 
 interface LegalNoticeProps {
   /**
@@ -32,16 +28,16 @@ interface LegalNoticeProps {
 /**
  * 약관·개인정보처리방침·쿠폰 이용안내를 탭으로 넘겨 보는 창.
  *
- * 본문은 `app/lib/legalDocs.ts`에 있다 — 로케일 사전에 넣지 않은 이유는 그 파일
- * 주석 참고(첫 로드 전송량 + ko/en 2종만이라는 번역 정책).
+ * 본문은 대시보드가 관리한다(`agreements` 테이블, 2026-08-20 이관). 조회 전·실패
+ * 시에는 `app/lib/legalDocs.ts`의 번들 본문으로 떨어진다 — `useAgreementBody` 참고.
  *
- * **본문 로케일은 UI 로케일과 다르다.** ja·zh 사용자는 en 본문을 본다
- * (`pickLegalLocale`). 탭 이름·버튼 같은 UI 껍데기만 4종을 따른다.
+ * **본문 로케일이 UI 로케일과 다를 수 있다.** DB에 그 로케일 본문이 없으면 en·ko로
+ * 접히고, 번들 폴백은 애초에 ko/en 2종뿐이다. 탭 이름·버튼 같은 UI 껍데기는 4종을 따른다.
  */
 export default function LegalNotice({ firstRun, onClose }: LegalNoticeProps) {
   const { t, locale } = useLocale();
   const [tab, setTab] = useState<LegalDocId>(firstRun ? "privacy" : "terms");
-  const legalLocale = pickLegalLocale(locale);
+  const { body, bodyLocale } = useAgreementBody(tab, locale);
 
   return (
     <div
@@ -92,11 +88,11 @@ export default function LegalNotice({ firstRun, onClose }: LegalNoticeProps) {
           key={tab}
           className="legal-doc-body text-xs text-ink text-left whitespace-pre-line max-h-[45dvh] overflow-y-auto mb-4 leading-relaxed"
         >
-          {legalDocBody(legalLocale, tab)}
+          {body}
         </div>
 
         {/* 원문이 한국어라는 고지. 한국어 화면에서는 자명하므로 띄우지 않는다. */}
-        {legalLocale !== "ko" && (
+        {bodyLocale !== "ko" && (
           <p className="text-[0.65rem] text-muted text-left mb-3">{t("legal.originalNotice")}</p>
         )}
 
