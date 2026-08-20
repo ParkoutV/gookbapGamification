@@ -19,7 +19,7 @@ export default function AgreementsPage() {
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({})
   const [originalFormData, setOriginalFormData] = useState<Record<string, Record<string, string>>>({})
   const [isDirty, setIsDirty] = useState(false)
-  const [submitting, setSubmitting] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -122,36 +122,59 @@ export default function AgreementsPage() {
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
+      // Prevent scroll jumping by saving and restoring current scroll position
+      const currentScrollY = window.scrollY
+      
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.max(textareaRef.current.scrollHeight, 300)}px`
+      // 5줄(약 120px) 정도의 여유 공간을 하단에 추가하여 입력 시 답답함을 해소
+      const targetHeight = Math.max(textareaRef.current.scrollHeight + 120, 400)
+      
+      textareaRef.current.style.height = `${targetHeight}px`
+      
+      window.scrollTo(0, currentScrollY)
     }
   }, [selectedDocId, selectedLang, formData])
 
-  const handleUpdate = async (doc_id: string) => {
-    setSubmitting(doc_id)
+  const handleUpdate = async () => {
+    setIsSubmitting(true)
     
-    // Get existing doc to preserve non-active languages
-    const existingDoc = agreements.find(d => d.doc_id === doc_id)
-    const finalData = { ...(existingDoc?.body || {}) }
+    const updates = []
     
-    languages.forEach(lang => {
-      const code = lang.lang_code
-      const val = formData[doc_id]?.[code]
-      if (val && val.trim() !== '') {
-        finalData[code] = val.trim()
-      } else {
-        delete finalData[code]
-      }
-    })
+    for (const doc_id of Object.keys(formData)) {
+      const isDocDirty = JSON.stringify(formData[doc_id]) !== JSON.stringify(originalFormData[doc_id])
+      
+      if (isDocDirty) {
+        const existingDoc = agreements.find(d => d.doc_id === doc_id)
+        const finalData = { ...(existingDoc?.body || {}) }
+        
+        languages.forEach(lang => {
+          const code = lang.lang_code
+          const val = formData[doc_id]?.[code]
+          if (val && val.trim() !== '') {
+            finalData[code] = val.trim()
+          } else {
+            delete finalData[code]
+          }
+        })
 
-    const res = await updateAgreement(doc_id, finalData)
-    if (res.error) {
-      alert(res.error)
-    } else {
-      alert('저장되었습니다.')
-      fetchInitialData()
+        updates.push(updateAgreement(doc_id, finalData))
+      }
     }
-    setSubmitting(null)
+
+    if (updates.length > 0) {
+      const results = await Promise.all(updates)
+      const hasError = results.some(r => r.error)
+      if (hasError) {
+        alert('일부 약관을 저장하는 중 오류가 발생했습니다.')
+      } else {
+        alert('모든 변경사항이 성공적으로 저장되었습니다.')
+        fetchInitialData()
+      }
+    } else {
+      alert('수정된 내용이 없습니다.')
+    }
+    
+    setIsSubmitting(false)
   }
 
   return (
@@ -240,12 +263,12 @@ export default function AgreementsPage() {
                   compact={false}
                 />
                 <button
-                  onClick={() => handleUpdate(selectedDocId)}
-                  disabled={submitting === selectedDocId}
+                  onClick={handleUpdate}
+                  disabled={isSubmitting || !isDirty}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm disabled:opacity-50"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {submitting === selectedDocId ? '저장 중...' : '저장하기'}
+                  {isSubmitting ? '저장 중...' : '전체 저장하기'}
                 </button>
               </div>
             </div>
