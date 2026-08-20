@@ -305,3 +305,13 @@ values
   ('{"ko":"작년의","en":"Last Year","ja":"昨年の"}'::jsonb,
    '{"ko":"한그릇","en":"One Bowl","ja":"一杯"}'::jsonb,
    '0060', 0, 1999, seed_kst_start_of_day(0) - interval '400 days');
+
+-- 약관 3종. **프로덕션의 현재 값과 같은 자리표시자다**(2026-08-20 덤프,
+-- `docs/client/20260820_agreements_rows.json`). 저쪽이 아직 본문을 채우지 않았으므로
+-- 로컬도 같은 상태로 둔다 — 화면에 "입력해주세요"가 뜨면 DB 경로가 산 것이고,
+-- 실제 약관 문장이 뜨면 폴백(번들 본문)이 걸린 것이다. 이 구분이 이 시드의 쓸모다.
+insert into public.agreements (doc_id, body) values
+  ('terms',   '{"ko": "이용약관 내용을 입력해주세요."}'::jsonb),
+  ('privacy', '{"ko": "개인정보처리방침 내용을 입력해주세요."}'::jsonb),
+  ('coupon',  '{"ko": "쿠폰 이용 안내 내용을 입력해주세요."}'::jsonb)
+on conflict (doc_id) do nothing;

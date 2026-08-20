@@ -2,6 +2,11 @@
 
 import { supabase } from "./lib/db";
 import { parseCouponType } from "./lib/couponType";
+import {
+  toAgreementBodies,
+  type AgreementBodies,
+  type AgreementRow,
+} from "./lib/agreements";
 import { requestUnifiedImages, type ImageSlots } from "./lib/generateUnified";
 import { zipPlansToSessions } from "./lib/sessionZip";
 import {
@@ -1121,5 +1126,49 @@ export async function fetchRanking(period: RankingPeriod): Promise<RankingFetchR
   } catch (error) {
     console.error("[fetchRanking] 예기치 못한 예외:", error);
     return { ok: false, rows: [], truncated: false };
+  }
+}
+
+/**
+ * 약관·개인정보처리방침·쿠폰 이용안내 본문(`agreements`).
+ *
+ * **운영자가 대시보드에서 고치는 값이다**(2026-08-20 이관, 저쪽 `AGENTS.md` 16번).
+ * `Everyone: SELECT`라 anon이 직접 읽는다 — `coupon_effects`·`web_coupon_settings`와
+ * 같은 패턴이며 RPC가 필요 없다.
+ *
+ * **조회 실패는 `null`이고, 화면은 번들 본문(`legalDocs.ts`)으로 떨어진다.** 여기서
+ * 빈 값을 돌려주면 개인정보처리방침 창이 비는데, 그것은 곧 **고지를 못 한 것**이다 —
+ * 최초 실행 고지의 대상이고 시작 화면 푸터가 재열람의 유일한 통로다(AGENTS.md).
+ * 이관 초기에는 DB가 아직 자리표시자라 이 폴백이 주 경로다.
+ *
+ * **TTL 캐시를 둔다.** 본문은 운영자가 어쩌다 한 번 고치는 값인데, 창을 열 때마다
+ * 조회하면 최초 고지·푸터 재열람·쿠폰 안내가 각자 요청을 낸다. 서버 인스턴스별
+ * 메모리라 콜드 스타트마다 한 번은 나가지만, 그 정도면 충분하다.
+ * ponytail: 프로세스 메모리 캐시. 인스턴스가 많아 적중률이 문제가 되면 그때
+ * Next의 데이터 캐시(`revalidate`)로 올릴 것.
+ */
+const AGREEMENTS_TTL_MS = 5 * 60 * 1000;
+let agreementsCache: { at: number; bodies: AgreementBodies } | null = null;
+
+export async function fetchAgreements(): Promise<AgreementBodies | null> {
+  const now = Date.now();
+  if (agreementsCache && now - agreementsCache.at < AGREEMENTS_TTL_MS) {
+    return agreementsCache.bodies;
+  }
+  try {
+    const { data, error } = await supabase.from("agreements").select("doc_id, body");
+    if (error) {
+      console.error("[fetchAgreements] agreements 조회 실패:", error);
+      return null;
+    }
+    const bodies = toAgreementBodies((data ?? []) as AgreementRow[]);
+    // 빈 결과를 캐시하지 않는다 — 이관 중에 한 번 비어 있었다는 이유로 5분 동안
+    // 폴백에 묶일 이유가 없다.
+    if (Object.keys(bodies).length === 0) return null;
+    agreementsCache = { at: now, bodies };
+    return bodies;
+  } catch (error) {
+    console.error("[fetchAgreements] 예기치 못한 예외:", error);
+    return null;
   }
 }
