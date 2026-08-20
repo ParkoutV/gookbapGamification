@@ -1473,3 +1473,16 @@ body {
     drop-shadow(calc(var(--sticker-w) * .7) calc(var(--sticker-w) * -.7) 0 #fff)
     drop-shadow(calc(var(--sticker-w) * -.7) calc(var(--sticker-w) * -.7) 0 #fff);
 }
+
+/* 푸터(`SiteFooter`)가 차지하는 세로 공간. 화면 루트들이 이만큼 하단 패딩을 둬서
+   내용이 푸터와 겹치지 않게 한다 — 푸터는 `absolute`라 흐름에서 자리를 차지하지
+   않기 때문이다. `bottom-6`(24px) + 푸터 높이(약 46px).
+
+   **패딩 대신 화면 높이를 줄이지 말 것.** `min-h-dvh`를 깎으면 짧은 화면에서 배경이
+   비는 것이 아니라(배경은 fixed다) `justify-center`의 기준이 바뀌어 패널이 위로
+   치우친다. 패딩이면 중앙 계산이 패딩 안쪽에서 이뤄져 푸터를 피한 만큼만 올라간다.
+   실제로 겹친 자리는 '내 쿠폰'(390×664, 2026-08-20) — 그 화면이 `100dvh - 240px`를
+   예약해 루트를 꽉 채우기 때문이다. */
+:root {
+  --footer-space: 70px;
+}

@@ -12,14 +12,12 @@ import { resolveIndicatorCells, resolveGaugeCells, GAUGE_WARN_CELLS } from "../l
 import HintClipboard from "./HintClipboard";
 import HintSurveyOverlay from "./HintSurveyOverlay";
 import { applyHintMask, pickHintMaskIndex, pickHintSurveyQuestion } from "../lib/hintMask";
-import { fetchPendingSurveyQuestionIds, fetchSurveyQuestions, submitSurveyResponses } from "../actions";
+import { submitSurveyResponses } from "../actions";
+import { getHintSurvey } from "../lib/hintSurveyPrefetch";
 import type { SurveyQuestion } from "../lib/surveyAnswers";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
 import { resolveHitTargetBox } from "../lib/hitTarget";
-
-/** 힌트 설문의 phase. phase 1은 쿠폰 전 설문, phase 2는 지점별이다. */
-const HINT_SURVEY_PHASE = 0;
 
 interface GameScreenProps {
   session: GameSession;
@@ -121,6 +119,13 @@ export default function GameScreen({
     return () => window.removeEventListener("resize", updateScale);
   }, []);
 
+  // 힌트 설문을 미리 받아 둔다. **'?'를 누른 뒤에 부르면 그 사이가 통째로 침묵이고,
+  // 게임 타이머는 그동안에도 돈다**(2026-08-20 제보). 캐시가 모듈 스코프라
+  // 단계마다 리마운트돼도 요청은 한 번이다.
+  useEffect(() => {
+    void getHintSurvey();
+  }, []);
+
   const handleImageLoad = () => {
     updateScale();
   };
@@ -216,15 +221,14 @@ export default function GameScreen({
     }
 
     void (async () => {
-      const [result, pendingIds] = await Promise.all([
-        fetchSurveyQuestions(HINT_SURVEY_PHASE),
-        fetchPendingSurveyQuestionIds(HINT_SURVEY_PHASE),
-      ]);
+      // 게임 화면에 들어올 때 이미 받아 뒀다(`getHintSurvey`). 대개 즉시 끝나고,
+      // 아직이면 그 요청을 기다린다 — 여기서 새로 부르지 않는 것이 요점이다.
+      const { questions, pendingIds } = await getHintSurvey();
       // 조회 실패나 문항 0건이면 설문을 건너뛰고 곧바로 클립보드를 연다.
       // **이때도 차감한다** — 힌트를 실제로 받았으므로 공짜가 아니다.
       // pendingIds가 비어 있는 것(전부 응답함/조회 실패)은 실패가 아니다 —
       // pickHintSurveyQuestion이 전체에서 무작위로 재탕한다.
-      const question = pickHintSurveyQuestion(result.questions, pendingIds);
+      const question = pickHintSurveyQuestion(questions, pendingIds);
       if (!question) {
         openClipboard();
         return;

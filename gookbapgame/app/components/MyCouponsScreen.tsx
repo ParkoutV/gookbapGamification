@@ -150,7 +150,7 @@ export default function MyCouponsScreen({
   );
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6 pb-[var(--footer-space)]">
       <PixelPanel size="card" title={t("window.brand")} className="max-w-sm w-full">
         <h1 className="text-2xl font-extrabold mb-6 text-ink text-center">
           {t("coupon.myCouponsTitle")}
