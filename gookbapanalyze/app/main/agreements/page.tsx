@@ -17,7 +17,9 @@ export default function AgreementsPage() {
   
   // doc_id -> { lang_code -> text }
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({})
-  const [submitting, setSubmitting] = useState<string | null>(null)
+  const [originalFormData, setOriginalFormData] = useState<Record<string, Record<string, string>>>({})
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -68,6 +70,8 @@ export default function AgreementsPage() {
       })
       
       setFormData(initialForm)
+      setOriginalFormData(JSON.parse(JSON.stringify(initialForm)))
+      setIsDirty(false)
     }
     
     setLoading(false)
@@ -78,39 +82,99 @@ export default function AgreementsPage() {
     fetchInitialData()
   }, [])
 
+  // Calculate if form is dirty
+  useEffect(() => {
+    setIsDirty(JSON.stringify(formData) !== JSON.stringify(originalFormData))
+  }, [formData, originalFormData])
+
+  // Prevent accidental navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest('a')
+      if (!target) return
+      
+      const isInternal = target.href && target.target !== '_blank' && target.href.startsWith(window.location.origin)
+      if (isInternal && !target.href.includes(window.location.pathname)) {
+        if (isDirty) {
+          if (!window.confirm('저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?')) {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+        }
+      }
+    }
+    window.addEventListener('click', handleAnchorClick, { capture: true })
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('click', handleAnchorClick, { capture: true })
+    }
+  }, [isDirty])
+
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
+      // Prevent scroll jumping by saving and restoring current scroll position
+      const currentScrollY = window.scrollY
+      
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.max(textareaRef.current.scrollHeight, 300)}px`
+      // 5줄(약 120px) 정도의 여유 공간을 하단에 추가하여 입력 시 답답함을 해소
+      const targetHeight = Math.max(textareaRef.current.scrollHeight + 120, 400)
+      
+      textareaRef.current.style.height = `${targetHeight}px`
+      
+      window.scrollTo(0, currentScrollY)
     }
   }, [selectedDocId, selectedLang, formData])
 
-  const handleUpdate = async (doc_id: string) => {
-    setSubmitting(doc_id)
+  const handleUpdate = async () => {
+    setIsSubmitting(true)
     
-    // Get existing doc to preserve non-active languages
-    const existingDoc = agreements.find(d => d.doc_id === doc_id)
-    const finalData = { ...(existingDoc?.body || {}) }
+    const updates = []
     
-    languages.forEach(lang => {
-      const code = lang.lang_code
-      const val = formData[doc_id]?.[code]
-      if (val && val.trim() !== '') {
-        finalData[code] = val.trim()
-      } else {
-        delete finalData[code]
-      }
-    })
+    for (const doc_id of Object.keys(formData)) {
+      const isDocDirty = JSON.stringify(formData[doc_id]) !== JSON.stringify(originalFormData[doc_id])
+      
+      if (isDocDirty) {
+        const existingDoc = agreements.find(d => d.doc_id === doc_id)
+        const finalData = { ...(existingDoc?.body || {}) }
+        
+        languages.forEach(lang => {
+          const code = lang.lang_code
+          const val = formData[doc_id]?.[code]
+          if (val && val.trim() !== '') {
+            finalData[code] = val.trim()
+          } else {
+            delete finalData[code]
+          }
+        })
 
-    const res = await updateAgreement(doc_id, finalData)
-    if (res.error) {
-      alert(res.error)
-    } else {
-      alert('저장되었습니다.')
-      fetchInitialData()
+        updates.push(updateAgreement(doc_id, finalData))
+      }
     }
-    setSubmitting(null)
+
+    if (updates.length > 0) {
+      const results = await Promise.all(updates)
+      const hasError = results.some(r => r.error)
+      if (hasError) {
+        alert('일부 약관을 저장하는 중 오류가 발생했습니다.')
+      } else {
+        alert('모든 변경사항이 성공적으로 저장되었습니다.')
+        fetchInitialData()
+      }
+    } else {
+      alert('수정된 내용이 없습니다.')
+    }
+    
+    setIsSubmitting(false)
   }
 
   return (
@@ -199,12 +263,12 @@ export default function AgreementsPage() {
                   compact={false}
                 />
                 <button
-                  onClick={() => handleUpdate(selectedDocId)}
-                  disabled={submitting === selectedDocId}
+                  onClick={handleUpdate}
+                  disabled={isSubmitting || !isDirty}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm disabled:opacity-50"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {submitting === selectedDocId ? '저장 중...' : '저장하기'}
+                  {isSubmitting ? '저장 중...' : '전체 저장하기'}
                 </button>
               </div>
             </div>
@@ -233,7 +297,7 @@ export default function AgreementsPage() {
                     [selectedLang]: e.target.value
                   }
                 }))}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-transparent outline-none transition-all resize-none overflow-hidden min-h-[300px]"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-zinc-900 focus:border-transparent outline-none transition-all resize-none overflow-hidden min-h-[300px]"
               />
             </div>
           </div>
