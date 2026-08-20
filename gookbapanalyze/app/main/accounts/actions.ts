@@ -265,3 +265,59 @@ export async function deleteAccount(userId: string) {
     return { error: '서버 오류가 발생했습니다.' }
   }
 }
+
+export async function deleteAllGameData() {
+  try {
+    const adminClient = createAdminClient()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { error: '권한이 없습니다.' }
+    }
+
+    const { data: currentUserAccount } = await adminClient
+      .from('accounts')
+      .select('permission')
+      .eq('user_id', user.id)
+      .single()
+
+    if (currentUserAccount?.permission !== 0) {
+      return { error: '최고 관리자만 게임 데이터를 삭제할 수 있습니다.' }
+    }
+
+    // Explicitly requested to use service_role_key (adminClient) to prevent anon_key compromise issues
+    
+    // 1. game_score_logs
+    await adminClient.from('game_score_logs').delete().not('log_id', 'is', null)
+    
+    // 2. gatcha_logs
+    await adminClient.from('gatcha_logs').delete().not('log_id', 'is', null)
+    
+    // 3. optional_survey_records
+    await adminClient.from('optional_survey_records').delete().not('participant_id', 'is', null)
+    
+    // 4. participant_sessions
+    await adminClient.from('participant_sessions').delete().not('participant_id', 'is', null)
+    
+    // 5. survey_responses
+    await adminClient.from('survey_responses').delete().not('response_id', 'is', null)
+    
+    // 6. track_logs
+    await adminClient.from('track_logs').delete().not('log_id', 'is', null)
+    
+    // 7. web_coupons (participant_id IS NOT NULL)
+    await adminClient.from('web_coupons').delete().not('participant_id', 'is', null)
+    
+    // 8. issued_coupons (오프라인 쿠폰 내역)
+    await adminClient.from('issued_coupons').delete().not('coupon_id', 'is', null)
+    
+    // 9. participants
+    await adminClient.from('participants').delete().not('participant_id', 'is', null)
+
+    return { success: true }
+  } catch (error) {
+    console.error('deleteAllGameData error:', error)
+    return { error: '데이터 삭제 중 서버 오류가 발생했습니다.' }
+  }
+}

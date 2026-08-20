@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getAccountsList, deleteAccount, updatePermission, getBranches } from './actions'
+import { getAccountsList, deleteAccount, updatePermission, getBranches, deleteAllGameData } from './actions'
 import { Users, Plus, MoreVertical, Shield, Trash2, CheckCircle2, XCircle, MapPin } from 'lucide-react'
 
 type Account = {
@@ -29,6 +29,11 @@ export default function AccountsListPage() {
   const [updating, setUpdating] = useState(false)
   const [branches, setBranches] = useState<{branch_id: string, branch_name_ko: string}[]>([])
   const [editPermission, setEditPermission] = useState<string>("1")
+  
+  // 전체 삭제 모달 상태
+  const [deleteAllModalOpen, setDeleteAllModalOpen] = useState(false)
+  const [deleteAllStep, setDeleteAllStep] = useState<1 | 2>(1)
+  const [deleteAllInput, setDeleteAllInput] = useState("")
 
   const fetchAccounts = async () => {
     setLoading(true)
@@ -80,6 +85,19 @@ export default function AccountsListPage() {
     } else {
       fetchAccounts()
       setEditingAccount(null)
+    }
+    setUpdating(false)
+  }
+
+  const handleDeleteAllConfirm = async () => {
+    if (deleteAllInput !== "데이터 전부 삭제") return
+    setUpdating(true)
+    const result = await deleteAllGameData()
+    if (result.error) {
+      alert(result.error)
+    } else {
+      alert('데이터가 성공적으로 삭제되었습니다.')
+      setDeleteAllModalOpen(false)
     }
     setUpdating(false)
   }
@@ -236,6 +254,34 @@ export default function AccountsListPage() {
         </div>
       </div>
 
+      {/* 위험 구역 (Danger Zone) */}
+      {accounts.find(a => a.is_current_user)?.permission === 0 && (
+        <div className="mt-8 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-xl p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-500 flex items-center">
+                <Trash2 className="w-5 h-5 mr-2" />
+                위험 구역 (Danger Zone)
+              </h3>
+              <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-1">
+                게임과 관련된 모든 참여자 데이터 및 로그를 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setDeleteAllModalOpen(true)
+                setDeleteAllStep(1)
+                setDeleteAllInput("")
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-5 rounded-lg transition-colors flex items-center shrink-0 shadow-sm"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              게임 데이터 전체 삭제
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 권한 수정 모달 */}
       {editingAccount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -303,6 +349,87 @@ export default function AccountsListPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 데이터 전체 삭제 모달 */}
+      {deleteAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeleteAllModalOpen(false)} />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl w-full max-w-md ring-1 ring-gray-200 dark:ring-zinc-800">
+            <div className="p-6 border-b border-gray-100 dark:border-zinc-800">
+              <h3 className="text-lg font-bold text-red-600 dark:text-red-500 flex items-center">
+                <Trash2 className="w-5 h-5 mr-2" />
+                게임 데이터 전체 삭제
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-zinc-400 mt-2">
+                다음 데이터가 완전히 삭제되며, <strong>절대 되돌릴 수 없습니다.</strong>
+              </p>
+              <ul className="list-disc text-sm text-gray-600 dark:text-zinc-400 mt-3 pl-5 space-y-1">
+                <li>모든 게임 점수 기록</li>
+                <li><strong>오프라인 매장용 발급 쿠폰 전체 내역</strong></li>
+                <li>가챠(룰렛) 참여 및 보상 획득 이력</li>
+                <li>모든 설문조사(필수/선택) 응답 결과</li>
+                <li>참여자 접속 세션 및 방문 기록</li>
+                <li>참여자 익명 식별 정보</li>
+                <li>접속 링크(트랙) 유입 및 행동 로그</li>
+                <li>유저에게 이미 배정된 웹 이벤트 쿠폰 사용 내역</li>
+              </ul>
+            </div>
+            
+            <div className="p-6">
+              {deleteAllStep === 1 ? (
+                <>
+                  <p className="text-sm text-gray-700 dark:text-zinc-300 mb-6 font-medium text-center">
+                    정말로 모든 데이터를 삭제하시겠습니까?
+                  </p>
+                  {/* 취소/확인 버튼 뒤바뀜 */}
+                  <div className="flex gap-3 justify-center flex-row-reverse">
+                    <button
+                      onClick={() => setDeleteAllModalOpen(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors flex-1"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={() => setDeleteAllStep(2)}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex-1"
+                    >
+                      확인
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-700 dark:text-zinc-300 mb-4 font-medium">
+                    아래 입력창에 <strong>"데이터 전부 삭제"</strong> 라고 입력해 주세요.
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteAllInput}
+                    onChange={(e) => setDeleteAllInput(e.target.value)}
+                    placeholder="데이터 전부 삭제"
+                    className="w-full px-4 py-2.5 mb-6 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
+                  />
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setDeleteAllModalOpen(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleDeleteAllConfirm}
+                      disabled={deleteAllInput !== "데이터 전부 삭제" || updating}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    >
+                      {updating ? '삭제 중...' : '완전히 삭제하기'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
