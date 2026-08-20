@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { Filter, ChevronDown, ChevronUp, Loader2, Inbox, CalendarX2 } from 'lucide-react'
+import { Filter, ChevronDown, ChevronUp, Loader2, Inbox, CalendarX2, Languages } from 'lucide-react'
 import { fetchSurveyData } from './actions'
 import SurveyFilterModal, { SurveyFilterState } from '@/components/SurveyFilterModal'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
@@ -40,6 +40,56 @@ interface Props {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
+
+function Type2AnswerItem({ ans }: { ans: string }) {
+  const [translated, setTranslated] = useState<string | null>(null)
+  const [isTranslating, setIsTranslating] = useState(false)
+
+  // 한글이 포함되어 있는지 확인하여, 한글이 없을 때만 번역 버튼 제공
+  const hasKorean = /[가-힣]/.test(ans)
+
+  const handleTranslate = async () => {
+    try {
+      setIsTranslating(true)
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: ans, source: 'auto', target: 'ko' })
+      })
+      if (!res.ok) throw new Error('번역 실패')
+      const data = await res.json()
+      setTranslated(data.translated)
+    } catch (e) {
+      alert('번역 서버 통신 중 오류가 발생했습니다.')
+    } finally {
+      setIsTranslating(false)
+    }
+  }
+
+  return (
+    <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-800/50 flex flex-col gap-2 relative group">
+      <div className="flex justify-between items-start gap-4">
+        <span className="whitespace-pre-wrap leading-relaxed">{ans}</span>
+        {!hasKorean && !translated && (
+          <button 
+            onClick={handleTranslate} 
+            disabled={isTranslating}
+            className="text-zinc-400 hover:text-blue-500 transition-colors shrink-0 p-1 bg-white dark:bg-zinc-900 rounded shadow-sm border border-zinc-200 dark:border-zinc-700 opacity-0 group-hover:opacity-100 focus:opacity-100"
+            title="한국어로 번역하기"
+          >
+            {isTranslating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
+      {translated && (
+        <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700/50 text-blue-600 dark:text-blue-400 font-medium">
+          {translated}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 export default function SurveyResultsClient({ permission, assignedBranchId, branches }: Props) {
   const [questions, setQuestions] = useState<Question[]>([])
@@ -291,9 +341,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
     return (
       <div className="max-h-64 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
         {validAns.map((ans, idx) => (
-          <div key={idx} className="bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 border border-zinc-100 dark:border-zinc-800/50">
-            {ans}
-          </div>
+          <Type2AnswerItem key={idx} ans={ans} />
         ))}
       </div>
     )
