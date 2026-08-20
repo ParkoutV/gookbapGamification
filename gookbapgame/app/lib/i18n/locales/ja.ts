@@ -34,6 +34,7 @@ export const ja: Partial<Dictionary> = {
   "ranking.nextPageAria": "次のページ",
   "ranking.rankHeader": "順位",
   "ranking.nicknameHeader": "ニックネーム",
+  "ranking.meMarker": "(自分)",
   "ranking.scoreHeader": "スコア",
   // 読み込み失敗と必ず違う文言にする。同じにするとDB障害が「誰もプレイしていない」に化ける。
   "ranking.empty": "まだ記録がありません。",

@@ -36,6 +36,7 @@ export const en: Partial<Dictionary> = {
   "ranking.nextPageAria": "Next page",
   "ranking.rankHeader": "Rank",
   "ranking.nicknameHeader": "Nickname",
+  "ranking.meMarker": "(You)",
   "ranking.scoreHeader": "Score",
   // Must differ from loadFailed - otherwise a DB outage looks like "nobody played".
   "ranking.empty": "No records yet.",

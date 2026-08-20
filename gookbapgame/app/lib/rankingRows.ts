@@ -105,9 +105,28 @@ function koText(name: LocalizedName | null): string {
  * 여러 번 플레이하면 여러 줄로 나온다 — 스펙이 고른 방향이다(§2).
  */
 function groupKey(row: RankingViewRow, index: number): string {
-  const number = row.nickname_number?.trim();
-  if (!number) return JSON.stringify(["__no-number__", index]);
-  return JSON.stringify([koText(row.nickname_first), koText(row.nickname_last), number]);
+  return (
+    nicknameKey({
+      first: row.nickname_first ?? {},
+      last: row.nickname_last ?? {},
+      number: row.nickname_number ?? null,
+    }) ?? JSON.stringify(["__no-number__", index])
+  );
+}
+
+/**
+ * `groupKey`와 **같은 규칙으로** 만든 사람 단위 키. 화면이 "이 줄이 내 줄인가"를
+ * 맞춰보는 데 쓴다. 두 곳이 각자 키를 만들면 규칙이 갈리는 순간 남의 줄을 내 줄로
+ * 강조하게 되므로 한 함수에서 나온다.
+ *
+ * **번호가 없으면 null이다** — 무번호끼리는 구분할 근거가 없어 `groupKey`가 행마다
+ * 다른 키를 주므로, 여기서 키를 만들어 봐야 절대 맞지 않는다. 애초에 "맞출 수 없음"을
+ * 돌려주는 편이 호출부에서 읽기 쉽다.
+ */
+export function nicknameKey(nickname: NicknameParts): string | null {
+  const number = nickname.number?.trim();
+  if (!number) return null;
+  return JSON.stringify([koText(nickname.first), koText(nickname.last), number]);
 }
 
 /**

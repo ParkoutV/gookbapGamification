@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import PixelPanel from "./PixelPanel";
 import { useLocale } from "../lib/i18n/LocaleContext";
-import { formatNickname } from "../lib/nicknameParts";
+import { formatNickname, type Nickname } from "../lib/nicknameParts";
 import { fetchMyBestScore, fetchRanking } from "../actions";
 import { RANKING_PERIODS, type RankingPeriod } from "../lib/rankingPeriod";
 import { RANKING_BODY_H, RANKING_LIST_H } from "../lib/rankingLayout";
@@ -11,6 +11,7 @@ import {
   toRankingList,
   rankingPageCount,
   rankingPageSlice,
+  nicknameKey,
   RANKING_DISPLAY_LIMIT,
   type RankingEntry,
 } from "../lib/rankingRows";
@@ -32,14 +33,28 @@ import {
  * (`rankingRows.ts`의 `groupKey` 주석). 그래서 키는 순수 함수가 한국어 원문 + 번호로
  * 만들고, 이 컴포넌트는 표시만 담당한다.
  *
- * ## 내 점수는 보여주고, 내 **순위**는 보여주지 않는다
+ * ## 내 줄은 **닉네임 번호가 있을 때만** 강조한다
  *
- * 제목 아래에 내 최고점만 띄운다(2026-08-13, 이란토). `ranking_view`에 `participant_id`가
- * 없어서(노출되면 남의 쿠폰을 가로챌 수 있다) 목록에서 내 줄을 확실히 특정할 수 없다 —
- * 닉네임으로 맞춰볼 수는 있지만 **틀린 줄을 내 것으로 강조하는 쪽이 안 하는 것보다
- * 나쁘다.** 점수는 `get_my_score_logs`가 내 기록만 주므로 정확하다(`fetchMyBestScore`).
+ * 제목 아래 내 최고점은 그대로 띄우고(`fetchMyBestScore`), 목록에서 내 줄을 볼드 +
+ * `(나)`로 표시한다(2026-08-20, 이란토 요청). `ranking_view`에 `participant_id`가
+ * 없으므로(노출되면 남의 쿠폰을 가로챌 수 있다) **닉네임으로 맞춘다** — 그래서 키는
+ * `nicknameKey`가 그룹 키와 **같은 규칙**으로 만들고, 번호가 UNIQUE 제약에 들어가는
+ * 덕분에 사람 단위로 성립한다.
+ *
+ * **맞출 수 없으면 강조하지 않는다.** 번호가 없거나(무번호는 서로 구분할 근거가 없다)
+ * 닉네임이 서버에서 온 것이 아니면(로컬 폴백 `NicknameText`는 DB에 행 자체가 없다)
+ * 표시를 건너뛴다 — **틀린 줄을 내 것으로 강조하는 쪽이 안 하는 것보다 나쁘다.**
+ *
+ * 점수로 맞추지 않는 이유: `myBest`는 기간과 무관한 전체 최고점이고 목록은 기간
+ * 필터를 탄다. 탭마다 점수가 달라지는 것이 정상이다.
  */
-export default function RankingScreen({ onClose }: { onClose: () => void }) {
+export default function RankingScreen({
+  nickname,
+  onClose,
+}: {
+  nickname: Nickname;
+  onClose: () => void;
+}) {
   const { locale, t } = useLocale();
   const [period, setPeriod] = useState<RankingPeriod>("daily");
   /** 0부터. 탭을 갈아탈 때 0으로 되돌린다 — 2페이지를 보다 옮기면 빈 화면이 된다. */
@@ -114,6 +129,10 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
      응답이 늦게 오는 사이에 탭이 바뀌어도 빈 화면이 나오지 않는다. */
   const pageCount = rankingPageCount(current?.entries.length ?? 0);
   const pageEntries = current ? rankingPageSlice(current.entries, page) : [];
+
+  /* 내 줄을 맞춰볼 키. 서버에서 온 닉네임(`NicknameParts`)이고 번호가 있을 때만 나온다
+     — 그 외에는 null이라 아래 비교가 전부 어긋나고, 강조도 붙지 않는다. */
+  const myKey = "first" in nickname ? nicknameKey(nickname) : null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
@@ -242,7 +261,11 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
               {pageEntries.map((entry) => (
                 <li
                   key={`${entry.rank}-${entry.joinedTime}`}
-                  className="flex gap-1.5 items-center text-sm"
+                  className={`flex gap-1.5 items-center text-sm ${
+                    // 굵기만 바꾼다. 글자 크기를 건드리면 줄 높이가 변해 손으로 계산한
+                    // `RANKING_LIST_H`(20px × 10 + gap)와 어긋난다.
+                    myKey !== null && nicknameKey(entry.nickname) === myKey ? "font-bold" : ""
+                  }`}
                 >
                   <span className="w-6 text-center font-bold text-accent shrink-0">
                     {entry.rank}
@@ -250,6 +273,12 @@ export default function RankingScreen({ onClose }: { onClose: () => void }) {
                   <span className="flex-1 min-w-0 text-ink whitespace-nowrap overflow-x-auto ranking-nickname">
                     {formatNickname(entry.nickname, locale)}
                   </span>
+                  {/* `(나)`는 **닉네임 칸 밖의 형제**로 둔다. 안에 이어붙이면 긴 닉네임
+                      (영어 프리셋 최대 33자)에서는 스크롤 끝에 숨어 보이지 않는다 —
+                      정작 강조가 필요한 줄에서 안 보이는 꼴이다. */}
+                  {myKey !== null && nicknameKey(entry.nickname) === myKey && (
+                    <span className="text-accent text-xs shrink-0">{t("ranking.meMarker")}</span>
+                  )}
                   <span className="w-11 text-right font-bold text-ink tabular-nums shrink-0">
                     {entry.score.toLocaleString(locale)}
                   </span>
