@@ -4,6 +4,7 @@ import {
   toRankingList,
   rankingPageCount,
   rankingPageSlice,
+  nicknameKey,
   type RankingViewRow,
 } from "./rankingRows.ts";
 import { formatNickname } from "./nicknameParts.ts";
@@ -252,4 +253,26 @@ test("rankingPageSlice: 범위를 벗어난 page는 빈 배열이 아니라 가�
 
   assert.equal(rankingPageSlice(list.entries, 5).length, 3, "너무 큰 page → 마지막 페이지");
   assert.equal(rankingPageSlice(list.entries, -1).length, 3, "음수 page → 첫 페이지");
+});
+
+test("nicknameKey: 번호가 없으면 null이다 — 맞출 수 없는 것을 맞은 것처럼 돌려주지 않는다", () => {
+  assert.equal(nicknameKey({ first: { ko: "든든한" }, last: { ko: "국밥" }, number: null }), null);
+  assert.equal(nicknameKey({ first: { ko: "든든한" }, last: { ko: "국밥" }, number: "  " }), null);
+});
+
+test("nicknameKey: 같은 사람이면 로케일과 무관하게 그룹 키와 같은 값이다", () => {
+  const rows = [
+    {
+      nickname_first: { ko: "든든한", en: "Hearty" },
+      nickname_last: { ko: "국밥", en: "Gookbap" },
+      nickname_number: "0023",
+      gookbap_score: 10,
+      joined_time: "2024-09-11T14:59:26+00:00",
+    },
+  ];
+  const [entry] = toRankingList(rows).entries;
+  assert.equal(
+    nicknameKey(entry.nickname),
+    nicknameKey({ first: { ko: "든든한" }, last: { ko: "국밥" }, number: "0023" })
+  );
 });

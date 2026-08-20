@@ -37,6 +37,7 @@ export const ko: Dictionary = {
   "ranking.nextPageAria": "다음 페이지",
   "ranking.rankHeader": "순위",
   "ranking.nicknameHeader": "닉네임",
+  "ranking.meMarker": "(나)",
   "ranking.scoreHeader": "점수",
   // 기록이 0건인 정상 상태. 조회 실패와 **반드시 다른 문구여야 한다** — 같은 문구를
   // 쓰면 DB 장애가 "오늘 아무도 안 함"으로 위장된다(설문 조회에서 얻은 교훈).

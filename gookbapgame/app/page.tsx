@@ -544,7 +544,9 @@ export default function Home({ searchParams }: PageProps) {
 
       {/* 시작 화면에서만 들어오므로 닫으면 시작 화면으로 돌아온다(내 쿠폰이
           dailyResult로 돌아가는 것과 다르다 — 그쪽은 결과 흐름 안의 화면이다). */}
-      {game.phase === "ranking" && <RankingScreen onClose={() => goToPhase("start")} />}
+      {game.phase === "ranking" && (
+        <RankingScreen nickname={game.nickname} onClose={() => goToPhase("start")} />
+      )}
 
       {/* 닫으면 **열었던 곳으로** 돌아간다(`myCouponsReturnPhase`) — 시작 화면과 결과
           화면 양쪽에서 열리므로 한쪽으로 고정할 수 없다.

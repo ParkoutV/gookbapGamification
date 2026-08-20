@@ -43,6 +43,7 @@ export const zh: Partial<Dictionary> = {
   "ranking.nextPageAria": "下一页",
   "ranking.rankHeader": "排名",
   "ranking.nicknameHeader": "昵称",
+  "ranking.meMarker": "(我)",
   "ranking.scoreHeader": "分数",
   // 조회 실패와 반드시 다른 문구여야 한다 — 같은 문구를 쓰면 DB 장애가
   // "오늘 아무도 안 함"으로 위장된다.

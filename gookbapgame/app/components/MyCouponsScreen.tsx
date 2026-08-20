@@ -14,6 +14,33 @@ import { couponDateLines } from "../lib/couponDates";
 import CouponGuideNotice from "./CouponGuideNotice";
 
 /**
+ * 본문(로딩·빈 목록·격자)이 공유하는 예약 높이.
+ *
+ * **중앙값이 아니라 뷰포트를 기준으로 잡는다**(2026-08-20). 랭킹은 목록이 10줄
+ * 페이지네이션이라 236px 고정으로 맞출 수 있었지만, 여기는 격자 한 행이 297px(실측)이라
+ * "흔한 경우"(티켓 + 2행 = 669px)를 예약하면 **로딩 화면이 짧은 폰보다 길어진다.**
+ *
+ * 진짜 문제는 성장이 아니라 **앵커 이동**이었다. 로딩 상태의 짧은 패널은
+ * `justify-center`가 가운데로 놓고, 쿠폰이 실린 패널은 dvh를 넘겨 사실상 위에 붙는다 —
+ * 그 전환에서 제목이 델타의 절반만큼 위로 미끄러진다. 패널이 **처음부터** 뷰포트를
+ * 채우면 그 뒤의 성장은 접힌 곳 아래에서 일어나 보이지 않는다.
+ *
+ * 240px은 본문 외 패널 고정분의 브라우저 실측이다(390×664, 2026-08-20): 뽑기 진입
+ * 버튼이 **없을 때**의 패널 높이 − 본문 높이. **버튼이 있는 쪽으로 잡지 말 것** —
+ * 그 64px을 빼면 버튼 없는 사람에게 패널이 dvh보다 작아져 다시 중앙 정렬로 떨어지고,
+ * 앵커가 움직인다. 넉넉히 잡아 넘치는 쪽은 위 앵커가 유지되므로 해롭지 않다.
+ *
+ * 실측 확인(390×664, 뽑기 버튼 유/무 양쪽): 로딩 726/662 → 목록 1322/1258인데
+ * `panelTop`은 네 경우 모두 24px이다. 성장은 전부 접힌 곳 아래에서 일어난다.
+ * 로딩 패널이 dvh보다 살짝 작아도(662) 앵커가 유지되는 것은 바깥 `p-6` 48px이
+ * 함께 컨테이너를 채우기 때문이다 — 실효 여유는 46px이지 2px가 아니다.
+ *
+ * **Tailwind 임의값 클래스로 되돌리지 말 것** — v4는 소스 텍스트를 훑어 클래스를
+ * 만들므로 JS 변수로 조립하면 높이가 조용히 0이 된다(`rankingLayout.ts` 주석).
+ */
+const BODY_MIN_H = "calc(100dvh - 240px)";
+
+/**
  * 내 쿠폰 앨범.
  *
  * **격자로 뒷면을 늘어놓고, 누르면 그 카드를 앞면으로 보여준다**(2026-08-13, 이란토).
@@ -47,10 +74,13 @@ export default function MyCouponsScreen({
   /** 티켓 문구(`web_coupon_settings`). 없으면 로케일 파일 기본값으로 떨어진다. */
   webCouponSettings?: WebCouponSettings | null;
   /**
-   * 조회가 아직 끝나지 않았다. `page.tsx`가 낙관적으로 화면부터 띄우기 때문에
-   * **빈 배열이 "쿠폰 없음"을 뜻하지 않는 구간이 생긴다** — 그 구간에
-   * `coupon.empty`("아직 받은 쿠폰이 없어요.")를 띄우면 거짓말이 된다.
-   * 랭킹이 `ranking.empty`를 다루는 방식과 같은 함정이다.
+   * 조회가 아직 끝나지 않았다. 참이면 **쿠폰에 관한 것은 아무것도 그리지 않는다** —
+   * 목록도, 티켓도, "쿠폰이 없어요"도(2026-08-20 요청서, 랭킹과 같은 규칙).
+   *
+   * `page.tsx`가 낙관적으로 화면부터 띄우므로 이 구간의 state는 **이전 방문·뽑기에서
+   * 남은 값**이다. 예전에는 그걸 그대로 그려서, 매장 쿠폰은 즉시 뜨는데 온라인몰
+   * 티켓만 조회가 끝난 뒤 뒤늦게 끼어들었다(스크린샷 제보 — 카드를 열었다 나오면
+   * 그제서야 나타나는 것처럼 보였다). **부분 표시로 되돌리지 말 것.**
    */
   loading?: boolean;
   onClose: () => void;
@@ -144,21 +174,30 @@ export default function MyCouponsScreen({
           </button>
         )}
 
-        {/* **두 목록이 모두 비었을 때만** 빈 상태다. 매장 쿠폰만 보면, 설문만 하고
+        {/* 세 상태(로딩·빈 목록·격자)가 `BODY_MIN_H`를 **함께** 쓴다. 하나라도 빠지면
+            출렁임을 없앤 것이 아니라 그 상태로 옮긴 것이 된다.
+
+            로딩 문구는 `ranking.loading`을 재사용한다(새 한글이 없으므로 픽셀 폰트
+            재빌드 대상도 아니다).
+
+            빈 상태는 **두 목록이 모두 비었을 때만**이다. 매장 쿠폰만 보면, 설문만 하고
             뽑기를 안 한 사람(온라인몰 쿠폰만 가진 사람)에게 티켓과 "쿠폰이 없어요"가
-            함께 뜬다.
-
-            `loading`을 함께 보는 이유는 `loading` prop 주석에 있다 — 조회 중의 빈
-            배열은 "없음"이 아니다. 문구는 `ranking.loading`을 재사용한다(새 한글이
-            없으므로 픽셀 폰트 재빌드 대상도 아니다). */}
-        {loading && coupons.length === 0 && webCoupons.length === 0 && (
-          <p className="text-muted text-center mb-6">{t("ranking.loading")}</p>
-        )}
-        {!loading && coupons.length === 0 && webCoupons.length === 0 && (
-          <p className="text-muted text-center mb-6">{t("coupon.empty")}</p>
-        )}
-
-        {openCoupon ? (
+            함께 뜬다. */}
+        {loading ? (
+          <div
+            className="flex items-center justify-center mb-6"
+            style={{ minHeight: BODY_MIN_H }}
+          >
+            <p className="text-muted text-center">{t("ranking.loading")}</p>
+          </div>
+        ) : coupons.length === 0 && webCoupons.length === 0 ? (
+          <div
+            className="flex items-center justify-center mb-6"
+            style={{ minHeight: BODY_MIN_H }}
+          >
+            <p className="text-muted text-center">{t("coupon.empty")}</p>
+          </div>
+        ) : openCoupon ? (
           <div className="flex flex-col items-center gap-4 mb-6 w-full">
             <GatchaCard
               coupon={openCoupon}
@@ -200,8 +239,12 @@ export default function MyCouponsScreen({
           </div>
         ) : (
           /* 2열 격자. `max-w-sm` 패널 안쪽에서 칸이 약 140px이 되어 아래 쿠폰명이
-             한두 줄로 앉는다 — 3열은 이름이 들어갈 폭이 없다. */
-          <div className="grid grid-cols-2 gap-3 mb-6">
+             한두 줄로 앉는다 — 3열은 이름이 들어갈 폭이 없다.
+
+             **`content-start`는 장식이 아니라 `BODY_MIN_H`와 한 쌍이다.** grid의
+             기본 `align-content: stretch`는 내용이 예약 높이보다 짧을 때(쿠폰 한두 장)
+             남는 높이를 행 사이에 나눠 넣어 격자가 위아래로 벌어진다. 지우지 말 것. */
+          <div className="grid grid-cols-2 gap-3 mb-6 content-start" style={{ minHeight: BODY_MIN_H }}>
             {/* 온라인몰 쿠폰은 **한 행을 통째로 쓴다**(`col-span-2`, 2026-08-13 이란토).
                 가로로 긴 티켓 형태라 세로로 긴 카드 칸(1000/1371)에 넣으면 위아래
                 여백이 크게 남고, 칸마다 비율이 다르면 격자가 들쭉날쭉해진다 —
