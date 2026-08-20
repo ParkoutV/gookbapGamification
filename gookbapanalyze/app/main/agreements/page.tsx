@@ -17,6 +17,8 @@ export default function AgreementsPage() {
   
   // doc_id -> { lang_code -> text }
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({})
+  const [originalFormData, setOriginalFormData] = useState<Record<string, Record<string, string>>>({})
+  const [isDirty, setIsDirty] = useState(false)
   const [submitting, setSubmitting] = useState<string | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -68,6 +70,8 @@ export default function AgreementsPage() {
       })
       
       setFormData(initialForm)
+      setOriginalFormData(JSON.parse(JSON.stringify(initialForm)))
+      setIsDirty(false)
     }
     
     setLoading(false)
@@ -77,6 +81,43 @@ export default function AgreementsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchInitialData()
   }, [])
+
+  // Calculate if form is dirty
+  useEffect(() => {
+    setIsDirty(JSON.stringify(formData) !== JSON.stringify(originalFormData))
+  }, [formData, originalFormData])
+
+  // Prevent accidental navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest('a')
+      if (!target) return
+      
+      const isInternal = target.href && target.target !== '_blank' && target.href.startsWith(window.location.origin)
+      if (isInternal && !target.href.includes(window.location.pathname)) {
+        if (isDirty) {
+          if (!window.confirm('저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?')) {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+        }
+      }
+    }
+    window.addEventListener('click', handleAnchorClick, { capture: true })
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('click', handleAnchorClick, { capture: true })
+    }
+  }, [isDirty])
 
   // Auto-resize textarea
   useEffect(() => {
