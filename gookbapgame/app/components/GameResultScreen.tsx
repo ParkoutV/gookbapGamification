@@ -102,7 +102,7 @@ export default function GameResultScreen({
   }, [revealDone, isMaster]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6">
+    <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6 pb-[var(--footer-space)]">
       {/* 만점자 축하 연출. 소리는 여기서 내지 않는다 — 위 이펙트가 coindrop 자리에
           gratulate를 대신 재생한다.
 

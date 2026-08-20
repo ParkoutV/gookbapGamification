@@ -23,8 +23,6 @@ interface StartScreenProps {
    */
   hasPendingDraw: boolean;
   trackId: string | null;
-  /** 약관·개인정보처리방침·쿠폰안내 창을 연다. 아래 푸터 주석 참고. */
-  onOpenLegal: () => void;
 }
 
 export default function StartScreen({
@@ -37,7 +35,6 @@ export default function StartScreen({
   onOpenMyCoupons,
   hasPendingDraw,
   trackId,
-  onOpenLegal,
 }: StartScreenProps) {
   const { t, locale } = useLocale();
 
@@ -81,8 +78,9 @@ export default function StartScreen({
   }, [inviteMessage]);
 
   return (
-    // **footer는 흐름 밖(absolute)이고 패널만 `justify-center`로 가운데에 둔다**
-    // (2026-08-19, 이란토). 세 번 자리를 옮긴 곳이라 지나온 경로를 적어둔다:
+    // **footer는 이 화면에 없다** — `page.tsx`가 렌더한다(2026-08-20, `SiteFooter`).
+    // 여기 있던 시절에 세 번 자리를 옮겼고, 그 이력이 지금도 유효한 함정이라 남긴다
+    // (흐름 밖 absolute + 패널만 `justify-center`라는 결론은 `SiteFooter`가 물려받았다):
     // 1. 루트 `justify-center` + 흐름 footer → 패널과 footer가 **한 묶음으로** 가운데
     //    모여, 높이가 남는 데스크톱에서 footer가 화면 한복판에 떴다.
     // 2. 패널 `my-auto` + footer `mt-auto` → footer는 바닥에 붙었지만, auto 마진이
@@ -96,7 +94,7 @@ export default function StartScreen({
     // footer가 패널 아래쪽에 겹칠 수 있다. 실제로 겹치면 흐름 배치로 되돌리고
     // 위 2번 대신 "패널을 감싼 `flex-1` 영역 안에서 가운데" 방식을 쓸 것
     // (그러면 footer 높이의 절반만큼만 위로 치우친다).
-    <div className="relative flex flex-col items-center justify-center min-h-dvh text-ink p-6">
+    <div className="relative flex flex-col items-center justify-center min-h-dvh text-ink p-6 pb-[var(--footer-space)]">
       {/* 크레딧 진입. 좌상단 툴바(page.tsx)와 대칭인 우상단 끝이고, 같은 `z-[60]`이다.
           이 게임의 주 동선이 아니라 일부러 작게 둔다. */}
       {/* 높이는 `PixelPanel`의 `.pixel-frame-inner--btn`(상하 .7rem)이 정한다 —
@@ -215,42 +213,6 @@ export default function StartScreen({
         )}
       </PixelPanel>
 
-      {/* 푸터. **패널 바깥, 루트 바닥이다.** `fixed`가 아니라 `absolute`인 이유는
-          위 루트 주석에 있다(2026-08-14·2026-08-19, 이란토).
-
-          **최초 고지 이후 법률 문서를 다시 볼 수 있는 유일한 진입점이라** 링크를
-          copyright와 함께 둔다. 개인정보처리방침은 언제든 열람할 수 있어야 하는데,
-          첫 실행에만 뜨는 팝업으로 끝내면 그 통로가 없다.
-
-          **회사명은 로케일 파일이 아니라 여기 하드코딩한다.** 4개 파일에 같은 값이
-          들어가면 언젠가 어긋난다 — `LOCALE_LABELS`와 `GAME OVER`/`CLEAR!` 리터럴을
-          로케일에서 뺀 것과 같은 근거다(AGENTS.md 연출 글자 절). 상호는 번역 대상이
-          아니고, 표기는 회사 문서를 따라 '(주)웨이브앤바이브'다. */}
-      {/* **글자를 흰색으로 둔다.** 푸터는 `PixelPanel` 바깥이라 배경 사진에 그대로
-          노출되는 유일한 텍스트이고, 이제 배경은 (게임 중을 빼면) 항상 깔린다.
-          `text-muted`(#5A6570)를 그대로 두면 `city_midnight` 위에서 **2.02:1**까지
-          떨어진다 — 개인정보처리방침 재열람의 유일한 통로라(AGENTS.md) 실제 손실이다.
-
-          **회색을 유지한 채로는 못 고친다.** #5A6570의 휘도가 배경들과 `--bg` 사이에
-          끼어 있어 배경을 밝히면 대비가 단조 증가하지 않고 글자 휘도를 통과한다
-          (α=0.3 → 1.03 / 0.5 → 1.47 / 0.7 → 2.15). 어둡게 하는 방향에서만 흰 글자의
-          대비가 단조 증가한다.
-
-          가독성은 배경 레이어 하단의 그라데이션이 만든다(`DaylightBackground`) —
-          푸터 자리 국소 최악 **7.22:1**로 AA를 넘는다. 사각형 칩을 얹는 안은
-          `day`처럼 밝은 배경에서 그 자리만 패인 것처럼 보여 버렸다(2026-08-15 이란토). */}
-      <footer className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-center">
-        <button
-          type="button"
-          onClick={onOpenLegal}
-          className="text-xs text-white underline underline-offset-2"
-        >
-          {t("legal.openButton")}
-        </button>
-        <p className="text-[0.65rem] text-white">
-          Copyright © 2026 (주)웨이브앤바이브
-        </p>
-      </footer>
     </div>
   );
 }

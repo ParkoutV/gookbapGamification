@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import StartScreen from "./components/StartScreen";
 import LegalNotice from "./components/LegalNotice";
+import SiteFooter from "./components/SiteFooter";
 import TutorialScreen from "./components/TutorialScreen";
 import PreloadScreen from "./components/PreloadScreen";
 import GameScreen from "./components/GameScreen";
@@ -362,7 +363,9 @@ export default function Home({ searchParams }: PageProps) {
   );
 
   return (
-    <div className="min-h-dvh">
+    /* `relative`는 `SiteFooter`의 기준이다 — 없으면 푸터가 뷰포트에 붙어
+       내용이 긴 화면에서 그 위에 겹친다(그 컴포넌트 주석 참고). */
+    <div className="relative min-h-dvh">
       {/* 시간대 배경. **여기 한 곳에만 둔다** — 화면마다 붙이면 화면이 늘어날 때
           반드시 하나를 빠뜨린다. 게임 중에만 가려지는데, 그것은 이 컴포넌트가 phase를
           보는 것이 아니라 `GameScreen`이 불투명한 `bg-bg`로 덮기 때문이다(2026-08-15
@@ -396,6 +399,10 @@ export default function Home({ searchParams }: PageProps) {
         <LanguageToggle />
         <SoundToggle />
       </div>
+      {/* 푸터. 배경과 같은 이유로 여기 한 곳에서만 렌더한다 — 화면마다 붙이면 화면이
+          늘어날 때 반드시 하나를 빠뜨린다. 게임 중에는 `GameScreen`이 배경을 덮으므로
+          (그래서 하단 그라데이션도 안 보인다) 푸터도 함께 뺀다. */}
+      {game.phase !== "playing" && <SiteFooter onOpenLegal={() => setShowLegalReview(true)} />}
       {game.phase === "start" && (
         <StartScreen
           nickname={game.nickname}
@@ -409,7 +416,6 @@ export default function Home({ searchParams }: PageProps) {
           onOpenMyCoupons={() => void openMyCoupons("start")}
           hasPendingDraw={showDrawEntry}
           trackId={trackId}
-          onOpenLegal={() => setShowLegalReview(true)}
         />
       )}
 
