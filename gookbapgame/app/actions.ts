@@ -22,7 +22,13 @@ import {
   type Point,
 } from "./lib/hitPolygon";
 import { getDiffSilhouette } from "./lib/diffSilhouette";
-import { getOrIssueToken, hashToken } from "./lib/participantToken";
+import {
+  getOrIssueToken,
+  hashToken,
+  readStoredParticipantId,
+  storeParticipantId,
+} from "./lib/participantToken";
+import { formatParticipantId, pickParticipantId } from "./lib/participantId";
 import { requestNicknameAssign } from "./lib/nicknameApi";
 import { nicknameFromParticipantRows } from "./lib/existingNickname";
 import type { Nickname, NicknameParts } from "./lib/nicknameParts";
@@ -327,11 +333,38 @@ export type ParticipantResult = {
   nicknameSynced: boolean;
 };
 
+/**
+ * 이번 요청의 `participant_id`.
+ *
+ * **두 쿠키를 함께 본다**(2026-08-21, 이란토). 예전에는 `gookbapgame_token` 하나에서
+ * 매번 다시 계산했는데, 그 쿠키가 유실되면 새 id가 나와 설문 이력·쿠폰·랭킹이 통째로
+ * 끊겼다. 지금은 산출된 값을 `gookbapgame_pid`에도 남겨 두고, 그쪽이 살아 있으면
+ * 토큰이 새로 발급됐더라도 **저장된 id를 세션의 진실로 삼는다.**
+ *
+ * 판정은 전부 `pickParticipantId`(순수 함수)가 하고 여기서는 쿠키 I/O만 한다 —
+ * 그래야 `participantId.test.ts`가 골든 값과 손상 값 처리를 검사할 수 있다.
+ * **이 안에 형식 검사나 폴백 분기를 다시 심지 말 것.**
+ *
+ * 토큰 쿠키는 저장된 id가 있어도 계속 발급·유지한다. 둘 중 하나가 사라져도 다른
+ * 쪽으로 세션이 이어지게 하는 것이 이 이중화의 요점이다.
+ */
 async function resolveParticipantId(): Promise<string> {
+  const stored = await readStoredParticipantId();
   const token = await getOrIssueToken();
-  const hash = hashToken(token);
-  const hex32 = hash.slice(0, 32);
-  return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-${hex32.slice(12, 16)}-${hex32.slice(16, 20)}-${hex32.slice(20, 32)}`;
+  const fromToken = formatParticipantId(hashToken(token));
+
+  const { id, shouldStore, diverged } = pickParticipantId(stored, fromToken);
+  if (shouldStore) await storeParticipantId(id);
+  if (diverged) {
+    /* 저장된 id가 이기는 구조라 두 출처가 대조되는 일이 **여기 말고는 없다.**
+       이 줄이 없으면 엉뚱한 값이 한 번 들어간 사람은 영구히 잘못된 신원에 묶인 채
+       아무 흔적도 남기지 않는다. 정상적인 갈림(토큰 쿠키만 유실돼 재발급된 경우)도
+       여기 찍히므로, 빈도가 높다면 그건 그것대로 봐야 할 신호다. */
+    console.warn(
+      `[resolveParticipantId] 두 쿠키의 participant_id가 다르다 — 저장된 값을 쓴다 (pid=${id}, token기준=${fromToken})`
+    );
+  }
+  return id;
 }
 
 /**

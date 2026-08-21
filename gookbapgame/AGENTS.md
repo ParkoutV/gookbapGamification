@@ -54,7 +54,14 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
 게임 클라이언트가 익명 참여자를 식별하는 방식.
 
 - **쿠키 토큰**: `gookbapgame_token`(httpOnly, 만료 2년). `getOrIssueToken()`이 없으면 발급, 있으면 그대로 사용.
-- **participant_id 산출**: `hashToken(token)`으로 SHA-256(64자 hex)을 만든 뒤, `resolveParticipantId()`가 앞 32자를 잘라 `8-4-4-4-12` 하이픈 형태(uuid 문자열 형식)로 재배열해서 `participant_id`로 씀. `participants.participant_id`는 프로덕션 기준 실제 `uuid` 타입 컬럼이라 이 포맷팅이 필요함.
+- **participant_id 산출**: `hashToken(token)`으로 SHA-256(64자 hex)을 만든 뒤, `formatParticipantId()`가 앞 32자를 잘라 `8-4-4-4-12` 하이픈 형태(uuid 문자열 형식)로 재배열해서 `participant_id`로 씀. `participants.participant_id`는 프로덕션 기준 실제 `uuid` 타입 컬럼이라 이 포맷팅이 필요함.
+  - **이 배열을 바꾸면 기존 방문자 전원의 id가 갈린다** — 설문 이력·쿠폰·랭킹이 전부 그 id에 묶여 있어 모두가 신규 참여자가 된다. 실기에서 뽑아온 (토큰 → id) 골든 쌍 2개를 `participantId.test.ts`가 박아두고 있다.
+- **`participant_id`는 두 번째 쿠키(`gookbapgame_pid`)에도 저장된다**(2026-08-21, 이란토). 예전에는 토큰 쿠키 하나에서 매번 재계산하는 구조라, 그것이 유실되면 새 id가 나와 **설문 이력·쿠폰·랭킹이 통째로 끊겼다.** 저장된 값이 유효하면 **토큰 계산값보다 우선한다** — 둘 중 하나만 살아 있어도 세션이 이어지게 하는 것이 요점이다.
+  - **판정은 `participantId.ts`의 `pickParticipantId`(순수 함수)가 전부 한다.** `resolveParticipantId`는 쿠키 I/O만 맡는다 — 거기에 형식 검사나 폴백 분기를 다시 심으면 테스트가 닿지 않는다. `participantToken.ts`는 `next/headers`를 타서 단위 테스트가 안 되므로 계산을 갈라 둔 것이다(`sessionPlan.ts`·`sessionZip.ts`와 같은 이유).
+  - **`httpOnly`를 떼지 말 것.** `/api/web-coupons/assign`과 `/api/gatcha/draw`는 `participant_id` **하나만으로 인증 없이** 동작한다 — JS가 읽을 수 있는 쿠키에 두면 남의 id로 쿠폰을 발급받거나 뽑기를 소진시킬 수 있다. 쿠키는 httpOnly여도 브라우저에 저장되므로 세션 연속성이라는 목적은 그대로 달성된다.
+  - **형식이 깨진 pid 쿠키는 조용히 버리고** 토큰 계산값으로 덮어쓴다. 쿠키는 사용자가 편집할 수 있고 옛 형식이 남을 수도 있는데, 그대로 흘려보내면 `participants` INSERT가 `22P02`로 죽는다. 세션을 잇는 것보다 게임이 도는 것이 먼저다.
+  - **두 출처가 갈리면 `console.warn`을 남긴다.** 저장된 값이 무조건 이기는 구조라 대조되는 자리가 거기 하나뿐이다 — 이 로그가 없으면 엉뚱한 값이 한 번 들어간 사람은 영구히 잘못된 신원에 묶인 채 **아무 흔적도 남기지 않는다.** 지우지 말 것.
+  - **첫 로드의 레이스는 이걸로 고쳐지지 않는다.** 페이지가 처음 열릴 때 서버 액션이 병렬로 여러 개 나가는데 그 시점엔 토큰 쿠키가 없어서 각 요청의 `getOrIssueToken`이 **서로 다른 `randomUUID`를 발급하고 마지막 Set-Cookie가 이긴다.** pid 쿠키도 똑같이 경쟁하므로 무력하다(기존 동작이라 회귀는 아니다). 신원 안정성을 진짜로 잡으려면 별도 조치가 필요하다.
 - **`ensureParticipant(trackId)`**: `participants`에 `INSERT`(uuid PK 충돌 시 `23505`는 "이미 존재하는 참여자"로 정상 처리, `ON CONFLICT`는 안 씀 — RLS가 걸린 테이블에서 `ON CONFLICT`는 SELECT 정책을 요구해서 실패하기 때문). 그다음 **`add_track_log` RPC**로 접속 로그를 남김.
   - **`track_logs`에 직접 `INSERT`하지 말 것.** anon의 INSERT 권한이 삭제됐다(2026-08-10, `gookbapanalyze` 커밋 a4a6416). 직접 넣으면 실패하는데, best-effort라 로그만 찍고 조용히 넘어가서 **방문자 수 KPI가 아무 신호 없이 0이 된다.**
   - **중복 집계 방지는 서버가 한다.** 30분 이내 활성 세션이 있으면 새 row를 만들지 않고 기존 `log_id`를 돌려준다(`participant_sessions` 테이블). 그래서 여기서 "신규 참여자일 때만" 같은 조건을 걸 필요가 없다 — 새로고침 연타로 방문자 수가 부풀지 않는다.
