@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
-import { FilterControls, IsSharedFilter } from '@/components/dashboard/FilterControls';
+import { FilterControls, IsSharedFilter, SurveyFilterItem } from '@/components/dashboard/FilterControls';
 import { StatCard } from '@/components/dashboard/StatCard';
 import dynamic from 'next/dynamic';
 
@@ -25,6 +25,9 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
   const [branchId, setBranchId] = useState<string | null>(null);
   const [isShared, setIsShared] = useState<IsSharedFilter>('BOTH');
   const [excludeDuplicates, setExcludeDuplicates] = useState<boolean>(false);
+  
+  const [surveyFilters, setSurveyFilters] = useState<SurveyFilterItem[]>([]);
+  const [surveyFilterMode, setSurveyFilterMode] = useState<'AND' | 'OR'>('AND');
 
   const [loading, setLoading] = useState(false);
   const [storeTrackId, setStoreTrackId] = useState<string | null>(null);
@@ -91,7 +94,9 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
       const params: any = {
         start_date: startDate ? startDate.toISOString() : undefined,
         end_date: endDate ? endDate.toISOString() : undefined,
-        exclude_duplicates: excludeDuplicates
+        exclude_duplicates: excludeDuplicates,
+        survey_filters: surveyFilters,
+        survey_filter_mode: surveyFilterMode
       };
 
       const { data: aggData, error: aggError } = await supabase.rpc('get_track_kpi_dashboard', params);
@@ -187,11 +192,13 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         }
       });
 
-      const actualCouponData = Object.entries(couponMap).map(([name, stats]) => ({
-        name,
-        issued: stats.issued,
-        used: stats.used
-      }));
+      const actualCouponData = Object.entries(couponMap)
+        .filter(([name]) => name !== '웹 쿠폰')
+        .map(([name, stats]) => ({
+          name,
+          issued: stats.issued,
+          used: stats.used
+        }));
 
       setCouponData(actualCouponData);
 
@@ -211,7 +218,9 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
           supabase.rpc('get_track_kpi_dashboard', {
             start_date: startOfDayStr,
             end_date: endOfDayStr,
-            exclude_duplicates: excludeDuplicates
+            exclude_duplicates: excludeDuplicates,
+            survey_filters: surveyFilters,
+            survey_filter_mode: surveyFilterMode
           })
         );
       }
@@ -256,7 +265,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, branchId, isShared, excludeDuplicates, isAdmin, supabase]);
+  }, [startDate, endDate, branchId, isShared, excludeDuplicates, surveyFilters, surveyFilterMode, isAdmin, supabase]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -266,7 +275,9 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
   const gameStartRate = kpis.visitors ? ((kpis.gameStarts / kpis.visitors) * 100).toFixed(1) : '0.0';
   const completionRate = kpis.gameStarts ? ((kpis.completions / kpis.gameStarts) * 100).toFixed(1) : '0.0';
   const couponUseRate = kpis.couponIssues ? ((kpis.couponUses / kpis.couponIssues) * 100).toFixed(1) : '0.0';
-  const surveyCompletionRate = kpis.visitors ? ((kpis.surveyCompletions / kpis.visitors) * 100).toFixed(1) : '0.0';
+  
+  const surveyDenominator = kpis.completions;
+  const surveyCompletionRate = surveyDenominator ? ((kpis.surveyCompletions / surveyDenominator) * 100).toFixed(1) : '0.0';
 
   const shareParticipationRate = kpis.visitors ? ((kpis.shares / kpis.visitors) * 100).toFixed(1) : '0.0';
   const inflowPerShare = kpis.shares ? (kpis.shareInflows / kpis.shares).toFixed(1) : '0.0';
@@ -298,9 +309,17 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         
         <div className="flex flex-col gap-4 w-full lg:w-auto">
           <DateRangePicker onFilterChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
-          <FilterControls isAdmin={isAdmin} onFilterChange={(b, s, e) => { 
-            setBranchId(b); setIsShared(s); setExcludeDuplicates(e); 
-          }} />  </div>
+          <FilterControls 
+            isAdmin={isAdmin} 
+            assignedBranchId={assignedBranchId}
+            onFilterChange={(b, s, e, sf, sfm) => { 
+              setBranchId(b); 
+              setIsShared(s); 
+              setExcludeDuplicates(e); 
+              setSurveyFilters(sf);
+              setSurveyFilterMode(sfm);
+            }} 
+          />  </div>
       </div>
 
       {loading && (
