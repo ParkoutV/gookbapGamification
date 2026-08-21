@@ -92,6 +92,14 @@ export type GameSession = {
    * 있다가 `excludeBaseImageId`로 되돌려주는 구조다(`baseImageOrder.ts` 참고).
    */
   baseImageId: number;
+  /**
+   * 배경 이미지의 이름(부산 명소). 인화지 하단 캡션에 쓴다.
+   *
+   * **`categoryName`과 같이 jsonb 원본을 그대로 넘긴다** — 로케일 해석을 서버에서
+   * 확정하면 접속 후 언어를 바꿔도 캡션만 옛 언어로 남는다(서버 액션은 그때 다시
+   * 불리지 않는다). 닉네임에서 같은 이유로 재료만 넘기는 것과 같은 구조다.
+   */
+  baseImageTitle: LocalizedName;
 };
 
 async function computeSlotPolygons(
@@ -148,6 +156,7 @@ async function computeSlotPolygons(
 type SessionPlan = {
   level: number;
   baseImageId: number;
+  baseImageTitle: LocalizedName;
   slots: GameSlot[];
   leftImageSlots: ImageSlots;
   rightImageSlots: ImageSlots;
@@ -234,6 +243,7 @@ async function planGameSession(
     return {
       level,
       baseImageId: selection.baseImageId,
+      baseImageTitle: selection.baseImageTitle,
       slots,
       leftImageSlots: selection.leftImageSlots,
       rightImageSlots: selection.rightImageSlots,
@@ -318,6 +328,7 @@ export async function planAllGameSessions(
           rightSceneUrl: zipped.rightSceneUrl,
           slots: zipped.plan.slots,
           baseImageId: zipped.plan.baseImageId,
+          baseImageTitle: zipped.plan.baseImageTitle,
         }
       : null
   );

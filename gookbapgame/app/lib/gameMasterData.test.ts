@@ -9,6 +9,7 @@ const rawSample = () => ({
       id: 1,
       level: 3,
       questions_count: 5,
+      title: { ko: "해운대 해수욕장", en: "Haeundae Beach" },
       slots: [
         { id: 11, category_id: 100, x_coordinate: 10, y_coordinate: 20, scale: 1.5 },
         { id: 12, category_id: 200, x_coordinate: 30, y_coordinate: 40, scale: 1 },
@@ -42,6 +43,19 @@ test("배경·슬롯을 도메인 타입으로 옮긴다", () => {
     x: 10,
     y: 20,
     scale: 1.5,
+  });
+});
+
+/*
+ * 캡션(인화지 하단 장소 이름)의 원천이다. **jsonb 원본 그대로** 실어야 한다 —
+ * 여기서 로케일을 확정하면 접속 후 언어를 바꿔도 캡션만 옛 언어로 남는다.
+ */
+test("배경 제목을 다국어 맵 그대로 싣는다", () => {
+  const master = toGameMasterData(rawSample());
+
+  assert.deepEqual(master?.baseImages[0].title, {
+    ko: "해운대 해수욕장",
+    en: "Haeundae Beach",
   });
 });
 
@@ -98,6 +112,53 @@ test("questions_count가 없으면 null로 두고 에러를 남긴다", () => {
   assert.equal(master.baseImages[0].questionsCount, null, "배경 자체는 버리지 않는다");
   assert.equal(errors.length, 1);
   assert.match(errors[0], /questions_count/);
+});
+
+/*
+ * **경로 둘을 갈라 둔 이유가 여기 있다.** 이름을 아직 안 채운 배경은 운영 중에도
+ * 나오는 상태라 `warn`이고, 키 규칙이 어긋난 것은 이름을 채워도 영영 안 뜨므로
+ * `error`다. 후자를 전자의 개수로 잡을 수 없다 — 그때 `title`은 "있다".
+ */
+function captureWarnings<T>(run: () => T): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  console.error = (...args: unknown[]) => errors.push(args.map(String).join(" "));
+  console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(" "));
+  try {
+    run();
+    return { errors, warnings };
+  } finally {
+    console.error = originalError;
+    console.warn = originalWarn;
+  }
+}
+
+test("title이 없는 배경은 warn — 아직 이름을 안 채운 것일 수 있다", () => {
+  const raw = rawSample();
+  delete (raw.base_images[0] as Record<string, unknown>).title;
+
+  const { errors, warnings } = captureWarnings(() => toGameMasterData(raw));
+
+  assert.equal(errors.length, 0, "정상 운영 중에도 나오는 상태를 error로 두면 로그가 무시된다");
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /title/);
+});
+
+/*
+ * `ko-KR`처럼 지역 코드가 붙으면 `resolveLocalizedName`의 폴백 체인(요청 → en → ko)이
+ * 전부 빗나가 `—`가 된다. **`title`은 있으므로 위 warn에는 안 걸린다** — 이 검사가
+ * 없으면 전 배경의 캡션이 아무 흔적 없이 빈다.
+ */
+test("title의 로케일 키가 어긋나면 error", () => {
+  const raw = rawSample();
+  (raw.base_images[0] as Record<string, unknown>).title = { "ko-KR": "해운대" };
+
+  const { errors } = captureWarnings(() => toGameMasterData(raw));
+
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /ko-KR/, "실제 키를 보여주지 않으면 무엇을 고쳐야 할지 모른다");
 });
 
 /*

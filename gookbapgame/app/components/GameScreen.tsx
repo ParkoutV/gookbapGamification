@@ -15,7 +15,7 @@ import { applyHintMask, pickHintMaskIndex, pickHintSurveyQuestion } from "../lib
 import { submitSurveyResponses } from "../actions";
 import { getHintSurvey } from "../lib/hintSurveyPrefetch";
 import type { SurveyQuestion } from "../lib/surveyAnswers";
-import { resolveLocalizedName } from "../lib/i18n/localizedName";
+import { MISSING_NAME_PLACEHOLDER, resolveLocalizedName } from "../lib/i18n/localizedName";
 import { playSfx, SFX } from "../lib/sfx";
 import { resolveHitTargetBox } from "../lib/hitTarget";
 
@@ -88,6 +88,17 @@ export default function GameScreen({
   // 차이 슬롯 1개당 정확히 한 줄. 이름이 겹쳐도 dedupe 하지 않는다 —
   // 줄이 줄어들면 플레이어가 문제를 다 찾은 것으로 착각한다.
   const hintNames = differenceSlots.map((slot) => resolveLocalizedName(slot.categoryName, locale));
+
+  /*
+   * 인화지 캡션에 올릴 배경 이름. **이름이 없으면 대시(`—`) 대신 빈 줄로 떨어뜨린다** —
+   * 힌트 목록과 달리 여기는 줄 수가 정보를 나르지 않으므로, 값이 없을 때 자리표시자를
+   * 찍으면 "제목이 대시인 장소"처럼 보인다. 높이는 CSS가 고정하므로 비워도 레이아웃은
+   * 움직이지 않는다(`--photo-caption-h`).
+   */
+  const sceneTitle = (() => {
+    const resolved = resolveLocalizedName(session.baseImageTitle, locale);
+    return resolved === MISSING_NAME_PLACEHOLDER ? "" : resolved;
+  })();
 
   /**
    * 가릴 줄의 인덱스. **한 번 뽑아서 고정한다** — 열 때마다 다시 뽑으면 클립보드를
@@ -568,6 +579,10 @@ export default function GameScreen({
               {renderFoundMarks()}
               {renderWrongMarks("left")}
             </div>
+
+          {/* 인화지 하단 캡션. 사진 영역의 **형제**여야 한다 — 안에 넣으면 배경 오답
+              판정에 걸린다(`.photo-frame__caption` 규칙 주석). */}
+          <div className="photo-frame__caption">{sceneTitle}</div>
           </div>
 
           {/* 문항 인디케이터. 세로 배치에서는 그림 위(order -1)에 가운데 정렬,
@@ -719,6 +734,10 @@ export default function GameScreen({
               {renderFoundMarks()}
               {renderWrongMarks("right")}
             </div>
+
+          {/* 인화지 하단 캡션. 사진 영역의 **형제**여야 한다 — 안에 넣으면 배경 오답
+              판정에 걸린다(`.photo-frame__caption` 규칙 주석). */}
+          <div className="photo-frame__caption">{sceneTitle}</div>
           </div>
 
           {/* 오답 표시. 세로 배치에서는 가운데, 가로 배치에서는 오른쪽 그림 아래

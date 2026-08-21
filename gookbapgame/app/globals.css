@@ -512,11 +512,22 @@ body {
  * resolveHitTargetBox의 56px 보정에 걸리는 슬롯이 늘어 실루엣 정밀도가 낮아진다.
  * 1.2배면 "아래가 더 두껍다"는 신호는 서고 그림은 거의 안 깎인다.
  *
- * 하단 여백은 비워 둔다. 캡션에 넣을 정보가 없다 — "그림 1/2"는 좌우 배치로
- * 이미 자명하고 단계 표시는 우상단에 있다.
+ * **하단에 캡션 자리를 냈다**(2026-08-21, 이란토 — 발표 피드백). 부산 명소 일러스트라
+ * 장소 이름을 밝히는 편이 낫다는 판단이다. 예전 주석은 "캡션에 넣을 정보가 없다"고
+ * 적어두고 있었는데, 그때는 `base_images.title`을 `toGameMasterData`가 버리고 있어
+ * 화면까지 오는 값이 실제로 없었다 — 그 전제가 바뀐 것이다.
+ *
+ * 캡션 블록은 **높이가 고정이다**(`--photo-caption-h` + `--photo-caption-gap`).
+ * `--fit` 상한 때문에 좁은 화면에서 프레임이 줄어드는데, 긴 이름이 두 줄로 넘어가면
+ * 높이가 변해 아래 `--photo-chrome` 계산이 통째로 틀어진다(내 쿠폰 격자의 `h-14 +
+ * line-clamp-2`가 같은 이유의 선례다). 그래서 한 줄로 자른다.
  */
 .photo-frame {
   --photo-pad: 10px;
+  /* 캡션 블록의 몫. **`--photo-chrome`이 이 둘의 합을 사진 2장분으로 반영한다** —
+     값을 바꾸면 그쪽도 함께 고쳐야 하며, `photoFrame.test.ts`가 두 숫자를 묶는다. */
+  --photo-caption-h: 20px;
+  --photo-caption-gap: 6px;
   background: var(--photo-paper);
   padding: var(--photo-pad) var(--photo-pad) calc(var(--photo-pad) * 1.2);
   /* 하드 오프셋 그림자. 예전의 blur 16px짜리 부드러운 그림자는 어두운 배경에서만
@@ -552,13 +563,51 @@ body {
  * 2026-08-16에 실제로 `.next`를 두 번 지우고 나서야 원인을 찾았다.
  * 진단은 `getComputedStyle(el).maxWidth`가 `none`인지 보는 것이 가장 빠르다. */
 .photo-frame--fit {
-  --photo-chrome: 261px;
+  /* 261px이 캡션 이전의 실측 고정분이고(위 계산 근거), 캡션 블록 26px이 **사진마다**
+     붙으므로 ×2 해서 313px이다. 여기를 안 올리면 2026-08-16의 "게임 중 스크롤"이
+     그대로 되살아난다 — 사진이 줄지 않아 `main`의 `overflow-auto`가 넘침을 스크롤로
+     바꾼다. `photoFrame.test.ts`가 이 산식을 잠근다.
+
+     **`var(--photo-caption-h)`로 계산식을 짜지 말 것.** 위 주석대로 이 `calc()`는
+     한 겹만 벗겨도 브라우저가 선언째 버리는 자리라, 중첩을 늘리는 대신 숫자를
+     테스트로 묶는 쪽을 택했다. */
+  --photo-chrome: 313px;
   max-width: min(100%, calc((100dvh - var(--photo-chrome)) / 2 * 1.5));
 }
 @media (min-width: 768px) {
   .photo-frame--fit {
     max-width: 100%;
   }
+}
+
+/* 인화지 하단 캡션 — 배경 이미지의 이름(부산 명소).
+ *
+ * **`.photo-frame__photo` 안에 넣지 말 것.** 그 div는 배경 오답 판정의 히트 타깃이고
+ * (`handleBackgroundClick`), `updateScale`이 그 `clientWidth / 1200`으로 좌표계를
+ * 잡는다 — 안에 넣으면 캡션을 누른 것이 오답으로 집계되고 `overflow: hidden`에
+ * 잘리기까지 한다. 형제로 두는 것이 맞다.
+ *
+ * **픽셀 폰트를 쓰지 말 것.** DB에서 오는 문자열이라 Galmuri 서브셋(2012자)에 없는
+ * 글자가 에러 없이 두부로 뜬다(AGENTS.md의 픽셀 폰트 절). 인라인 font-family도
+ * 금지 — `body` 선언을 통째로 대체해 중국어 SC 꼬리를 못 물려받는다. 상속이 답이다.
+ *
+ * 높이 고정 + 한 줄 자르기의 이유는 `.photo-frame` 주석에 있다.
+ */
+.photo-frame__caption {
+  height: var(--photo-caption-h);
+  margin-top: var(--photo-caption-gap);
+  line-height: var(--photo-caption-h);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 사진 바로 아래에 있는 살아 있는 텍스트 노드라, 연타하다 스치면 선택되고
+     iOS에서는 선택 콜아웃이 게임 중에 뜬다. 사진 `<img>`가 `select-none`인 것과
+     같은 이유다. */
+  user-select: none;
 }
 
 /* 사진 영역.
