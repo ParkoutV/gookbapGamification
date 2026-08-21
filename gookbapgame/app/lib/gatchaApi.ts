@@ -57,37 +57,39 @@ export async function requestGatchaDraw(
     };
   }
 
-  let body: any;
+  let body: unknown;
   try {
     body = await res.json();
   } catch {
     return { ok: false, rejected: false, error: `Invalid JSON response (status ${res.status})` };
   }
 
+  const record = (body ?? {}) as Record<string, unknown>;
+
   if (!res.ok) {
     const message =
-      typeof body?.error === "string" ? body.error : `Unexpected response (status ${res.status})`;
+      typeof record.error === "string" ? record.error : `Unexpected response (status ${res.status})`;
     // 4xx는 서버가 조건을 보고 거절한 것이라 재시도가 의미 없다. 5xx는 일시적일 수 있다.
     // code가 없으면 키 자체를 넣지 않는다 — `code: undefined`를 실으면 값 없는 키가
     // 생겨 호출부의 deepEqual 비교가 어긋난다(실제로 기존 테스트 2건이 깨졌다).
-    const code = typeof body?.code === "string" ? { code: body.code } : null;
+    const code = typeof record.code === "string" ? { code: record.code } : null;
     return { ok: false, rejected: res.status < 500, error: message, ...code };
   }
 
-  if (body?.success !== true) {
+  if (record.success !== true) {
     return { ok: false, rejected: false, error: `Unexpected response (status ${res.status})` };
   }
 
-  if (body.coupon_type == null) {
+  if (record.coupon_type == null) {
     return { ok: true, won: false };
   }
 
   // 값이 있을 때만 키를 만든다 — `code`와 같은 이유로, `undefined`를 실으면 값 없는
   // 키가 생겨 호출부의 deepEqual 비교가 어긋난다.
-  const couponId = typeof body?.coupon_id === "string" ? { couponId: body.coupon_id } : null;
+  const couponId = typeof record.coupon_id === "string" ? { couponId: record.coupon_id } : null;
   // 저쪽은 매장 쿠폰일 때 이 자리를 `undefined`로 둔다(JSON에서는 키가 통째로 빠진다).
   const webCouponCode =
-    typeof body?.web_coupon_code === "string" ? { webCouponCode: body.web_coupon_code } : null;
+    typeof record.web_coupon_code === "string" ? { webCouponCode: record.web_coupon_code } : null;
 
   return { ok: true, won: true, ...couponId, ...webCouponCode };
 }

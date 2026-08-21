@@ -7,6 +7,11 @@ import {
   markTutorialSeen,
 } from "./firstRunFlags.ts";
 
+/** 노드 테스트에는 브라우저 전역이 없다. 심고 지우기 위한 창구 —
+    globalThis 자체는 인덱스 접근을 허용하지 않아 한 번 넓혀 둔다. */
+const globals = globalThis as unknown as Record<string, unknown>;
+
+
 // node 런타임에는 document가 없으므로 최소 쿠키 스텁을 심는다.
 // document.cookie는 "읽으면 전체 목록, 쓰면 한 건 추가"라는 비대칭 접근자다.
 let rawWrites: string[] = [];
@@ -14,7 +19,7 @@ let rawWrites: string[] = [];
 function installCookieStub() {
   const jar = new Map<string, string>();
   rawWrites = [];
-  (globalThis as any).document = {
+  globals.document = {
     get cookie(): string {
       return [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
     },
@@ -65,7 +70,7 @@ test("쓰기에 path/max-age/SameSite 속성이 붙는다", () => {
 });
 
 test("document가 없으면(서버 렌더링) false를 반환하고 예외를 던지지 않는다", () => {
-  delete (globalThis as any).document;
+  delete globals.document;
   assert.equal(hasAcknowledgedTerm(), false);
   assert.equal(hasSeenTutorial(), false);
   assert.doesNotThrow(() => markTermAcknowledged());

@@ -81,6 +81,7 @@ export default function Home({ searchParams }: PageProps) {
   // localStorage는 서버 렌더링 시점에 없다. 마운트 후에 읽어야 하이드레이션이 어긋나지 않는다.
   const [showDrawEntry, setShowDrawEntry] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage는 서버에 없다(위 주석).
     setShowDrawEntry(hasPendingDraw());
   }, [game.phase]);
 
@@ -89,6 +90,7 @@ export default function Home({ searchParams }: PageProps) {
   // 초기값을 계산하면 서버에서는 항상 false가 되어 마크업이 달라진다.
   const [showTerm, setShowTerm] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 쿠키는 서버 렌더 시점에 읽을 수 없다(위 주석).
     setShowTerm(!hasAcknowledgedTerm());
   }, []);
 

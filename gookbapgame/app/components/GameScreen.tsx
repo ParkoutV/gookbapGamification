@@ -253,6 +253,9 @@ export default function GameScreen({
   const handleBackgroundClick =
     (side: "left" | "right") => (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
+      // 렌더 중 ref 접근이 아니다 — 이건 핸들러를 만드는 팩토리이고,
+      // registerWrongTouch가 ref를 읽는 것은 반환된 함수가 실제 클릭에서 불릴 때다.
+      // eslint-disable-next-line react-hooks/refs
       registerWrongTouch(e.clientX - rect.left, e.clientY - rect.top, side);
     };
 

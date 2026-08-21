@@ -34,20 +34,22 @@ export async function requestNicknameAssign(
     return { ok: false, error: error instanceof Error ? error.message : "Unknown fetch error" };
   }
 
-  let body: any;
+  let body: unknown;
   try {
     body = await res.json();
   } catch {
     return { ok: false, error: `Invalid JSON response (status ${res.status})` };
   }
 
-  const first = asLocalizedNameMap(body?.first_nickname);
-  const last = asLocalizedNameMap(body?.last_nickname);
+  const record = (body ?? {}) as Record<string, unknown>;
 
-  if (!res.ok || body?.success !== true || !first || !last) {
-    const message = typeof body?.error === "string" ? body.error : `Unexpected response (status ${res.status})`;
+  const first = asLocalizedNameMap(record.first_nickname);
+  const last = asLocalizedNameMap(record.last_nickname);
+
+  if (!res.ok || record.success !== true || !first || !last) {
+    const message = typeof record.error === "string" ? record.error : `Unexpected response (status ${res.status})`;
     return { ok: false, error: message };
   }
 
-  return { ok: true, nickname: { first, last, number: normalizeNicknameNumber(body.number) } };
+  return { ok: true, nickname: { first, last, number: normalizeNicknameNumber(record.number) } };
 }

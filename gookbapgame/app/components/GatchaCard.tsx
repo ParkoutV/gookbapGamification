@@ -91,6 +91,9 @@ export default function GatchaCard({
    */
   const [hasOpened, setHasOpened] = useState(false);
   useEffect(() => {
+    // 파생 상태가 아니라 래치다 — flipped는 되돌아올 수 있고 이 값은 한 번 켜지면
+    // 유지돼야 한다(위 주석).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (flipped) setHasOpened(true);
   }, [flipped]);
 
