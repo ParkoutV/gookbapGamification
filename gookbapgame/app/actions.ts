@@ -883,7 +883,7 @@ export async function fetchGatchaLimit(): Promise<GatchaLimitSettings | null> {
  * 로컬 폴백을 만들지 말 것 — `drawCoupon`과 같은 이유다. 코드는 서버 `web_coupons`에
  * 실재해야만 온라인몰에서 등록된다.
  */
-export async function assignWebCoupon(): Promise<{ ok: boolean }> {
+export async function assignWebCoupon(): Promise<{ ok: boolean; code?: string }> {
   const apiUrl = process.env.WEB_COUPON_ASSIGN_API_URL;
   if (!apiUrl) {
     console.error("[assignWebCoupon] WEB_COUPON_ASSIGN_API_URL 미설정");
@@ -903,7 +903,7 @@ export async function assignWebCoupon(): Promise<{ ok: boolean }> {
       );
       return { ok: false };
     }
-    return { ok: true };
+    return { ok: true, code: result.code };
   } catch (error) {
     console.error("[assignWebCoupon] 예기치 못한 예외:", error);
     return { ok: false };

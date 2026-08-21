@@ -140,7 +140,10 @@ export function useCouponFlow() {
         if (settings) setWebCouponSettings(settings);
         // 방금 받은 것을 팝업으로 보여준다. 목록이 비어 있으면(조회 실패) 띄우지 않는다 —
         // 코드 없는 "쿠폰을 받았어요" 팝업은 아무 쓸모가 없다.
-        if (web.length > 0) setGrantedWebCoupon(web[0]);
+        if (web.length > 0) {
+          const newCoupon = assigned.code ? web.find((c) => c.code === assigned.code) : null;
+          setGrantedWebCoupon(newCoupon || web[0]);
+        }
       }
 
       setState("idle");
