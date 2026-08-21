@@ -157,6 +157,9 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **파라미터 (Parameters):**
   * `start_date` (TIMESTAMPTZ, 선택): 조회 시작 일시. 생략 시 `-infinity`
   * `end_date` (TIMESTAMPTZ, 선택): 조회 종료 일시. 생략 시 `infinity`
+  * `exclude_duplicates` (BOOLEAN, 선택): 유니크 유저(기기) 기준으로 KPI를 집계할지 여부. (기본값: false)
+  * `survey_filters` (JSONB, 선택): 특정 설문 항목을 선택한 유저들의 기록만 필터링하기 위한 배열. 예: `[{"question_id": "uuid", "option_id": 1}]`
+  * `survey_filter_mode` (TEXT, 선택): 여러 설문 필터 조건을 적용할 방식 ('AND' 또는 'OR'). (기본값: 'AND')
 * **자동 지점 필터링 (보안):** 내부 로직에 `auth.uid()` 보안 필터가 하드코딩되어 일반 가맹점 관리자(User)는 본인 지점 트랙만 자동 조회됩니다.
 
 ### 7. `participants` (유저 및 익명 정보) (Admin: ALL, Anon: INSERT, *조회는 RPC 함수 필수*) [RPC: `get_participant`, `assign_random_nickname`, `reassign_invalid_nicknames`]
