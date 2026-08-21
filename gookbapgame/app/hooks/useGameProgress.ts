@@ -307,6 +307,9 @@ export function useGameProgress(trackId: string | null) {
   // 사용자가 "시작하기"를 누를 때 page.tsx가 goToPhase("playing")으로 처리한다.
   useEffect(() => {
     if (phase === "loading" && preloadStatus === "ready") {
+      // KPI 전이 지점이다 — game_start는 phase가 "playing"이 되는 이 전이 하나에
+      // 걸려 있다(AGENTS.md). 호출부로 흩거나 다른 신호로 옮기면 시작률이 조용히 틀어진다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPhase("playing");
     }
   }, [phase, preloadStatus]);

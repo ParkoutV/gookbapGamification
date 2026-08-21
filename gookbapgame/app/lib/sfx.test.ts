@@ -3,11 +3,16 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { isSfxMuted, setSfxMuted, playSfx, SFX } from "./sfx.ts";
 
+/** 노드 테스트에는 브라우저 전역이 없다. 심고 지우기 위한 창구 —
+    globalThis 자체는 인덱스 접근을 허용하지 않아 한 번 넓혀 둔다. */
+const globals = globalThis as unknown as Record<string, unknown>;
+
+
 // node 런타임에는 window도 localStorage도 없으므로 최소 스텁을 심는다.
 // sfx.ts는 `window.localStorage`로 접근하므로 window 안에 넣어야 한다.
 function installStorageStub() {
   const store = new Map<string, string>();
-  (globalThis as any).window = {
+  globals.window = {
     localStorage: {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => void store.set(k, v),
@@ -17,7 +22,7 @@ function installStorageStub() {
 
 /** localStorage가 던지는 환경(사파리 프라이빗 모드 등)을 흉내낸다. */
 function installThrowingStorageStub() {
-  (globalThis as any).window = {
+  globals.window = {
     localStorage: {
       getItem: () => {
         throw new Error("SecurityError");
@@ -55,7 +60,7 @@ test("localStorage가 던져도 예외를 흘리지 않고 소리는 켜진 것�
 });
 
 test("window가 없으면(서버 렌더링) 예외를 던지지 않는다", () => {
-  delete (globalThis as any).window;
+  delete globals.window;
   assert.equal(isSfxMuted(), false);
   assert.doesNotThrow(() => setSfxMuted(true));
 });
@@ -99,13 +104,13 @@ test("playSfx: suspended 상태면 resume이 끝난 뒤에 start한다", async (
     decodeAudioData: async () => ({}) as AudioBuffer,
   };
 
-  (globalThis as any).AudioContext = class {
+  globals.AudioContext = class {
     constructor() {
       return fakeCtx as unknown as AudioContext;
     }
   };
   // fetch를 스텁해 프리로드가 버퍼를 채우게 한다.
-  (globalThis as any).fetch = async () => ({ arrayBuffer: async () => new ArrayBuffer(8) });
+  globals.fetch = async () => ({ arrayBuffer: async () => new ArrayBuffer(8) });
 
   try {
     const { preloadSfx, playSfx: play, SFX: names } = await import(`./sfx.ts?resume-test`);
@@ -120,8 +125,8 @@ test("playSfx: suspended 상태면 resume이 끝난 뒤에 start한다", async (
     assert.equal(started, true, "resume 후에도 start()가 불리지 않았다");
     assert.equal(resumed, true, "resume()이 불리지 않았다");
   } finally {
-    delete (globalThis as any).AudioContext;
-    delete (globalThis as any).fetch;
+    delete globals.AudioContext;
+    delete globals.fetch;
   }
 });
 
@@ -130,7 +135,7 @@ test("playSfx: suspended 상태면 resume이 끝난 뒤에 start한다", async (
 test("playSfx: 음소거 상태면 AudioContext를 만들지도 않는다", () => {
   setSfxMuted(true);
   let constructed = false;
-  (globalThis as any).AudioContext = class {
+  globals.AudioContext = class {
     constructor() {
       constructed = true;
     }
@@ -139,7 +144,7 @@ test("playSfx: 음소거 상태면 AudioContext를 만들지도 않는다", () =
     playSfx(SFX.coupon);
     assert.equal(constructed, false);
   } finally {
-    delete (globalThis as any).AudioContext;
+    delete globals.AudioContext;
   }
 });
 
@@ -160,7 +165,7 @@ test("SFX 목록에 BGM이 섞여 있지 않다", () => {
 // 이름을 다르게 지은 BGM은 잡지 못한다.
 test("preloadSfx: BGM 파일은 요청하지 않는다", async () => {
   const requested: string[] = [];
-  (globalThis as any).AudioContext = class {
+  globals.AudioContext = class {
     createGain() {
       return { connect() {}, gain: { value: 1 } };
     }
@@ -168,7 +173,7 @@ test("preloadSfx: BGM 파일은 요청하지 않는다", async () => {
       return Promise.resolve({});
     }
   };
-  (globalThis as any).fetch = (url: string) => {
+  globals.fetch = (url: string) => {
     requested.push(url);
     return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) });
   };
@@ -179,8 +184,8 @@ test("preloadSfx: BGM 파일은 요청하지 않는다", async () => {
     assert.deepEqual(bgmHits, [], `preloadSfx가 BGM을 받았다: ${bgmHits.join(", ")}`);
     assert.ok(requested.length > 0, "아무것도 요청하지 않았다 — 테스트가 무의미하다");
   } finally {
-    delete (globalThis as any).AudioContext;
-    delete (globalThis as any).fetch;
+    delete globals.AudioContext;
+    delete globals.fetch;
   }
 });
 

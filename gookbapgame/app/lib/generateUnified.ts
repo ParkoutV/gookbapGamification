@@ -1,3 +1,5 @@
+import type { RawGameMasterData } from "./gameMasterData.ts";
+
 export type ImageSlots = Record<number, number>;
 
 export type UnifiedCombination = {
@@ -37,7 +39,7 @@ function combinationKey(baseImageId: number | string, imageSlots: Record<string,
 export async function requestUnifiedImages(
   apiUrl: string,
   combinations: UnifiedCombination[],
-  masterData?: any
+  masterData?: RawGameMasterData
 ): Promise<GenerateUnifiedResult> {
   if (combinations.length === 0) return { ok: true, urls: [] };
 
@@ -52,22 +54,32 @@ export async function requestUnifiedImages(
     return { ok: false, error: error instanceof Error ? error.message : "Unknown fetch error" };
   }
 
-  let body: any;
+  let body: unknown;
   try {
     body = await res.json();
   } catch {
     return { ok: false, error: `Invalid JSON response (status ${res.status})` };
   }
 
-  if (!res.ok || body?.success !== true || !Array.isArray(body?.results)) {
-    const message = typeof body?.error === "string" ? body.error : `Unexpected response (status ${res.status})`;
+  const record = (body ?? {}) as Record<string, unknown>;
+
+  if (!res.ok || record.success !== true || !Array.isArray(record.results)) {
+    const message =
+      typeof record.error === "string" ? record.error : `Unexpected response (status ${res.status})`;
     return { ok: false, error: message };
   }
 
   const urlByKey = new Map<string, string>();
-  for (const row of body.results as any[]) {
-    if (!row || typeof row.url !== "string") continue;
-    urlByKey.set(combinationKey(row.baseImageId, row.imageSlots ?? {}), row.url);
+  for (const raw of record.results as unknown[]) {
+    const row = (raw ?? {}) as Record<string, unknown>;
+    if (typeof row.url !== "string") continue;
+    // 키가 될 수 없는 행은 버린다. 예전에는 그대로 combinationKey에 넘겨
+    // `Number(undefined)` = NaN 키를 만들었는데, 어차피 아무 조합과도 짝지어지지
+    // 않으므로 결과는 같다.
+    const baseImageId = row.baseImageId;
+    if (typeof baseImageId !== "number" && typeof baseImageId !== "string") continue;
+    const slots = (row.imageSlots ?? {}) as Record<string, unknown>;
+    urlByKey.set(combinationKey(baseImageId, slots), row.url);
   }
 
   const urls: string[] = [];

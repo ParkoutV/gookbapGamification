@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+/** 노드 테스트에는 브라우저 전역이 없다. 심고 지우기 위한 창구 —
+    globalThis 자체는 인덱스 접근을 허용하지 않아 한 번 넓혀 둔다. */
+const globals = globalThis as unknown as Record<string, unknown>;
+
+
 /*
  * `bgm.ts`는 **import 시점에** `visibilitychange` 리스너를 단다. 그래서 스텁은
  * import보다 먼저 심어야 하고, 그 때문에 이 파일은 정적 import를 쓸 수 없다.
@@ -12,14 +17,14 @@ const listeners = new Map<string, () => void>();
 let visibilityState = "visible";
 const audio = { paused: true, loop: false, preload: "", src: "" };
 
-(globalThis as any).document = {
+globals.document = {
   get visibilityState() {
     return visibilityState;
   },
   addEventListener: (type: string, fn: () => void) => void listeners.set(type, fn),
 };
-(globalThis as any).window = {};
-(globalThis as any).Audio = class {
+globals.window = {};
+globals.Audio = class {
   constructor() {
     return audio as unknown as HTMLAudioElement;
   }

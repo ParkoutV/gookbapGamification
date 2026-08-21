@@ -24,6 +24,8 @@ function useRevealProgress(count: number) {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // matchMedia는 서버에 없다. 마운트 후에 읽어 연출을 건너뛰는 것이 이 분기의 전부다.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProgress(count);
       return;
     }

@@ -29,6 +29,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   // 그 전까지는 SSR과 동일한 기본값(ko)으로 렌더링돼 하이드레이션 불일치가 나지 않는다.
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage는 서버에 없다(위 주석).
     setLocaleState(isSupportedLocale(stored) ? stored : detectLocale(window.navigator.language));
   }, []);
 
