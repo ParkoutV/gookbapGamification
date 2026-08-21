@@ -6,7 +6,7 @@ import { saveOrShareImage } from "../lib/shareCard";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import { resolveCouponEmoji } from "../lib/couponEmoji";
 import type { Locale } from "../lib/i18n/types";
-import type { IssuedCoupon } from "../actions";
+import type { CardFace } from "../lib/cardFace";
 import type { CouponDateLine } from "../lib/couponDates";
 
 /**
@@ -17,7 +17,11 @@ import type { CouponDateLine } from "../lib/couponDates";
  * `save()`를 버튼에 걸면 된다.
  */
 export function useCardImageSave(
-  coupon: IssuedCoupon | null,
+  /**
+   * 앞면 구성. `GatchaCard`에 넘긴 것과 **같은 값**이어야 한다 — 화면과 저장본이
+   * 같은 소재로 그려져야 하기 때문이다. null이면 굽지 않는다(카드가 없는 상태).
+   */
+  face: CardFace | null,
   flipped: boolean,
   locale: Locale,
   dateLines: CouponDateLine[],
@@ -30,7 +34,39 @@ export function useCardImageSave(
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
-  const emoji = coupon ? resolveCouponEmoji(coupon.couponType) : "";
+  /* 꽝 카드는 저장 대상이 아니다(아래 가드) — 이모지가 빈 문자열인 것은 그 자리를
+     실제로는 쓰지 않는다는 뜻이다. */
+  const emoji =
+    face?.kind === "store"
+      ? resolveCouponEmoji(face.coupon.couponType)
+      : face?.kind === "online"
+        ? face.emoji
+        : "";
+
+  /* 온라인몰 쿠폰은 QR이 없어 `querySelector("svg")`가 자연히 null이 되고,
+     그 자리에 이 코드가 그려진다(`cardImage.ts`의 codeText). */
+  const codeText = face?.kind === "online" ? face.code : null;
+  const couponName =
+    face?.kind === "store"
+      ? resolveLocalizedName(face.coupon.couponType, locale)
+      : face?.kind === "online"
+        ? face.name
+        : "";
+
+  /**
+   * 의존성 비교용 키. `face`는 호출부가 매 렌더 새로 만드는 객체라(`resolveCardFace`)
+   * 그대로 이펙트 의존성에 넣으면 **이미지를 끝없이 다시 굽는다** — 아래
+   * `dateLinesKey`와 똑같은 함정이다. 어느 쿠폰인지만 알면 되므로 그것을 가리키는
+   * 값 하나로 줄인다.
+   */
+  const faceKey =
+    face === null
+      ? "none"
+      : face.kind === "store"
+        ? `store:${face.coupon.couponId}`
+        : face.kind === "online"
+          ? `online:${face.code}`
+          : "miss";
 
   /**
    * 의존성 비교용 값. `dateLines`는 매 렌더 새로 만들어지는 배열이라 그대로 넣으면
@@ -41,12 +77,13 @@ export function useCardImageSave(
   const buildInput = useCallback(
     () => ({
       qrSvg: faceRef.current?.querySelector("svg") ?? null,
-      couponName: resolveLocalizedName(coupon?.couponType, locale),
+      codeText,
+      couponName,
       dateTexts: dateLinesKey === "" ? [] : dateLinesKey.split("\n"),
       emoji,
       usedStamp,
     }),
-    [coupon?.couponType, locale, dateLinesKey, emoji, usedStamp]
+    [codeText, couponName, dateLinesKey, emoji, usedStamp]
   );
 
   /**
@@ -66,7 +103,9 @@ export function useCardImageSave(
    * 놓칠 수 있지만, 엉뚱한 쿠폰을 저장하는 쪽이 비교할 수 없이 나쁘다.
    */
   useEffect(() => {
-    if (!flipped || !coupon) return;
+    /* 꽝은 저장할 것이 없다(QR도 코드도 상품명도 없는 안내 문구뿐). 예전에는
+       `!coupon`으로 걸렀는데, 종류가 셋으로 늘면서 조건을 명시적으로 적는다. */
+    if (!flipped || faceKey === "none" || faceKey === "miss") return;
     let cancelled = false;
     imageBlobRef.current = null;
 
@@ -82,7 +121,7 @@ export function useCardImageSave(
     return () => {
       cancelled = true;
     };
-  }, [flipped, coupon, buildInput]);
+  }, [flipped, faceKey, buildInput]);
 
   /**
    * 저장/공유를 시작한다.
@@ -95,10 +134,13 @@ export function useCardImageSave(
    */
   const save = useCallback(
     async () => {
-      if (!coupon || saving) return;
+      if (!face || face.kind === "miss" || saving) return;
       setSaveError(false);
 
-      const filename = `coupon-${coupon.couponId}.png`;
+      /* 파일명은 그 쿠폰을 가리키는 값으로 짓는다 — 매장은 쿠폰 id, 온라인몰은
+         코드 자체다(그쪽에는 id에 해당하는 것이 코드뿐이다). */
+      const filename =
+        face.kind === "store" ? `coupon-${face.coupon.couponId}.png` : `coupon-${face.code}.png`;
       const ready = imageBlobRef.current;
 
       // 준비된 이미지가 있으면 await 없이 곧장 공유한다(위 useEffect 주석 참고).
@@ -123,7 +165,7 @@ export function useCardImageSave(
         setSaving(false);
       }
     },
-    [coupon, saving, buildInput]
+    [face, saving, buildInput]
   );
 
   return { faceRef, save, saving, saveError };

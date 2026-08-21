@@ -1,3 +1,5 @@
+import { CODE_BLOCK } from "./cardFace";
+
 /**
  * 카드 앞면을 PNG로 굽는다. 공유 시트("이미지 저장"/"앨범에 저장")에 넘길 파일을
  * 만들기 위한 것으로, 화면의 DOM을 그대로 캡처하는 게 아니라 같은 구성을
@@ -87,6 +89,15 @@ function wrapText(
 export type CardImageInput = {
   /** qrcode.react가 렌더한 <svg>. 없으면 QR 없이 그린다. */
   qrSvg: SVGElement | null;
+  /**
+   * 온라인몰 쿠폰의 평문 코드. **`qrSvg` 자리에 대신 그린다** — 그쪽은 QR도
+   * 사용기한도 없고 코드를 몰에 붙여넣는 물건이라, 같은 자리에 코드를 올리는
+   * 것이 이 카드의 전부다(2026-08-21, 이란토).
+   *
+   * 둘 다 오면 **QR이 이긴다**. 매장 쿠폰에 코드가 실릴 일은 없지만, 그런 조합이
+   * 생기면 스캔되는 쪽을 남기는 편이 안전하다.
+   */
+  codeText?: string | null;
   couponName: string;
   /**
    * 이미 지역화된 날짜 줄들(발급일·시작일·사용기한). 빈 배열이면 생략한다.
@@ -168,8 +179,22 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
    * **GatchaCard의 gap-3(12px)을 바꾸면 여기 GAP도 같이 바꿔야 한다.**
    */
   const GAP = CARD_W * 0.0354; // 화면 gap-3(12px) ÷ 카드 폭 339px
-  const qrSize = CARD_W * 0.44;
+  const qrSize = CARD_W * CODE_BLOCK.width;
   const textMaxWidth = right - left - 60;
+
+  /*
+   * 상품명 위에 오는 블록의 높이. QR이면 정사각, 온라인몰 코드면 한 줄짜리 박스,
+   * 둘 다 없으면(꽝) 0이다.
+   *
+   * **이 값을 세 곳이 함께 본다** — 남는 높이 계산(availableHeight), 전체 높이
+   * (contentHeight), 그리기 커서. 예전에는 `input.qrSvg ? qrSize + GAP : 0`이
+   * 세 자리에 각각 적혀 있었는데, 종류가 둘로 늘면서 한 곳만 고치면 상품명이
+   * 프레임 밖으로 밀려나게 된다. 변수 하나로 모아 그 여지를 없앤다.
+   */
+  const codeBoxHeight = CARD_W * CODE_BLOCK.height;
+  const hasCode = !input.qrSvg && typeof input.codeText === "string" && input.codeText !== "";
+  const topBlockHeight = input.qrSvg ? qrSize : hasCode ? codeBoxHeight : 0;
+  const topBlockSpace = topBlockHeight > 0 ? topBlockHeight + GAP : 0;
 
   ctx.fillStyle = INK;
 
@@ -190,8 +215,7 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   //
   // 날짜 문구에 비ASCII 글리프를 넣지 말 것 — 여기는 sans-serif라 안전하지만, 화면
   // 쪽과 픽셀 폰트 서브셋이 로케일 파일 전체 문자를 훑는다(`couponDates.ts` 참고).
-  const availableHeight =
-    bottom - top - (input.qrSvg ? qrSize + GAP : 0) - dateBlockHeight;
+  const availableHeight = bottom - top - topBlockSpace - dateBlockHeight;
 
   let nameFontSize = CARD_W * 0.0531; // 화면 text-lg(18px) 기준
   let nameLines = [] as string[];
@@ -209,8 +233,7 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
   const nameHeight = drawnLines.length * nameLineHeight;
 
   // 전체 높이를 재서 프레임 세로 중앙에 앉힌다.
-  const contentHeight =
-    (input.qrSvg ? qrSize + GAP : 0) + nameHeight + dateBlockHeight;
+  const contentHeight = topBlockSpace + nameHeight + dateBlockHeight;
   let cursorY = top + (bottom - top - contentHeight) / 2;
 
   // QR. 흰 배경과 quiet zone은 **SVG가 자체적으로 들고 있다**(CouponQR의 marginSize) —
@@ -259,7 +282,30 @@ export async function renderCardImage(input: CardImageInput): Promise<Blob> {
       // 이 블록만 읽어도 안전함을 보장한다.
     }
 
-    cursorY += qrSize + GAP;
+    cursorY += topBlockSpace;
+  }
+
+  /*
+   * 온라인몰 쿠폰의 코드. QR과 **같은 폭·같은 자리**에 테두리 박스를 두르고 그 안에
+   * 코드를 중앙 정렬한다 — 화면(`GatchaCard`)이 같은 구성을 그리므로 한쪽만 바꾸면
+   * 저장본이 어긋난다. 테두리 색도 QR과 같은 값이다.
+   *
+   * 등폭 글꼴을 쓰는 이유: 코드는 사람이 눈으로 옮겨 적을 수 있어야 하고,
+   * 0/O·1/l이 갈려야 한다.
+   */
+  if (hasCode) {
+    const boxX = centerX - qrSize / 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX, cursorY, qrSize, codeBoxHeight);
+
+    ctx.fillStyle = INK;
+    ctx.font = `bold ${CARD_W * CODE_BLOCK.font}px ui-monospace, monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(input.codeText as string, centerX, cursorY + codeBoxHeight / 2);
+
+    cursorY += topBlockSpace;
   }
 
   ctx.textBaseline = "top";

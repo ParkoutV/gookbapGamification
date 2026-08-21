@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { couponDateLines } from "../lib/couponDates";
 import { useCardImageSave } from "../hooks/useCardImageSave";
@@ -8,7 +8,8 @@ import PixelPanel from "./PixelPanel";
 import GatchaCard from "./GatchaCard";
 import GatchaLoading from "./GatchaLoading";
 import CouponGuideNotice from "./CouponGuideNotice";
-import type { DrawCouponResult } from "../actions";
+import type { DrawCouponResult, WebCouponSettings } from "../actions";
+import { resolveCardFace } from "../lib/cardFace";
 
 /**
  * 카드 섞기 연출(2단계)의 고정 길이. 스킵 없음(2026-08-11, 이란토).
@@ -32,6 +33,28 @@ interface WheelScreenProps {
   /** 보관함에 쿠폰이 하나라도 있는가. 거절 화면의 안내를 가른다(아래 rejected 분기). */
   hasCoupons: boolean;
   onOpenMyCoupons: () => void;
+  /**
+   * 온라인몰 쿠폰의 표시 문구(`web_coupon_settings`). 가챠가 온라인몰 쿠폰을 뽑으면
+   * 그 이름을 카드 앞면에 올려야 하는데, 혜택 내용은 운영자가 DB에 문장으로 적는다 —
+   * 로케일 파일의 `webCoupon.label`은 조회 실패 시 기본값일 뿐이다.
+   *
+   * **예전에는 이 값을 받지 않아서** 카드를 못 그리고 "발급되었어요" 한 줄로
+   * 때웠고, 그 분기가 `usesCard`를 false로 만들어 뽑기 연출이 통째로 사라졌다.
+   */
+  webCouponSettings: WebCouponSettings | null;
+  /**
+   * 설문 보상 안내(`WebCouponGrantedNotice`)가 떠 있는가.
+   *
+   * 그 팝업은 `page.tsx` 최상위에 있어 **phase 전환을 견디도록** 만들어져 있다
+   * (설문 제출 성공이 곧 `wheel` 전이를 부르므로, 특정 phase 안에 두면 팝업이 함께
+   * 사라진다). 그래서 설문을 마친 사람은 **누구나** 이 화면과 팝업이 겹쳐 보인다 —
+   * 가챠까지 온라인몰 쿠폰을 뽑으면 비슷한 안내가 나란히 뜬다(2026-08-21 제보).
+   *
+   * **호출 순서가 아니라 보이는 순서만 미룬다.** draw는 마운트 이펙트가 이미
+   * 보냈고 그래야 한다 — 호출까지 미루려고 `<WheelScreen>`을 부모에서 조건부로
+   * 빼면 재마운트가 끼어 `drawStartedRef`에 걸려 뽑기가 조용히 죽는다.
+   */
+  grantedNoticeOpen: boolean;
 }
 
 export default function WheelScreen({
@@ -41,19 +64,43 @@ export default function WheelScreen({
   onNext,
   hasCoupons,
   onOpenMyCoupons,
+  webCouponSettings,
+  grantedNoticeOpen,
 }: WheelScreenProps) {
   const { t, locale } = useLocale();
   const [flipped, setFlipped] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  const coupon = drawResult?.status === "won" ? drawResult.coupon : null;
+  /*
+   * 앞면에 무엇을 올릴지. **결과 문자열을 여기서 직접 가르지 말 것** — 예전에
+   * `usesCard`를 `won || miss`로 적어두는 바람에 `wonOnline`이 빠져 카드 연출이
+   * 통째로 건너뛰어졌다(`cardFace.ts` 주석). 판정과 구성이 한 함수에 있어야
+   * 그 조합이 다시 생기지 않는다.
+   *
+   * `useMemo`인 것은 `useCardImageSave`가 이 값을 이펙트 의존성으로 쓰기 때문이다.
+   */
+  const face = useMemo(
+    () =>
+      resolveCardFace({
+        status: drawResult?.status ?? "",
+        coupon: drawResult?.status === "won" ? drawResult.coupon : null,
+        code: drawResult?.status === "wonOnline" ? drawResult.code : null,
+        settingsTitle: webCouponSettings?.title ?? null,
+        locale,
+        fallbackName: t("webCoupon.label"),
+      }),
+    [drawResult, webCouponSettings, locale, t]
+  );
+
+  const coupon = face?.kind === "store" ? face.coupon : null;
 
   // 화면과 저장 이미지가 같은 문구를 써야 한다 — 한쪽만 바뀌면 조용히 달라진다.
   // 조립은 couponDateLines 한 곳에서 하고 양쪽이 같은 배열을 받는다.
+  // 온라인몰 쿠폰에는 사용기한이 없어 줄이 비고, 그러면 블록 자체가 안 그려진다.
   const dateLines = coupon ? couponDateLines(coupon, locale, t) : [];
 
   const { faceRef, save, saving, saveError } = useCardImageSave(
-    coupon,
+    face,
     flipped,
     locale,
     dateLines
@@ -67,15 +114,15 @@ export default function WheelScreen({
   }, [onSpin]);
 
   /**
-   * 카드를 쓰는 건 실제로 뽑기가 성립한 두 결과뿐이다.
-   * - wonOnline: 온라인몰 쿠폰이라 QR도 사용기한도 없다. 카드에 올릴 것이 없고,
-   *   앨범에서도 카드가 아니라 티켓으로 그린다(`WebCouponTicket`).
-   * - wonButHidden: 앞면에 올릴 payload가 아예 없다(couponType도 couponId도 없음).
-   * - rejected/error: 뽑기가 소진되지 않은 상태다. 카드를 뒤집으면 소비한 것처럼 보인다.
+   * 카드를 쓰는가. **판정은 `resolveCardFace`가 한다** — 여기서 결과 문자열을 다시
+   * 나열하면 종류가 늘 때 한쪽만 고쳐져 어긋난다(실제로 `wonOnline`이 그렇게 빠졌다).
+   *
+   * 카드를 쓰지 않는 결과: `rejected`/`error`(뽑기가 소진되지 않았다 — 뒤집으면
+   * 소비한 것처럼 보인다), `wonButHidden`(앞면에 올릴 payload가 없다).
    *
    * 이 값이 1단계의 출구를 가른다: true면 섞기 연출로, false면 곧장 텍스트 분기로.
    */
-  const usesCard = drawResult?.status === "won" || drawResult?.status === "miss";
+  const usesCard = face !== null;
 
   /**
    * 1단계 — 통신 중. 서버 응답을 기다리는 구간이다.
@@ -117,21 +164,20 @@ export default function WheelScreen({
   /**
    * 하단 버튼을 '내 쿠폰 보기 + →'로 바꾸는 두 경우.
    *
-   * - `wonOnline`: 받은 것이 온라인몰 티켓이라 **볼 곳이 앨범뿐이다.** 여기서
-   *   티켓을 그리지 않는 이유는 문구가 DB(`web_coupon_settings`)에서 오는데
-   *   이 화면은 그 값을 받지 않기 때문이다 — 코드만 덩그러니 띄우면 어디에 쓰는
-   *   것인지 알 수 없다. 앨범은 티켓·문구·복사 버튼을 이미 갖췄다.
-   * - `rejected` + 보관함에 쿠폰 있음: 오늘 뽑기를 이미 쓴 사람이라 받은 쿠폰이
-   *   보관함에 있다(2026-08-14, 이란토).
+   * `rejected` + 보관함에 쿠폰 있음: 오늘 뽑기를 이미 쓴 사람이라 받은 쿠폰이
+   * 보관함에 있다(2026-08-14, 이란토).
+   *
+   * **`wonOnline`이 여기 있었는데 뺐다**(2026-08-21). 그때는 온라인몰 쿠폰을 카드로
+   * 못 그려서 앨범으로 보내는 것이 유일한 안내였다. 이제 코드가 카드 앞면에 올라가므로
+   * 저장 버튼 쪽 분기를 타야 한다 — 두 버튼 스킴이 같은 자리를 다투면 저장 게이트가
+   * 무력화된다.
    *
    * **결과가 확정된 뒤에만 띄워야 한다** — `drawResult`가 도착하기 전에도
    * `hasCoupons`는 이미 true일 수 있어(이전 화면에서 읽어둔 목록) 응답을 기다리는
    * 동안 이 버튼이 잠깐 스쳐 지나간다. 예전에는 여기에 `!waiting`을 걸어 막았는데,
    * 지금은 대기 구간이 아래에서 통째로 조기 반환되므로 그 조건이 필요 없다.
    */
-  const showMyCouponsAction =
-    drawResult?.status === "wonOnline" ||
-    (drawResult?.status === "rejected" && hasCoupons);
+  const showMyCouponsAction = drawResult?.status === "rejected" && hasCoupons;
 
   /*
    * 대기(1단계)·섞기(2단계) 동안은 **로딩 창만** 보여주고 패널은 아예 그리지 않는다.
@@ -152,10 +198,14 @@ export default function WheelScreen({
    * 두 단계가 같은 컴포넌트를 쓰는 이유는 창 껍데기를 공유해 전환에서 창이 튀지
    * 않게 하려는 것이다 — `GatchaLoading`의 주석 참고.
    */
-  if (waiting || shuffling) {
+  if (grantedNoticeOpen || waiting || shuffling) {
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh text-ink p-6 pb-[var(--footer-space)]">
-        <GatchaLoading variant={waiting ? "waiting" : "shuffle"} />
+        {/* 설문 보상 안내가 떠 있는 동안에는 로딩 창도 그리지 않는다 — 그 팝업이
+            그 순간의 주인공이고, 뒤에 무엇이든 비치면 "두 개가 겹쳐 뜬다"는
+            그 증상 그대로다. 팝업을 닫으면 이 조건이 풀리면서 아직 응답 전이면
+            로딩 창이, 끝났으면 카드가 이어서 나온다. */}
+        {!grantedNoticeOpen && <GatchaLoading variant={waiting ? "waiting" : "shuffle"} />}
       </div>
     );
   }
@@ -171,7 +221,7 @@ export default function WheelScreen({
         {usesCard && (
           <div className="mb-6 w-full">
             <GatchaCard
-              coupon={coupon}
+              face={face}
               flipped={flipped}
               canFlip={canFlip}
               /* 한 번 뒤집은 뒤에도 다시 눌러 앞뒤를 오갈 수 있다(2026-08-11, 이란토).
@@ -182,37 +232,6 @@ export default function WheelScreen({
               faceRef={faceRef}
               dateLines={dateLines}
             />
-          </div>
-        )}
-
-        {/* 온라인몰 쿠폰 당첨. 카드가 없는 것은 결함이 아니라 상품의 성질이다 —
-            QR도 사용기한도 없고 평문 코드를 온라인몰에 붙여넣는 물건이다
-            (`WebCouponTicket`). 그래서 **매장 쿠폰과 다른 문구**를 쓴다:
-            "표시할 수 없어요"로 뭉뚱그리면 받은 사람이 잃어버린 줄 안다.
-
-            **왜 그런지는 설명하지 않는다**(2026-08-19, 이란토). "QR 카드 대신 코드로
-            드려요"는 우리 쪽 사정이지 손님이 알 일이 아니다. 티켓이 통통 튀는 그림과
-            "발급되었어요" 한 줄이면 무슨 일이 일어났는지 전달된다 —
-            자세한 안내는 실제로 코드를 쓰는 자리('내 쿠폰'의 `WebCouponTicket`)에 있다.
-
-            애니메이션 WebP 한 장이라 재생 제어 코드가 없다. `GatchaLoading`의 카드
-            섞기와 같은 방식이며, reduced-motion에서 정지본으로 갈아끼우는 것도 같다
-            (원본: 기획 폴더 gfx/assets/icon_coupon/). */}
-        {drawResult?.status === "wonOnline" && (
-          <div className="mb-8">
-            <img
-              src="/icons/coupon-issued.webp"
-              alt=""
-              aria-hidden="true"
-              className="coupon-issued__anim"
-            />
-            <img
-              src="/icons/coupon-issued-static.webp"
-              alt=""
-              aria-hidden="true"
-              className="coupon-issued__static"
-            />
-            <p className="font-extrabold text-ink">{t("coupon.wonOnlineTitle")}</p>
           </div>
         )}
 
@@ -263,8 +282,12 @@ export default function WheelScreen({
             "앨범에서 다시 볼 수 있다"만 알리고 그 조건을 숨기면, 나중에 못 찾는 사람이
             생겼을 때 우리가 알릴 의무를 다하지 않은 셈이 된다.
 
-            꽝이거나 카드가 없는 경우엔 저장할 것이 없으므로 '다음'이 곧바로 전체 폭이다. */}
-        {flipped && coupon ? (
+            꽝이거나 카드가 없는 경우엔 저장할 것이 없으므로 '다음'이 곧바로 전체 폭이다.
+
+            **온라인몰 쿠폰도 여기 걸린다**(2026-08-21). 그쪽 카드에는 QR 대신 평문
+            코드가 찍혀 있어 이미지로 남겨둘 값어치가 매장 쿠폰과 같다 — 오히려
+            코드는 눈으로 옮겨 적어야 하는 물건이라 사본이 더 쓸모 있다. */}
+        {flipped && face && face.kind !== "miss" ? (
           <div className="flex flex-col items-center gap-2 w-full">
             {/* w-full이 있어야 이 행의 w-full이 기준을 갖는다 — items-center 아래에서
                 바깥 래퍼가 shrink-to-fit이 되면 버튼이 내용물 폭으로 쪼그라든다. */}
@@ -329,6 +352,8 @@ export default function WheelScreen({
             꽝인 사람에게는 안내할 쿠폰이 없다. 사용기한·1회 사용 같은 조건을 받은
             그 자리에서 알 수 있어야 하므로 시작 화면의 약관 창과 따로 둔다
             (2026-08-14, 이란토). */}
+        {/* 매장 쿠폰 전용이다 — 안내 내용이 사용기한·QR 제시·1회 사용이라
+            온라인몰 코드에는 해당하지 않는다. */}
         {flipped && coupon && (
           <button
             type="button"

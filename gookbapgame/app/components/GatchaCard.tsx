@@ -5,7 +5,7 @@ import { useLocale } from "../lib/i18n/LocaleContext";
 import CouponQR from "./CouponQR";
 import { MISS_EMOJI, resolveCouponEmoji } from "../lib/couponEmoji";
 import { playSfx, SFX } from "../lib/sfx";
-import type { IssuedCoupon } from "../actions";
+import { CODE_BLOCK, type CardFace } from "../lib/cardFace";
 import type { CouponDateLine } from "../lib/couponDates";
 
 /**
@@ -28,8 +28,12 @@ const CARD_FACE_INK = "#1A1F24";
 const STAMP_INK = "#B3261E";
 
 interface GatchaCardProps {
-  /** null이면 꽝 앞면. 뒷면만 보이는 동안에도 null일 수 있다. */
-  coupon: IssuedCoupon | null;
+  /**
+   * 앞면에 무엇을 올릴지. `resolveCardFace`가 정한다 — 화면이 결과 문자열을
+   * 직접 보고 갈랐더니 `wonOnline`이 빠져 카드가 통째로 안 뜬 적이 있다
+   * (2026-08-21, `cardFace.ts` 주석 참고).
+   */
+  face: CardFace;
   flipped: boolean;
   /** 아직 뒤집을 수 없는 상태(draw 응답 대기)면 false. */
   canFlip: boolean;
@@ -62,7 +66,7 @@ interface GatchaCardProps {
 }
 
 export default function GatchaCard({
-  coupon,
+  face,
   flipped,
   canFlip,
   onFlip,
@@ -75,7 +79,12 @@ export default function GatchaCard({
 
   // 코너 마크. 상품명 앞에도 같은 이모지를 붙이면 한 화면에 셋이 되어 산만해지므로
   // 이모지는 코너에만 두고 상품명은 텍스트만 남긴다(CouponQR의 onLightFace).
-  const faceEmoji = coupon ? resolveCouponEmoji(coupon.couponType) : MISS_EMOJI;
+  const faceEmoji =
+    face.kind === "store"
+      ? resolveCouponEmoji(face.coupon.couponType)
+      : face.kind === "online"
+        ? face.emoji
+        : MISS_EMOJI;
 
   // 뒤집는 동작 자체의 소리는 여기서 내지 않는다 — 카드가 role="button"이라
   // useButtonClickSfx가 이미 클릭음을 낸다. 여기서 또 부르면 두 번 겹친다.
@@ -115,10 +124,10 @@ export default function GatchaCard({
     if (!announceResult || !flipped || resultSoundPlayedRef.current) return;
     resultSoundPlayedRef.current = true;
     const timer = setTimeout(() => {
-      playSfx(coupon ? SFX.coupon : SFX.couponLose);
+      playSfx(face.kind === "miss" ? SFX.couponLose : SFX.coupon);
     }, 450);
     return () => clearTimeout(timer);
-  }, [announceResult, flipped, coupon]);
+  }, [announceResult, flipped, face.kind]);
 
   return (
     /* w-full이 필요하다. items-center 아래에서는 이 래퍼가 shrink-to-fit이 되어
@@ -187,13 +196,13 @@ export default function GatchaCard({
                   내용물을 그 안쪽에 가두는 자리 잡기만 한다(2026-08-11). */}
               <div className="card-inner-frame absolute inset-x-[13%] inset-y-[11%]">
                 <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-3 overflow-hidden">
-                  {coupon ? (
+                  {face.kind === "store" ? (
                     <>
                       {/* 사용 완료·만료 도장은 QR **위에** 덮는다 — 스캔용으로 쓸 수
                           없게 만드는 것이 목적이므로 옆에 두면 의미가 없다
                           (2026-08-13, 이란토). QR을 감싸 절대 배치할 자리를 만든다. */}
                       <div className="relative">
-                        <CouponQR coupon={coupon} onLightFace />
+                        <CouponQR coupon={face.coupon} onLightFace />
                         {usedStamp && (
                           <div
                             className="absolute inset-0 flex items-center justify-center"
@@ -225,6 +234,34 @@ export default function GatchaCard({
                           ))}
                         </div>
                       )}
+                    </>
+                  ) : face.kind === "online" ? (
+                    /* 온라인몰 쿠폰. QR 자리에 평문 코드를 올린다 — 그쪽은 스캐너에
+                       보여주는 물건이 아니라 몰에 **붙여넣는** 코드다(2026-08-21, 이란토).
+                       크기는 `CODE_BLOCK`을 저장 이미지와 공유한다. 여기 숫자를 직접
+                       적으면 화면과 저장본이 조용히 어긋난다. */
+                    <>
+                      <div
+                        className="border border-black/25 flex items-center justify-center"
+                        style={{
+                          width: `${CODE_BLOCK.width * 100}cqw`,
+                          height: `${CODE_BLOCK.height * 100}cqw`,
+                        }}
+                      >
+                        {/* 등폭 글꼴 — 코드는 눈으로 옮겨 적을 수 있어야 하고
+                            0/O·1/l이 갈려야 한다. canvas 쪽도 같은 계열을 쓴다. */}
+                        <span
+                          className="font-bold font-mono tracking-wide"
+                          style={{ fontSize: `${CODE_BLOCK.font * 100}cqw` }}
+                        >
+                          {face.code}
+                        </span>
+                      </div>
+                      {/* 상품명 스타일은 `CouponQR`의 밝은 면 분기와 같은 값이다 —
+                          두 종류의 카드가 같은 자리에 같은 크기로 이름을 올려야 한다. */}
+                      <p className="font-bold text-center break-keep max-w-full text-lg leading-snug">
+                        {face.name}
+                      </p>
                     </>
                   ) : (
                     <>
