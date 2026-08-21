@@ -543,6 +543,13 @@ export default function Home({ searchParams }: PageProps) {
           /* 거절당했을 때 보관함으로 안내할지 판정한다(WheelScreen의 rejected 분기).
              `spin()`이 거절 직후 목록을 이미 읽어 `coupon.coupons`에 담아둔다. */
           hasCoupons={coupon.coupons.length > 0}
+          /* 온라인몰 쿠폰이 뽑혔을 때 카드 앞면에 올릴 이름의 출처. 혜택 내용은
+             운영자가 DB에 문장으로 적으므로 화면이 지어낼 수 없다. */
+          webCouponSettings={coupon.webCouponSettings}
+          /* 설문 보상 안내를 먼저 닫게 하고 그 다음에 뽑기 화면을 보여준다
+             (2026-08-21, 이란토). **컴포넌트를 조건부로 빼지 않는다** — 재마운트가
+             끼면 drawStartedRef에 걸려 뽑기가 조용히 죽는다(그쪽 prop 주석). */
+          grantedNoticeOpen={coupon.grantedWebCoupon !== null}
           /* 돌아올 곳을 'wheel'로 준다 — 여기서 열었으므로 닫으면 이 화면으로
              되돌아와야 '다음'을 눌러 흐름을 계속 진행할 수 있다. 기본값('start')으로
              두면 결과 흐름 중간에서 시작 화면으로 튕긴다. */

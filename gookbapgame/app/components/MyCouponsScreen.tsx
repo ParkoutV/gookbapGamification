@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocale } from "../lib/i18n/LocaleContext";
 import { resolveLocalizedName } from "../lib/i18n/localizedName";
 import PixelPanel from "./PixelPanel";
@@ -11,6 +11,7 @@ import WebCouponTicket from "./WebCouponTicket";
 import { isCouponExpired } from "../lib/couponUsability";
 import { resolveCouponRemaining } from "../lib/couponRemaining";
 import { couponDateLines } from "../lib/couponDates";
+import type { CardFace } from "../lib/cardFace";
 import CouponGuideNotice from "./CouponGuideNotice";
 
 /**
@@ -137,12 +138,24 @@ export default function MyCouponsScreen({
   const usedStamp = openCoupon ? stampFor(openCoupon) : null;
 
   /*
+   * 앨범에는 **매장 쿠폰만** 카드로 뜬다 — 온라인몰 쿠폰은 격자에서 `WebCouponTicket`이
+   * 따로 그린다(위 목록 참고). 그래서 여기서는 `kind: "store"`로 고정한다.
+   *
+   * `useMemo`인 것은 `useCardImageSave`가 이 값을 이펙트 의존성으로 쓰기 때문이다 —
+   * 매 렌더 새 객체를 만들면 이미지를 끝없이 다시 굽는다(그쪽 `faceKey` 주석).
+   */
+  const face = useMemo<CardFace | null>(
+    () => (openCoupon ? { kind: "store", coupon: openCoupon } : null),
+    [openCoupon]
+  );
+
+  /*
    * `flipped`를 항상 true로 준다 — 앨범은 이미 아는 결과를 다시 보는 자리라 뒤집기
    * 연출이 필요 없고, 이 값이 저장 이미지 미리 굽기(iOS 제스처 제약)의 방아쇠다.
    * `announceResult={false}`가 당첨 효과음을 막는다(그쪽 prop 주석 참고).
    */
   const { faceRef, save, saving, saveError } = useCardImageSave(
-    openCoupon,
+    face,
     true,
     locale,
     dateLines,
@@ -197,10 +210,12 @@ export default function MyCouponsScreen({
           >
             <p className="text-muted text-center">{t("coupon.empty")}</p>
           </div>
-        ) : openCoupon ? (
+        ) : face ? (
           <div className="flex flex-col items-center gap-4 mb-6 w-full">
+            {/* 훅에 넘긴 것과 **같은 객체**다. 두 자리에서 각자 만들면 화면과 저장본이
+                갈릴 여지가 생긴다 — 이 파일이 반복해서 경계하는 그 구조다. */}
             <GatchaCard
-              coupon={openCoupon}
+              face={face}
               flipped
               canFlip={false}
               /* canFlip=false면 GatchaCard가 클릭 핸들러를 아예 배선하지 않으므로
