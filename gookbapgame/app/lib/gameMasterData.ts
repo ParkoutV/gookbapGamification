@@ -64,6 +64,12 @@ export type MasterBaseImage = {
   id: number;
   level: number;
   questionsCount: number | null;
+  /**
+   * 배경 이미지의 이름(부산 명소). `base_images.title`의 jsonb 원본이며 **로케일
+   * 해석은 클라이언트에서 한다** — `PlannedSlot.categoryName`과 같은 이유다.
+   * 서버에서 확정하면 접속 후 언어 토글을 눌러도 캡션만 옛 언어로 남는다.
+   */
+  title: LocalizedName;
   slots: MasterSlot[];
 };
 
@@ -95,7 +101,13 @@ function toBaseImage(row: Record<string, unknown>): MasterBaseImage | null {
     .map(toSlot)
     .filter((slot): slot is MasterSlot => slot !== null);
 
-  return { id, level, questionsCount: num(row.questions_count), slots };
+  return {
+    id,
+    level,
+    questionsCount: num(row.questions_count),
+    title: (row.title ?? null) as LocalizedName,
+    slots,
+  };
 }
 
 function toPart(row: Record<string, unknown>, categoryId: number): MasterPart | null {
@@ -153,6 +165,44 @@ export function toGameMasterData(raw: unknown): GameMasterData | null {
   if (missingCount > 0) {
     console.error(
       `[toGameMasterData] base_images ${baseRows.length}건 중 ${missingCount}건에 questions_count가 없다 — 출제 개수가 STAGE_CONFIG 폴백으로 떨어진다. RPC 반환 컬럼을 확인할 것.`
+    );
+  }
+
+  /*
+   * **캡션이 조용히 비는 두 가지 경로를 가른다.**
+   *
+   * 화면 증상은 하나다 — 인화지 아래 빈 줄. 하지만 원인이 둘이고 대응이 정반대다.
+   *
+   * 1) `title`이 아예 없다: 대시보드에서 **아직 이름을 안 채운 배경**일 수 있다.
+   *    정상 운영 중에도 나오는 상태라 `warn`이다. 롤아웃 중에 일부만 이름이 있으면
+   *    매 게임 로드마다 찍히므로, 이것을 `error`로 두면 로그가 곧 무시된다.
+   * 2) `title`은 있는데 **로케일 키가 하나도 안 맞는다**(`ko-KR` 같은 지역 코드).
+   *    `resolveLocalizedName`이 요청 → en → ko를 모두 놓쳐 `—`로 떨어지므로 이름을
+   *    채워 넣어도 영영 안 뜬다. 이쪽은 계약이 어긋난 것이라 `error`다.
+   *
+   * (2)를 (1)의 개수로 잡을 수 없다는 것이 요점이다 — 그 경우 `title`은 "있으므로"
+   * 개수가 0이고 **아무 로그도 남지 않는다.** 저쪽 문서에는 있는데 실물에는 없던
+   * `ranking_view.nickname_number`(2026-08-13)가 같은 종류의 사고였다.
+   */
+  const titled = baseRows.filter((row) => row.title !== null && row.title !== undefined);
+  const untitled = baseRows.length - titled.length;
+  if (untitled > 0) {
+    console.warn(
+      `[toGameMasterData] base_images ${baseRows.length}건 중 ${untitled}건에 title이 없다 — 그 배경은 인화지 캡션이 빈다.`
+    );
+  }
+
+  const CAPTION_LOCALES = ["ko", "en", "ja", "zh"];
+  const unusableTitle = titled.filter((row) => {
+    const title = row.title as Record<string, unknown>;
+    if (typeof title !== "object") return true;
+    return !CAPTION_LOCALES.some((key) => typeof title[key] === "string" && title[key] !== "");
+  });
+  if (unusableTitle.length > 0) {
+    console.error(
+      `[toGameMasterData] title이 있는데 쓸 수 있는 로케일 키가 없는 배경 ${unusableTitle.length}건 — ` +
+        `키: ${JSON.stringify(Object.keys(unusableTitle[0].title as object))}. ` +
+        `${JSON.stringify(CAPTION_LOCALES)} 중 하나여야 캡션이 뜬다.`
     );
   }
 

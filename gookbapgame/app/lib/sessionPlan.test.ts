@@ -32,6 +32,8 @@ function masterOf(bases: BaseSpec[], partsPerCategory = 2): GameMasterData {
       id: b.id,
       level: b.level,
       questionsCount: b.questionsCount ?? null,
+      // 캡션 문자열은 이 함수의 관심사가 아니다 — 배경 id로만 구분되게 둔다.
+      title: { ko: `배경${b.id}` },
       slots: b.categories.map((categoryId, i) => ({
         id: b.id * 100 + i,
         categoryId,

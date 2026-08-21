@@ -22,6 +22,8 @@ export type PlannedSlot = {
 
 export type SessionSelection = {
   baseImageId: number;
+  /** 배경 이름(부산 명소)의 jsonb 원본. 화면 캡션에 쓴다 — 해석은 클라이언트 몫이다. */
+  baseImageTitle: LocalizedName;
   slots: PlannedSlot[];
   leftImageSlots: ImageSlots;
   rightImageSlots: ImageSlots;
@@ -122,5 +124,5 @@ export function selectSessionPlan(
     };
   });
 
-  return { baseImageId: base.id, slots, leftImageSlots, rightImageSlots };
+  return { baseImageId: base.id, baseImageTitle: base.title, slots, leftImageSlots, rightImageSlots };
 }

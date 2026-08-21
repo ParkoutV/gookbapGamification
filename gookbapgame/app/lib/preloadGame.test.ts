@@ -10,7 +10,7 @@ test("모든 레벨/이미지가 성공하면 세션 전체를 반환하고 이�
     leftSceneUrl: `/api/scene?level=${cfg.level}&side=left`,
     rightSceneUrl: `/api/scene?level=${cfg.level}&side=right`,
     slots: [],
-    baseImageId: cfg.level * 100,
+    baseImageId: cfg.level * 100, baseImageTitle: null,
   }));
   const loadedUrls: string[] = [];
 
@@ -32,7 +32,7 @@ test("특정 레벨 세션 조회가 null이면 실패로 처리하고 해당 �
   const result = await preloadAllStages(
     async (levels) =>
       levels.map(({ level }) =>
-        level === 3 ? null : { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 }
+        level === 3 ? null : { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100, baseImageTitle: null }
       ),
     async () => {}
   );
@@ -130,7 +130,7 @@ async function takeOrFetch(
 }
 
 function fakeSession(level: number) {
-  return { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100 };
+  return { level, leftSceneUrl: "x", rightSceneUrl: "y", slots: [], baseImageId: level * 100, baseImageTitle: null };
 }
 
 /*
