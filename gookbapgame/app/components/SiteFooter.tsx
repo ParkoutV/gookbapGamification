@@ -40,7 +40,13 @@ export default function SiteFooter({ onOpenLegal }: { onOpenLegal: () => void })
   const { t } = useLocale();
 
   return (
-    <footer className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-1 text-center">
+    /* `z-50`이 없으면 눌리지 않는다. 이 푸터는 화면들보다 **먼저** 렌더되는데,
+       `StartScreen` 루트가 `relative`(=positioned) + `min-h-dvh`라 z-index가 같은
+       auto끼리는 DOM 순서로 밀려 화면 쪽이 위에 깔린다 — 글자는 보이지만 클릭은
+       투명한 화면 박스가 먹는다(2026-08-22 이란토). 정적 배치인 다른 화면들에서는
+       멀쩡했던 이유도 이것이다. 50은 오버레이(`z-50`)와 동률이라 DOM 순서상 여전히
+       그 아래이고, 모달(`z-[60]`)보다는 확실히 아래다. */
+    <footer className="absolute inset-x-0 bottom-6 z-50 flex flex-col items-center gap-1 text-center">
       <button
         type="button"
         onClick={onOpenLegal}
