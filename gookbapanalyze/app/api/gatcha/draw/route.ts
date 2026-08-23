@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
       { data: p1Responses, error: p1Error },
       { data: gatchaCases, error: caseError },
       { data: coupons, error: couponError },
-      { data: issuedCountsData }
+      { data: issuedCountsData },
+      { count: webCouponsCount }
     ] = await Promise.all([
       // Settings
       supabase.from('gatcha_settings').select('*').eq('id', 1).single(),
@@ -40,7 +41,9 @@ export async function POST(req: NextRequest) {
       // Coupon Effects
       supabase.from('coupon_effects').select('*'),
       // Issued Coupons (offline only filtering will be done in-memory to save query complexity)
-      supabase.from('issued_coupons').select('coupon_effect_id, issued_at')
+      supabase.from('issued_coupons').select('coupon_effect_id, issued_at'),
+      // Web Coupons count
+      supabase.from('web_coupons').select('id', { count: 'exact', head: true }).is('participant_id', null)
     ]);
 
     // 2. Validate basic fetched data
@@ -184,6 +187,11 @@ export async function POST(req: NextRequest) {
             isExhausted = true
           }
         }
+      } else {
+        // Online coupon exhaustion: check if there are any unassigned web_coupons left
+        if (webCouponsCount === 0) {
+          isExhausted = true
+        }
       }
       
       const effectiveProb = isExhausted ? 0 : Number(originalProb)
@@ -228,40 +236,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: '꽝', coupon_type: null, score_used: bestScore })
     }
 
-    // 8. Insert into issued_coupons
+    // 8. Insert into issued_coupons OR web_coupons
     let expired_at = null
     let valid_from = null
     let is_used = false
     let web_coupon_code: string | undefined = undefined
+    let final_coupon_id: string | null = null
 
     // Web Coupon Logic
     if (selectedCoupon.is_online_coupon) {
-      const { data: webCoupon, error: webError } = await supabase
-        .from('web_coupons')
-        .select('id, coupon_code')
-        .is('participant_id', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+      const { data: webCouponData, error: webError } = await supabase.rpc('consume_web_coupon', { p_id: participant_id })
 
-      if (webError || !webCoupon) {
+      if (webError || !webCouponData || !webCouponData.success) {
         return NextResponse.json({ error: '잔여 웹 쿠폰이 부족합니다. 관리자에게 문의하세요.' }, { status: 500 })
       }
 
-      const { error: updateError } = await supabase
-        .from('web_coupons')
-        .update({
-          participant_id: participant_id,
-          assigned_at: new Date().toISOString()
-        })
-        .eq('id', webCoupon.id)
-
-      if (updateError) {
-        return NextResponse.json({ error: '웹 쿠폰 배정에 실패했습니다.' }, { status: 500 })
-      }
-
       is_used = true
-      web_coupon_code = webCoupon.coupon_code
+      web_coupon_code = webCouponData.code
+      final_coupon_id = webCouponData.id
     } else {
       // Calculate valid_from
       const kstTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
@@ -292,41 +284,37 @@ export async function POST(req: NextRequest) {
         const eDay = String(expDate.getDate()).padStart(2, '0')
         expired_at = `${eYear}-${eMonth}-${eDay}T23:59:59.999+09:00`
       }
+
+      const insertPayload: any = {
+        participant_id: participant_id,
+        coupon_effect_id: selectedCoupon.coupon_effect_id,
+        is_used: false,
+        expired_at: expired_at
+      }
+
+      if (valid_from) {
+        insertPayload.valid_from = valid_from
+      }
+
+      const { data: insertedCoupon, error: insertError } = await supabase
+        .from('issued_coupons')
+        .insert([insertPayload])
+        .select('coupon_id')
+        .single()
+
+      if (insertError || !insertedCoupon) {
+        return NextResponse.json({ error: '쿠폰 발급에 실패했습니다.' }, { status: 500 })
+      }
+      
+      final_coupon_id = insertedCoupon.coupon_id
     }
-
-    const insertPayload: any = {
-      participant_id: participant_id,
-      coupon_effect_id: selectedCoupon.coupon_effect_id,
-      is_used: is_used,
-      expired_at: expired_at
-    }
-
-    if (valid_from) {
-      insertPayload.valid_from = valid_from
-    }
-
-    if (is_used) {
-      insertPayload.used_at = new Date().toISOString()
-    }
-
-    const { data: insertedCoupon, error: insertError } = await supabase
-      .from('issued_coupons')
-      .insert([insertPayload])
-      .select('coupon_id')
-      .single()
-
-    if (insertError || !insertedCoupon) {
-      return NextResponse.json({ error: '쿠폰 발급에 실패했습니다.' }, { status: 500 })
-    }
-
-
 
     // 10. Return result
     return NextResponse.json({
       success: true,
       coupon_type: selectedCoupon.coupon_type,
       score_used: bestScore,
-      coupon_id: insertedCoupon.coupon_id,
+      coupon_id: final_coupon_id,
       web_coupon_code: web_coupon_code,
       valid_from: valid_from,
       expired_at: expired_at

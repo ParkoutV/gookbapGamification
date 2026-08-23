@@ -51,13 +51,37 @@ export async function fetchSurveyData() {
   // We'll fetch all here for simplicity, the client handles the intersection efficiently.
   const { data: responses, error: rError } = await adminClient
     .from('survey_responses')
-    .select('response_id, question_id, participant_id, answer_data, created_at')
+    .select('response_id, question_id, participant_id, answer_data, created_at, log_id')
     .order('created_at', { ascending: false })
 
   if (rError) {
-    console.error('Error fetching survey responses:', rError)
+    console.error('fetchSurveyData error:', rError)
     throw new Error('Failed to fetch survey responses')
   }
 
-  return { questions, responses }
+  // 3. Fetch track_logs for these responses separately to avoid foreign key relation issues
+  const logIds = Array.from(new Set(responses.map(r => r.log_id).filter(Boolean)))
+  
+  let trackLogsMap: Record<string, any> = {}
+  if (logIds.length > 0) {
+    const { data: trackLogs } = await adminClient
+      .from('track_logs')
+      .select('log_id, track_id, is_shared')
+      .in('log_id', logIds)
+      
+    if (trackLogs) {
+      trackLogsMap = trackLogs.reduce((acc, curr) => {
+        acc[curr.log_id] = curr
+        return acc
+      }, {} as Record<string, any>)
+    }
+  }
+
+  // Merge track_logs into responses
+  const responsesWithTrackLogs = responses.map(r => ({
+    ...r,
+    track_logs: r.log_id && trackLogsMap[r.log_id] ? trackLogsMap[r.log_id] : null
+  }))
+
+  return { questions, responses: responsesWithTrackLogs }
 }
