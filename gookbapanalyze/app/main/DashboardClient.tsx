@@ -17,9 +17,10 @@ import { QRCodeCanvas } from 'qrcode.react';
 interface DashboardClientProps {
   isAdmin: boolean;
   assignedBranchId?: string;
+  archiveSnapshot?: any;
 }
 
-export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientProps) {
+export function DashboardClient({ isAdmin, assignedBranchId, archiveSnapshot }: DashboardClientProps) {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
@@ -99,11 +100,17 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         survey_filter_mode: surveyFilterMode
       };
 
-      const { data: aggData, error: aggError } = await supabase.rpc('get_track_kpi_dashboard', params);
-      
-      if (aggError) throw aggError;
+      let filteredAgg: any[] = [];
 
-      let filteredAgg = aggData || [];
+      if (archiveSnapshot) {
+        // Use local aggregation logic for archives
+        const { aggregateKpiFromSnapshot } = await import('@/utils/archiveAggregation');
+        filteredAgg = aggregateKpiFromSnapshot(archiveSnapshot, params);
+      } else {
+        const { data: aggData, error: aggError } = await supabase.rpc('get_track_kpi_dashboard', params);
+        if (aggError) throw aggError;
+        filteredAgg = aggData || [];
+      }
       
       // Filter by branch
       if (isAdmin && branchId) {
@@ -214,15 +221,20 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
         const startOfDayStr = new Date(d.setHours(0,0,0,0)).toISOString();
         const endOfDayStr = new Date(d.setHours(23,59,59,999)).toISOString();
 
-        dailyPromises.push(
-          supabase.rpc('get_track_kpi_dashboard', {
-            start_date: startOfDayStr,
-            end_date: endOfDayStr,
-            exclude_duplicates: excludeDuplicates,
-            survey_filters: surveyFilters,
-            survey_filter_mode: surveyFilterMode
-          })
-        );
+        const dParams = {
+          start_date: startOfDayStr,
+          end_date: endOfDayStr,
+          exclude_duplicates: excludeDuplicates,
+          survey_filters: surveyFilters,
+          survey_filter_mode: surveyFilterMode
+        };
+
+        if (archiveSnapshot) {
+          const { aggregateKpiFromSnapshot } = await import('@/utils/archiveAggregation');
+          dailyPromises.push(Promise.resolve({ data: aggregateKpiFromSnapshot(archiveSnapshot, dParams) }));
+        } else {
+          dailyPromises.push(supabase.rpc('get_track_kpi_dashboard', dParams as any));
+        }
       }
 
       const dailyResults = await Promise.all(dailyPromises);
@@ -339,7 +351,7 @@ export function DashboardClient({ isAdmin, assignedBranchId }: DashboardClientPr
 
       {/* Charts & KPIs Grid */}
       <div className="grid grid-cols-1 gap-6">
-        <DailyParticipantsChart data={dailyData} />
+        {!archiveSnapshot && <DailyParticipantsChart data={dailyData} />}
         <ConversionFunnelChart data={funnelData} />
         
         {/* Share KPIs */}

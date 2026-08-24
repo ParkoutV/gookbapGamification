@@ -935,3 +935,8 @@ localStorage.setItem('track_last_active', now.toString());
 ```
 
 
+
+ # # #   G a m e   M a n a g e m e n t   ( E x c e l   E x p o r t   &   D a t a   R e s e t ) 
+ -   * * E x c e l   E x p o r t * * :   G E T   / a p i / e x p o r t - e x c e l   g e n e r a t e s   a n   E x c e l   f i l e   c o n t a i n i n g   r a w   d a t a   f r o m   	 r a c k _ l o g s ,   g a m e _ s c o r e _ l o g s ,   a n d   s u r v e y _ r e s p o n s e s .   T h e   p a r t i c i p a n t _ i d   i s   m a s k e d   i n t e r n a l l y   i n t o   s e q u e n c e   n u m b e r s   ( e . g . ,   P a r t i c i p a n t _ 1 )   b e f o r e   b e i n g   i n j e c t e d   i n t o   a   p r e d e f i n e d   E x c e l   t e m p l a t e   ( g a m e _ a s s e t s / t e m p l a t e s / k p i _ t e m p l a t e . x l s x )   d o w n l o a d e d   f r o m   S u p a b a s e   S t o r a g e . 
+ -   * * D a t a   R e s e t * * :   P r o v i d e s   a   f u n c t i o n   d e l e t e A l l G a m e D a t a ( )   t o   p e r m a n e n t l y   d e l e t e   p a r t i c i p a n t s ,   s u r v e y _ r e s p o n s e s ,   a n d   r e s e t   w e b _ c o u p o n s ,   w i p i n g   a l l   u s e r - g e n e r a t e d   g a m e   d a t a .  
+ 

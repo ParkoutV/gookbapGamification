@@ -40,6 +40,7 @@ interface Props {
   permission: number
   assignedBranchId: string | null
   branches: Branch[]
+  archiveSnapshot?: any
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
@@ -94,7 +95,7 @@ function Type2AnswerItem({ ans }: { ans: string }) {
 }
 
 
-export default function SurveyResultsClient({ permission, assignedBranchId, branches }: Props) {
+export default function SurveyResultsClient({ permission, assignedBranchId, branches, archiveSnapshot }: Props) {
   const [questions, setQuestions] = useState<Question[]>([])
   const [responses, setResponses] = useState<ResponseRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -127,9 +128,23 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
   const loadData = async () => {
     try {
       setLoading(true)
-      const data = await fetchSurveyData()
-      setQuestions(data.questions)
-      setResponses(data.responses)
+      if (archiveSnapshot) {
+        setQuestions(archiveSnapshot.surveyQuestions || [])
+        
+        // Merge track logs for archive responses
+        const trackMap = new Map<string, any>()
+        archiveSnapshot.trackLogs?.forEach((l: any) => trackMap.set(l.log_id, l))
+        
+        const mergedResponses = (archiveSnapshot.surveyResponses || []).map((r: any) => ({
+          ...r,
+          track_logs: r.log_id && trackMap.has(r.log_id) ? trackMap.get(r.log_id) : null
+        }))
+        setResponses(mergedResponses)
+      } else {
+        const data = await fetchSurveyData()
+        setQuestions(data.questions)
+        setResponses(data.responses)
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || '데이터를 불러오는 데 실패했습니다.')
