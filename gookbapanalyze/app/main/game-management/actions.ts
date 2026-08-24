@@ -24,16 +24,16 @@ export async function deleteAllGameData() {
 
   // 삭제할 테이블 목록
   try {
-    const { error: pError } = await supabase.from('participants').delete().neq('participant_id', '00000000-0000-0000-0000-000000000000')
+    const { error: pError } = await supabase.from('participants').delete().not('participant_id', 'is', null)
     if (pError) throw pError
 
-    const { error: sError } = await supabase.from('survey_responses').delete().neq('id', 0)
+    const { error: sError } = await supabase.from('survey_responses').delete().not('participant_id', 'is', null)
     if (sError) throw sError
 
     const { error: wError } = await supabase
       .from('web_coupons')
       .update({ participant_id: null, assigned_at: null })
-      .not('participant_id', 'is', null)
+      .not('assigned_at', 'is', null)
     if (wError) throw wError
 
     revalidatePath('/main/game-management')
