@@ -10,6 +10,8 @@ export interface SurveyFilterState {
   answers: Record<string, string[]>
   condition: 'AND' | 'OR'
   deduplicate: boolean
+  branchId: string | null
+  isShared: 'TRUE' | 'FALSE' | 'BOTH'
 }
 
 interface Question {
@@ -27,9 +29,11 @@ interface Props {
   questions: Question[]
   initialFilters: SurveyFilterState
   onApply: (filters: SurveyFilterState) => void
+  isAdmin: boolean
+  branches: { branch_id: string; branch_name: any }[]
 }
 
-export default function SurveyFilterModal({ isOpen, onClose, questions, initialFilters, onApply }: Props) {
+export default function SurveyFilterModal({ isOpen, onClose, questions, initialFilters, onApply, isAdmin, branches }: Props) {
   const [filters, setFilters] = useState<SurveyFilterState>(initialFilters)
 
   // Only use questions that are choice-based (0 or 1) for filtering
@@ -51,20 +55,14 @@ export default function SurveyFilterModal({ isOpen, onClose, questions, initialF
     return val?.ko || ''
   }
 
-  const handleAnswerToggle = (qId: string, optIndex: string, type: number) => {
+  const handleAnswerToggle = (qId: string, optIndex: string) => {
     setFilters(prev => {
       const current = prev.answers[qId] || []
       const isSelected = current.includes(optIndex)
       
-      let newAnswers: string[] = []
-      
-      if (type === 0) {
-        newAnswers = isSelected ? [] : [optIndex]
-      } else {
-        newAnswers = isSelected 
-          ? current.filter(id => id !== optIndex)
-          : [...current, optIndex]
-      }
+      const newAnswers = isSelected 
+        ? current.filter(id => id !== optIndex)
+        : [...current, optIndex]
 
       const updated = { ...prev.answers }
       if (newAnswers.length === 0) {
@@ -104,7 +102,7 @@ export default function SurveyFilterModal({ isOpen, onClose, questions, initialF
   }
 
   const clearFilters = () => {
-    setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND', deduplicate: true })
+    setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND', deduplicate: true, branchId: null, isShared: 'BOTH' })
   }
 
   return (
@@ -125,6 +123,46 @@ export default function SurveyFilterModal({ isOpen, onClose, questions, initialF
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-8">
           
+          {/* Admin Filters */}
+          {isAdmin && (
+            <>
+              <section className="space-y-4">
+                <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                  <Filter className="w-4 h-4" /> 지점 및 링크 필터링
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm text-zinc-600 dark:text-zinc-400">지점 선택</label>
+                    <select 
+                      value={filters.branchId || ''} 
+                      onChange={(e) => setFilters(p => ({ ...p, branchId: e.target.value || null }))}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-zinc-200"
+                    >
+                      <option value="">모든 지점 (합산)</option>
+                      {branches.map(b => (
+                        <option key={b.branch_id} value={b.branch_id}>{getKoText(b.branch_name)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm text-zinc-600 dark:text-zinc-400">링크 유형</label>
+                    <select 
+                      value={filters.isShared} 
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      onChange={(e) => setFilters(p => ({ ...p, isShared: e.target.value as any }))}
+                      className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-zinc-200"
+                    >
+                      <option value="BOTH">전체</option>
+                      <option value="TRUE">공유 링크</option>
+                      <option value="FALSE">매장 링크</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+              <hr className="border-zinc-200 dark:border-zinc-800" />
+            </>
+          )}
+
           {/* Date Filter */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
@@ -250,21 +288,10 @@ export default function SurveyFilterModal({ isOpen, onClose, questions, initialF
                     {Array.isArray(q.options) && q.options.map((opt, idx) => (
                       <label key={idx} className="flex items-start gap-3 p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer transition-colors group">
                         <input 
-                          type={q.question_type === 0 ? "radio" : "checkbox"}
-                          name={q.question_type === 0 ? `filter-${q.question_id}` : undefined}
+                          type="checkbox"
                           checked={(filters.answers[q.question_id] || []).includes(String(idx))}
-                          onClick={(e) => {
-                            if (q.question_type === 0 && (filters.answers[q.question_id] || []).includes(String(idx))) {
-                              e.preventDefault()
-                              handleAnswerToggle(q.question_id, String(idx), q.question_type)
-                            }
-                          }}
-                          onChange={() => {
-                            if (q.question_type !== 0 || !(filters.answers[q.question_id] || []).includes(String(idx))) {
-                              handleAnswerToggle(q.question_id, String(idx), q.question_type)
-                            }
-                          }}
-                          className={`mt-1 text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 ${q.question_type === 0 ? 'rounded-full' : 'rounded'}`}
+                          onChange={() => handleAnswerToggle(q.question_id, String(idx))}
+                          className="mt-1 rounded text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800"
                         />
                         <span className="text-sm text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white line-clamp-2">
                           {getKoText(opt)}

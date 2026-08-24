@@ -31,6 +31,9 @@ interface ResponseRow {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   answer_data: any
   created_at: string
+  log_id?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  track_logs?: any
 }
 
 interface Props {
@@ -107,7 +110,9 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
     endDate: null,
     answers: {},
     condition: 'AND',
-    deduplicate: true
+    deduplicate: true,
+    branchId: null,
+    isShared: 'BOTH'
   })
 
   const [expandedPhases, setExpandedPhases] = useState<Record<number, boolean>>({
@@ -157,6 +162,33 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
       valid = valid.filter(r => new Date(r.created_at).getTime() <= end)
     }
 
+    if (filters.isShared === 'TRUE') {
+      valid = valid.filter(r => {
+        const t = Array.isArray(r.track_logs) ? r.track_logs[0] : r.track_logs
+        return t?.is_shared === true
+      })
+    } else if (filters.isShared === 'FALSE') {
+      valid = valid.filter(r => {
+        const t = Array.isArray(r.track_logs) ? r.track_logs[0] : r.track_logs
+        return t?.is_shared === false
+      })
+    }
+
+    if (permission === 0 && filters.branchId) {
+      valid = valid.filter(r => {
+        const t = Array.isArray(r.track_logs) ? r.track_logs[0] : r.track_logs
+        
+        // 온라인 지점(직접 접속 통합본)인 경우, 소속 지점이 없는(null) 잉여 데이터도 모두 포함
+        if (filters.branchId === '186876a6-5166-40f8-a95f-5faf70df4efa' && (!t || !t.track_id)) {
+          return true
+        }
+
+        // "DIRECT" is handled as null track_id in DashboardClient (fallback)
+        if (filters.branchId === 'DIRECT') return !t || !t.track_id
+        return t?.track_id?.includes(filters.branchId!)
+      })
+    }
+
     if (filters.deduplicate) {
       const deduped = new Map<string, ResponseRow>()
       for (const r of valid) {
@@ -169,7 +201,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
       valid = Array.from(deduped.values())
     }
     return valid
-  }, [responses, filters.startDate, filters.endDate, filters.deduplicate])
+  }, [responses, filters.startDate, filters.endDate, filters.deduplicate, filters.branchId, filters.isShared, permission])
 
   const filteredParticipants = useMemo(() => {
     if (!baseValidResponses.length) return new Set<string>()
@@ -466,7 +498,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
     )
   }
 
-  const activeFilterCount = (filters.startDate || filters.endDate ? 1 : 0) + Object.keys(filters.answers).length
+  const activeFilterCount = (filters.startDate || filters.endDate ? 1 : 0) + Object.keys(filters.answers).length + (filters.branchId ? 1 : 0) + (filters.isShared !== 'BOTH' ? 1 : 0)
   const totalParticipants = new Set(baseValidResponses.map(r => r.participant_id)).size
   const currentParticipantsCount = filteredParticipants.size
 
@@ -511,7 +543,7 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
             <p className="text-sm font-medium text-red-600 dark:text-red-400">필터 조건에 맞는 응답자가 없습니다. 전체 문항이 '응답 데이터 없음'으로 표시됩니다.</p>
           </div>
           <button 
-            onClick={() => setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND', deduplicate: true })}
+            onClick={() => setFilters({ startDate: null, endDate: null, answers: {}, condition: 'AND', deduplicate: true, branchId: null, isShared: 'BOTH' })}
             className="text-sm text-red-600 dark:text-red-400 font-bold hover:underline"
           >
             필터 초기화
@@ -531,6 +563,8 @@ export default function SurveyResultsClient({ permission, assignedBranchId, bran
         questions={questions}
         initialFilters={filters}
         onApply={setFilters}
+        isAdmin={permission === 0}
+        branches={branches}
       />
     </div>
   )
