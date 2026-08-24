@@ -208,6 +208,30 @@ export async function GET(req: NextRequest) {
       ]);
     });
 
+    // Web Coupon Mapping
+    let webCouponTitleKo = '온라인 웹 쿠폰';
+    try {
+      if (snapshot.webCouponSettings?.title) {
+        const parsed = typeof snapshot.webCouponSettings.title === 'string'
+          ? JSON.parse(snapshot.webCouponSettings.title)
+          : snapshot.webCouponSettings.title;
+        webCouponTitleKo = parsed.ko || parsed.en || '온라인 웹 쿠폰';
+      }
+    } catch (e) {
+      // fallback
+    }
+
+    snapshot.webCoupons?.forEach((coupon: any) => {
+      if (!coupon.participant_id) return; // Only exported assigned ones
+      couponSheet!.addRow([
+        coupon.participant_id, // Masked
+        webCouponTitleKo,
+        new Date(coupon.assigned_at || coupon.created_at).toLocaleString('ko-KR'),
+        'X', // 웹 쿠폰은 사용 여부를 전부 X로 처리
+        '-'
+      ]);
+    });
+
     const buffer = await workbook.xlsx.writeBuffer();
     
     return new NextResponse(buffer, {

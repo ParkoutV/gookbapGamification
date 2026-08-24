@@ -179,10 +179,35 @@ export function aggregateKpiFromSnapshot(snapshot: any, options: KpiAggregationO
 
         if (!trackCouponMap.has(tid)) trackCouponMap.set(tid, {});
         const cmap = trackCouponMap.get(tid)!;
-        const ctype = ic.coupon_effects?.coupon_type || 'Unknown';
+        const ctype = typeof ic.coupon_effects?.coupon_type === 'string' ? ic.coupon_effects.coupon_type : JSON.stringify(ic.coupon_effects?.coupon_type || 'Unknown');
         if (!cmap[ctype]) cmap[ctype] = { issued: 0, used: 0 };
         cmap[ctype].issued++;
         if (ic.is_used) cmap[ctype].used++;
+      }
+    }
+  });
+
+  (snapshot.webCoupons || []).forEach((wc: any) => {
+    if (!wc.participant_id) return;
+    const assignedAt = wc.assigned_at || wc.created_at;
+    if (options.start_date && new Date(assignedAt).getTime() < new Date(options.start_date).getTime()) return;
+    if (options.end_date && new Date(assignedAt).getTime() > new Date(options.end_date).getTime()) return;
+
+    if (pToTrack.has(wc.participant_id)) {
+      const tid = pToTrack.get(wc.participant_id)!;
+      const st = trackStats.get(tid);
+      if (st) {
+        st.total_coupons_issued++;
+        // Web coupons are never used in dashboard (is_used = false always)
+
+        if (!trackCouponMap.has(tid)) trackCouponMap.set(tid, {});
+        const cmap = trackCouponMap.get(tid)!;
+        let ctype = '온라인 웹 쿠폰';
+        if (snapshot.webCouponSettings?.title) {
+          ctype = typeof snapshot.webCouponSettings.title === 'string' ? snapshot.webCouponSettings.title : JSON.stringify(snapshot.webCouponSettings.title);
+        }
+        if (!cmap[ctype]) cmap[ctype] = { issued: 0, used: 0 };
+        cmap[ctype].issued++;
       }
     }
   });

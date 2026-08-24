@@ -98,6 +98,13 @@ export async function GET(request: NextRequest) {
     const { data: rawCoupons, error: couponsError } = await couponsQuery;
     if (couponsError) throw couponsError;
 
+    let webCouponsQuery = supabase.from('web_coupons').select('*').not('participant_id', 'is', null);
+    if (startDate) webCouponsQuery = webCouponsQuery.gte('assigned_at', startDate);
+    if (endDate) webCouponsQuery = webCouponsQuery.lte('assigned_at', endDate);
+    const { data: rawWebCoupons } = await webCouponsQuery;
+
+    const { data: webCouponSettings } = await supabase.from('web_coupon_settings').select('*').limit(1).single();
+
     // 5. Masking participant_id
     const participantMap = new Map<string, string>();
     let pCounter = 1;
@@ -294,6 +301,29 @@ export async function GET(request: NextRequest) {
         new Date(coupon.issued_at).toLocaleString('ko-KR'),
         coupon.is_used ? 'O' : 'X',
         coupon.used_at ? new Date(coupon.used_at).toLocaleString('ko-KR') : '-'
+      ]);
+    });
+
+    let webCouponTitleKo = '온라인 웹 쿠폰';
+    try {
+      if (webCouponSettings?.title) {
+        const parsed = typeof webCouponSettings.title === 'string'
+          ? JSON.parse(webCouponSettings.title)
+          : webCouponSettings.title;
+        webCouponTitleKo = parsed.ko || parsed.en || '온라인 웹 쿠폰';
+      }
+    } catch (e) {
+      // fallback
+    }
+
+    rawWebCoupons?.forEach((coupon: any) => {
+      const maskedId = getMaskedId(coupon.participant_id);
+      couponSheet!.addRow([
+        maskedId,
+        webCouponTitleKo,
+        new Date(coupon.assigned_at || coupon.created_at).toLocaleString('ko-KR'),
+        'X',
+        '-'
       ]);
     });
 

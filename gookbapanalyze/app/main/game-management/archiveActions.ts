@@ -81,6 +81,16 @@ export async function createArchive(startDate: string | null, endDate: string | 
       if (icData) issuedCoupons.push(...icData)
     }
 
+    // Fetch assigned web_coupons for valid participants
+    let webCoupons: any[] = [];
+    for (const chunk of participantChunks) {
+      const { data: wcData } = await adminSupabase.from('web_coupons').select('*').in('participant_id', chunk);
+      if (wcData) webCoupons.push(...wcData);
+    }
+
+    // Fetch web_coupon_settings to get title
+    const { data: webCouponSettings } = await adminSupabase.from('web_coupon_settings').select('*').limit(1).single();
+
     // 3. Mask participant_id
     const idMap = new Map<string, string>()
     let pCounter = 1
@@ -98,6 +108,7 @@ export async function createArchive(startDate: string | null, endDate: string | 
     gameScoreLogs = gameScoreLogs.map(g => ({ ...g, participant_id: maskId(g.participant_id) }))
     surveyResponses = surveyResponses.map(s => ({ ...s, participant_id: maskId(s.participant_id) }))
     issuedCoupons = issuedCoupons.map(c => ({ ...c, participant_id: maskId(c.participant_id) }))
+    webCoupons = webCoupons.map(c => ({ ...c, participant_id: maskId(c.participant_id) }))
 
     // 4. Create JSON Snapshot
     const snapshot = {
@@ -113,7 +124,9 @@ export async function createArchive(startDate: string | null, endDate: string | 
       trackLogs: maskedTrackLogs,
       gameScoreLogs,
       surveyResponses,
-      issuedCoupons
+      issuedCoupons,
+      webCoupons,
+      webCouponSettings
     }
 
     // 5. Upload to Storage
