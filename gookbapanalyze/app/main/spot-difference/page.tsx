@@ -8,6 +8,7 @@ import { getBaseImages, uploadBaseImage, deleteBaseImage, getSupportedLanguages,
 import { Image as ImageIcon, Plus, MoreVertical, Edit, Trash2, X, Upload } from 'lucide-react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import 'cropperjs/dist/cropper.css'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 type BaseImage = {
   id: number
@@ -18,6 +19,7 @@ type BaseImage = {
 }
 
 export default function SpotDifferenceListPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const router = useRouter()
   const [images, setImages] = useState<BaseImage[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,11 +72,12 @@ export default function SpotDifferenceListPage() {
   }, [])
 
   const handleDelete = async (id: number) => {
-    if (!confirm('정말로 이 이미지를 삭제하시겠습니까? 관련된 모든 파츠 설정도 함께 삭제됩니다.')) return
+    const isOk = await confirm('정말로 이 이미지를 삭제하시겠습니까? 관련된 모든 파츠 설정도 함께 삭제됩니다.')
+    if (!isOk) return
 
     const result = await deleteBaseImage(id)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
       fetchImages()
     }
@@ -102,7 +105,7 @@ export default function SpotDifferenceListPage() {
     setIsDragOver(false)
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -114,7 +117,7 @@ export default function SpotDifferenceListPage() {
           setUploadTitle({ ko: file.name.split('.')[0] })
         }
       } else {
-        alert('이미지 파일만 업로드 가능합니다.')
+        await alert('이미지 파일만 업로드 가능합니다.')
       }
     }
   }
@@ -122,7 +125,7 @@ export default function SpotDifferenceListPage() {
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!uploadFile || !uploadTitle.ko) {
-      alert('한국어 이름과 파일을 반드시 입력해주세요.')
+      await alert('한국어 이름과 파일을 반드시 입력해주세요.')
       return
     }
 
@@ -136,7 +139,7 @@ export default function SpotDifferenceListPage() {
       cropper.getCroppedCanvas().toBlob(async (blob) => {
         try {
           if (!blob) {
-            alert('이미지 크롭에 실패했습니다.')
+            await alert('이미지 크롭에 실패했습니다.')
             setIsUploading(false)
             return
           }
@@ -152,7 +155,7 @@ export default function SpotDifferenceListPage() {
           const result = await uploadBaseImage(formData)
           
           if (result.error) {
-            alert(result.error)
+            await alert(result.error)
             setIsUploading(false)
           } else if (result.baseImage) {
             setIsAddModalOpen(false)
@@ -167,14 +170,14 @@ export default function SpotDifferenceListPage() {
           }
         } catch (innerErr) {
           console.error('Inner upload error:', innerErr)
-          alert('업로드 처리 중 오류가 발생했습니다.')
+          await alert('업로드 처리 중 오류가 발생했습니다.')
           setIsUploading(false)
         }
       }, 'image/webp', 0.9)
 
     } catch (err) {
       console.error(err)
-      alert('업로드 준비 중 오류가 발생했습니다.')
+      await alert('업로드 준비 중 오류가 발생했습니다.')
       setIsUploading(false)
     }
   }
@@ -183,7 +186,7 @@ export default function SpotDifferenceListPage() {
     if (levelModalTargetId === null) return
     const result = await updateBaseImageLevel(levelModalTargetId, levelModalLevel)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
       setImages(images.map(img => img.id === levelModalTargetId ? { ...img, level: levelModalLevel } : img))
       setIsLevelModalOpen(false)
@@ -532,6 +535,7 @@ export default function SpotDifferenceListPage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

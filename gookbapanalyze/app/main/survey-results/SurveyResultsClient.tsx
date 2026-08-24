@@ -5,6 +5,7 @@ import { Filter, ChevronDown, ChevronUp, Loader2, Inbox, CalendarX2, Languages }
 import { fetchSurveyData } from './actions'
 import SurveyFilterModal, { SurveyFilterState } from '@/components/SurveyFilterModal'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 interface Branch {
   branch_id: string
@@ -46,6 +47,7 @@ interface Props {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
 
 function Type2AnswerItem({ ans }: { ans: string }) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [translated, setTranslated] = useState<string | null>(null)
   const [isTranslating, setIsTranslating] = useState(false)
 
@@ -64,7 +66,7 @@ function Type2AnswerItem({ ans }: { ans: string }) {
       const data = await res.json()
       setTranslated(data.translated)
     } catch (e) {
-      alert('번역 서버 통신 중 오류가 발생했습니다.')
+      await alert('번역 서버 통신 중 오류가 발생했습니다.')
     } finally {
       setIsTranslating(false)
     }
@@ -90,6 +92,7 @@ function Type2AnswerItem({ ans }: { ans: string }) {
           {translated}
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

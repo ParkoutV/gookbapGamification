@@ -5,6 +5,7 @@ import { X, Gift, Clock, User } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { createClient } from '@/utils/supabase/client'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 export interface CouponHistoryItem {
   id: string
@@ -14,16 +15,18 @@ export interface CouponHistoryItem {
 }
 
 export default function CouponHistoryModal({ onClose }: { onClose: () => void }) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [history, setHistory] = useState<CouponHistoryItem[]>([])
   const [undoingId, setUndoingId] = useState<string | null>(null)
   const supabase = createClient()
 
   const handleUndo = async (id: string) => {
-    if (!confirm('정말로 이 쿠폰 사용을 취소하시겠습니까?')) return
+    const isOk = await confirm('정말로 이 쿠폰 사용을 취소하시겠습니까?');
+    if (!isOk) return
     setUndoingId(id)
     const { error } = await supabase.rpc('undo_coupon', { p_coupon_id: id })
     if (error) {
-      alert('쿠폰 사용 취소에 실패했습니다: ' + error.message)
+      await alert('쿠폰 사용 취소에 실패했습니다: ' + error.message)
       setUndoingId(null)
       return
     }
@@ -31,7 +34,7 @@ export default function CouponHistoryModal({ onClose }: { onClose: () => void })
     setHistory(newHistory)
     localStorage.setItem('coupon_history', JSON.stringify(newHistory))
     setUndoingId(null)
-    alert('쿠폰 사용이 취소되었습니다.')
+    await alert('쿠폰 사용이 취소되었습니다.')
   }
 
   useEffect(() => {
@@ -100,6 +103,7 @@ export default function CouponHistoryModal({ onClose }: { onClose: () => void })
           )}
         </div>
       </div>
+      <DialogComponent />
     </div>
   )
 }

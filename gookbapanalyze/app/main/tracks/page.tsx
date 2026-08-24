@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { MapPin, Plus, MoreVertical, Edit2, Link as LinkIcon, QrCode, X } from 'lucide-react'
 import { getTracksGrouped, getSupportedLanguages, createTrack, updateTrack, TrackGroup, SupportedLanguage } from './actions'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 import { QRCodeCanvas } from 'qrcode.react'
 import TranslationButton from '@/components/TranslationButton'
 
 export default function TracksListPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [tracks, setTracks] = useState<TrackGroup[]>([])
   const [languages, setLanguages] = useState<SupportedLanguage[]>([])
   const [loading, setLoading] = useState(true)
@@ -122,7 +124,7 @@ export default function TracksListPage() {
     })
 
     if (Object.keys(finalData).length === 0) {
-      alert('최소 하나 이상의 언어로 지점명을 입력해주세요.')
+      await alert('최소 하나 이상의 언어로 지점명을 입력해주세요.')
       setSubmitting(false)
       return
     }
@@ -131,14 +133,14 @@ export default function TracksListPage() {
 
     if (editingTrack) {
       const res = await updateTrack(editingTrack.branch_id, jsonStr)
-      if (res.error) alert(res.error)
+      if (res.error) await alert(res.error)
       else {
         setEditingTrack(null)
         fetchInitialData()
       }
     } else {
       const res = await createTrack(jsonStr)
-      if (res.error) alert(res.error)
+      if (res.error) await alert(res.error)
       else {
         setIsCreateModalOpen(false)
         fetchInitialData()
@@ -148,10 +150,10 @@ export default function TracksListPage() {
     setSubmitting(false)
   }
 
-  const copyToClipboard = (id: string) => {
+  const copyToClipboard = async (id: string) => {
     const url = `https://game.1953bros.com/?q=${id}`
     navigator.clipboard.writeText(url)
-    alert('링크가 클립보드에 복사되었습니다.')
+    await alert('링크가 클립보드에 복사되었습니다.')
   }
 
   return (
@@ -416,6 +418,7 @@ export default function TracksListPage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

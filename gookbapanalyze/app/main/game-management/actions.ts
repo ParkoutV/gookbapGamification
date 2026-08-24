@@ -22,19 +22,19 @@ export async function deleteAllGameData() {
     return { error: '최고 관리자 권한이 필요합니다.' }
   }
 
-  // 삭제할 테이블 목록
+  // 삭제할 테이블 목록 (우선순위: 웹 쿠폰 배정 해제 -> 유저 삭제)
   try {
-    const { error: pError } = await supabase.from('participants').delete().not('participant_id', 'is', null)
-    if (pError) throw pError
-
-    const { error: sError } = await supabase.from('survey_responses').delete().not('participant_id', 'is', null)
-    if (sError) throw sError
-
     const { error: wError } = await supabase
       .from('web_coupons')
       .update({ participant_id: null, assigned_at: null })
       .not('assigned_at', 'is', null)
     if (wError) throw wError
+
+    const { error: pError } = await supabase.from('participants').delete().not('participant_id', 'is', null)
+    if (pError) throw pError
+
+    const { error: sError } = await supabase.from('survey_responses').delete().not('participant_id', 'is', null)
+    if (sError) throw sError
 
     revalidatePath('/main/game-management')
     return { success: true }

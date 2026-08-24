@@ -6,8 +6,10 @@ import { deleteAllGameData, getTemplateUrl, uploadTemplate } from './actions'
 
 import { createArchive, listArchives, deleteArchive, getArchiveUrl } from './archiveActions'
 import Link from 'next/link'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 export default function GameManagementPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,18 +50,18 @@ export default function GameManagementPage() {
     setArchiveCreating(true)
     const res = await createArchive(start, end)
     if (res.error) {
-      alert(res.error)
+      await alert(res.error)
     } else {
-      alert('아카이브가 성공적으로 생성되었습니다.')
+      await alert('아카이브가 성공적으로 생성되었습니다.')
       fetchArchives()
     }
     setArchiveCreating(false)
   }
 
   const handleDeleteArchive = async (fileName: string) => {
-    if (!confirm('정말로 이 아카이브를 삭제하시겠습니까?')) return
+    if (!await confirm('정말로 이 아카이브를 삭제하시겠습니까?')) return
     const res = await deleteArchive(fileName.replace('archives/', ''))
-    if (res.error) alert(res.error)
+    if (res.error) await alert(res.error)
     else fetchArchives()
   }
 
@@ -72,9 +74,9 @@ export default function GameManagementPage() {
     setUpdating(true)
     const result = await deleteAllGameData()
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
-      alert('데이터가 성공적으로 삭제되었습니다.')
+      await alert('데이터가 성공적으로 삭제되었습니다.')
       setDeleteAllModalOpen(false)
     }
     setUpdating(false)
@@ -86,7 +88,7 @@ export default function GameManagementPage() {
     if (result.url) {
       window.open(result.url, '_blank')
     } else {
-      alert('등록된 템플릿 파일이 없거나 오류가 발생했습니다.')
+      await alert('등록된 템플릿 파일이 없거나 오류가 발생했습니다.')
     }
     setLoading(false)
   }
@@ -101,9 +103,9 @@ export default function GameManagementPage() {
     
     const result = await uploadTemplate(formData)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
-      alert('템플릿이 성공적으로 업로드 되었습니다.')
+      await alert('템플릿이 성공적으로 업로드 되었습니다.')
     }
     setLoading(false)
     e.target.value = '' // reset
@@ -378,6 +380,7 @@ export default function GameManagementPage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

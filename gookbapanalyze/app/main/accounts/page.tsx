@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getAccountsList, deleteAccount, updatePermission, getBranches, deleteAllGameData } from './actions'
 import { Users, Plus, MoreVertical, Shield, Trash2, CheckCircle2, XCircle, MapPin } from 'lucide-react'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 type Account = {
   user_id: string
@@ -19,6 +20,7 @@ type Account = {
 }
 
 export default function AccountsListPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -52,11 +54,11 @@ export default function AccountsListPage() {
   }, [])
 
   const handleDelete = async (userId: string) => {
-    if (!confirm('정말로 이 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
+    if (!await confirm('정말로 이 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
 
     const result = await deleteAccount(userId)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
       fetchAccounts()
     }
@@ -75,7 +77,7 @@ export default function AccountsListPage() {
 
     const result = await updatePermission(editingAccount.user_id, newPermission, assignedBranchId)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
       fetchAccounts()
       setEditingAccount(null)
@@ -308,7 +310,7 @@ export default function AccountsListPage() {
         </div>
       )}
 
-
+      <DialogComponent />
     </div>
   )
 }

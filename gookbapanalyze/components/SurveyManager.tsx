@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2, Save, Eye, EyeOff, Image as ImageIcon, X } from 'lucide-react'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import TranslationButton from '@/components/TranslationButton'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 interface Language {
   lang_code: string
@@ -42,6 +43,7 @@ export default function SurveyManager({
   activeLanguages: Language[]
   branches: Branch[]
 }) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const supabase = createClient()
   const [questions, setQuestions] = useState<Question[]>([])
   const [originalQuestions, setOriginalQuestions] = useState<Question[]>([])
@@ -119,10 +121,10 @@ export default function SurveyManager({
         if (error) throw error
       }
       setOriginalQuestions(questions)
-      alert('성공적으로 저장되었습니다.')
+      await alert('성공적으로 저장되었습니다.')
     } catch (error) {
       console.error('Error saving:', error)
-      alert('저장 중 오류가 발생했습니다.')
+      await alert('저장 중 오류가 발생했습니다.')
     }
     setSaving(false)
   }
@@ -145,7 +147,7 @@ export default function SurveyManager({
       updateQuestion(qId, { image_url: publicUrlData.publicUrl })
     } catch (error) {
       console.error('Upload error:', error)
-      alert('이미지 업로드 중 오류가 발생했습니다.')
+      await alert('이미지 업로드 중 오류가 발생했습니다.')
     }
   }
 
@@ -169,11 +171,12 @@ export default function SurveyManager({
   }
 
   const deleteQuestion = async (id: string) => {
-    if (confirm('정말로 삭제하시겠습니까? (저장 시 반영됩니다)')) {
+    const isOk = await confirm('정말로 삭제하시겠습니까? (저장 시 반영됩니다)');
+    if (isOk) {
       // In a real app, you might want to delete directly from DB if it exists, or just filter it out and handle on save
       const { error } = await supabase.from('survey_questions').delete().eq('question_id', id)
       if (error) {
-        alert('삭제 중 오류가 발생했습니다.')
+        await alert('삭제 중 오류가 발생했습니다.')
       } else {
         setQuestions(questions.filter(q => q.question_id !== id))
       }
@@ -547,6 +550,7 @@ export default function SurveyManager({
           <span className="font-medium">{saving ? '저장 중...' : '변경사항 저장'}</span>
         </button>
       </div>
+      <DialogComponent />
     </div>
   )
 }

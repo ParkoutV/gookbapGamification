@@ -7,6 +7,7 @@ import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { createClient } from '@/utils/supabase/client'
 import { SupportedLanguage } from '../tracks/actions'
 import TranslationButton from '@/components/TranslationButton'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 interface GatchaSetting {
   id: number
@@ -141,6 +142,7 @@ const GridInput = ({
 }
 
 export default function CouponsPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   
@@ -304,7 +306,7 @@ export default function CouponsPage() {
     await supabase.from('gatcha_settings').update(settings).eq('id', 1)
     setOriginalSettings(JSON.parse(JSON.stringify(settings)))
     setSaving(false)
-    alert('설정이 저장되었습니다.')
+    await alert('설정이 저장되었습니다.')
   }
 
   // --- Gatcha Cases Logic ---
@@ -550,7 +552,7 @@ export default function CouponsPage() {
       currentMin = c.max_score + 1
     }
     if (!valid || currentMin !== 1954) {
-      alert('점수 구간이 0부터 1953까지 빈틈없이 설정되어야 합니다.')
+      await alert('점수 구간이 0부터 1953까지 빈틈없이 설정되어야 합니다.')
       return
     }
 
@@ -561,7 +563,7 @@ export default function CouponsPage() {
         sum += Number(coup.probability?.[c.gatcha_case_id] || 0)
       }
       if (sum > 1.0001) {
-        alert(`"${c.gatcha_case_name}" 구간의 확률 총합이 100%를 초과했습니다. (${(sum*100).toFixed(2)}%)`)
+        await alert(`"${c.gatcha_case_name}" 구간의 확률 총합이 100%를 초과했습니다. (${(sum*100).toFixed(2)}%)`)
         return
       }
     }
@@ -634,7 +636,7 @@ export default function CouponsPage() {
 
     await fetchAll()
     setSaving(false)
-    alert('구간 및 확률표가 성공적으로 저장되었습니다.')
+    await alert('구간 및 확률표가 성공적으로 저장되었습니다.')
   }
 
   // --- Multi-lang Modal Logic ---
@@ -1355,6 +1357,7 @@ export default function CouponsPage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

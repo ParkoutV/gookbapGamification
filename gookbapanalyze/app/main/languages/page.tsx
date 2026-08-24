@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react'
 import { Globe, MoreVertical, Edit2, CheckCircle2, XCircle, X, Plus } from 'lucide-react'
 import { SupportedLanguage } from '../tracks/actions'
 import { createClient } from '@/utils/supabase/client'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 export default function LanguagesPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [languages, setLanguages] = useState<SupportedLanguage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +45,7 @@ export default function LanguagesPage() {
     setActiveDropdown(null)
     const newStatus = !lang.is_active
     if (!newStatus && lang.lang_code === 'ko') {
-      alert('한국어(ko)는 비활성화할 수 없습니다.')
+      await alert('한국어(ko)는 비활성화할 수 없습니다.')
       return
     }
     
@@ -55,7 +57,7 @@ export default function LanguagesPage() {
       .eq('lang_code', lang.lang_code)
       
     if (error) {
-      alert(error.message)
+      await alert(error.message)
     } else {
       fetchLanguages()
     }
@@ -86,7 +88,7 @@ export default function LanguagesPage() {
       .eq('lang_code', editingLang.lang_code)
     
     if (error) {
-      alert(error.message)
+      await alert(error.message)
     } else {
       setEditingLang(null)
       fetchLanguages()
@@ -110,7 +112,7 @@ export default function LanguagesPage() {
       })
     
     if (error) {
-      alert(error.message)
+      await alert(error.message)
     } else {
       setIsCreateModalOpen(false)
       fetchLanguages()
@@ -338,6 +340,7 @@ export default function LanguagesPage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

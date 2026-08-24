@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useCustomDialog } from '@/hooks/useCustomDialog';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
 import { FilterControls, IsSharedFilter, SurveyFilterItem } from '@/components/dashboard/FilterControls';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -21,6 +22,7 @@ interface DashboardClientProps {
 }
 
 export function DashboardClient({ isAdmin, assignedBranchId, archiveSnapshot }: DashboardClientProps) {
+  const { alert, confirm, DialogComponent } = useCustomDialog();
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
@@ -81,11 +83,11 @@ export function DashboardClient({ isAdmin, assignedBranchId, archiveSnapshot }: 
     }
   }, [isQrModalOpen]);
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (!storeTrackId) return;
     const url = `https://game.1953bros.com/?q=${storeTrackId}`;
     navigator.clipboard.writeText(url);
-    alert('가게 링크가 클립보드에 복사되었습니다.');
+    await alert('가게 링크가 클립보드에 복사되었습니다.');
   };
 
   const fetchDashboardData = useCallback(async () => {
@@ -402,6 +404,7 @@ export function DashboardClient({ isAdmin, assignedBranchId, archiveSnapshot }: 
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   );
 }

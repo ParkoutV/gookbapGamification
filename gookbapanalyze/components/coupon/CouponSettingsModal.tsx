@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Save, MonitorPlay } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import TranslationButton from '@/components/TranslationButton'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 interface LanguageSetting {
   lang_code: string
@@ -34,6 +35,7 @@ interface CouponSettingsModalProps {
 }
 
 export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, onKeepScreenOnChange, videoFit, onVideoFitChange, isFlipped, onIsFlippedChange, useMultilingual, onUseMultilingualChange, onClose }: CouponSettingsModalProps) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [activeTab, setActiveTab] = useState(languages.length > 0 ? languages[0].lang_code : 'ko')
   
   // Clone language config into state for editing
@@ -82,7 +84,7 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
       onClose()
     } catch (err) {
       console.error(err)
-      alert("저장에 실패했습니다.")
+      await alert("저장에 실패했습니다.")
     } finally {
       setSaving(false)
     }
@@ -395,6 +397,7 @@ export default function CouponSettingsModal({ isAdmin, languages, keepScreenOn, 
           )}
         </div>
       </div>
+      <DialogComponent />
     </div>
   )
 }
