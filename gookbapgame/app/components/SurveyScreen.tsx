@@ -38,7 +38,8 @@ export default function SurveyScreen({
         ? (prev[question.questionId] as number[])
         : [];
       if (question.questionType === 0) {
-        return { ...prev, [question.questionId]: [index] };
+        // 이미 고른 항목을 다시 누르면 선택 해제한다(필수 문항이면 제출 버튼이 다시 잠긴다).
+        return { ...prev, [question.questionId]: current.includes(index) ? [] : [index] };
       }
       const next = current.includes(index)
         ? current.filter((i) => i !== index)
