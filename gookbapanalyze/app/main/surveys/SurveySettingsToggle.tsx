@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react'
 import { toggleOptionalSurveyOnce } from './actions'
 import { ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 export default function SurveySettingsToggle({ initialValue }: { initialValue: boolean }) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [isOnceEnabled, setIsOnceEnabled] = useState(initialValue)
   const [isPending, startTransition] = useTransition()
   const [showModal, setShowModal] = useState(false)
@@ -22,7 +24,7 @@ export default function SurveySettingsToggle({ initialValue }: { initialValue: b
           setIsOnceEnabled(result.newValue)
         }
       } catch (err) {
-        alert('설정 변경에 실패했습니다.')
+        await alert('설정 변경에 실패했습니다.')
       }
     })
   }
@@ -97,6 +99,7 @@ export default function SurveySettingsToggle({ initialValue }: { initialValue: b
           </div>
         </div>
       )}
+      <DialogComponent />
     </>
   )
 }

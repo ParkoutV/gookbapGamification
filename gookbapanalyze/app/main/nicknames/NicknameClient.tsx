@@ -6,6 +6,7 @@ import { Plus, Trash2, Save, X } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import TranslationButton from '@/components/TranslationButton'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 interface Language {
   lang_code: string
@@ -38,6 +39,7 @@ export default function NicknameClient({
   initialExclusions,
   initialDigitLength
 }: NicknameClientProps) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const supabase = createClient()
   const [presets, setPresets] = useState<Preset[]>(initialPresets)
   const [exclusions, setExclusions] = useState<Exclusion[]>(initialExclusions)
@@ -104,7 +106,7 @@ export default function NicknameClient({
       }
     } catch (err) {
       console.error(err)
-      alert('유저 수 확인 중 오류가 발생했습니다.')
+      await alert('유저 수 확인 중 오류가 발생했습니다.')
     } finally {
       setIsCheckingCapacity(false)
     }
@@ -263,11 +265,11 @@ export default function NicknameClient({
       // Finally, call RPC to reassign invalid nicknames
       await supabase.rpc('reassign_invalid_nicknames')
 
-      alert('저장되었습니다.')
+      await alert('저장되었습니다.')
       setHasSaved(true)
     } catch (error) {
       console.error(error)
-      alert('저장 중 오류가 발생했습니다.')
+      await alert('저장 중 오류가 발생했습니다.')
       setIsSaving(false)
     }
   }
@@ -602,6 +604,7 @@ export default function NicknameClient({
           </div>
         </div>
       )}
-    </div>
+      <DialogComponent />
+      </div>
   )
 }

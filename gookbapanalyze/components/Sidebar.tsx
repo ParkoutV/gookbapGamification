@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, LayoutDashboard, Image as ImageIcon, LogOut, Users, Settings, MapPin, Globe, ClipboardList, Gift, BarChart3, Scan, Ticket, FileText } from 'lucide-react'
+import { Menu, X, LayoutDashboard, Image as ImageIcon, LogOut, Users, Settings, MapPin, Globe, ClipboardList, Gift, BarChart3, Scan, Ticket, FileText, Database } from 'lucide-react'
 import { logoutUser } from '@/app/login/actions'
 
 interface SidebarProps {
@@ -31,6 +31,7 @@ export default function Sidebar({ permission, email }: SidebarProps) {
     links.push({ href: '/main/coupons', label: '쿠폰 관리', icon: Gift })
     links.push({ href: '/main/web-coupons', label: '웹 쿠폰 관리', icon: Ticket })
     links.push({ href: '/main/agreements', label: '약관 관리', icon: FileText })
+    links.push({ href: '/main/game-management', label: '게임 관리', icon: Database })
     links.push({ href: '/main/accounts', label: '계정 관리', icon: Users })
   }
 

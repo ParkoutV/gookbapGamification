@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import { FileText, Save } from 'lucide-react'
 import { getAgreements, getSupportedLanguages, updateAgreement, Agreement, SupportedLanguage } from './actions'
 import TranslationButton from '@/components/TranslationButton'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 export default function AgreementsPage() {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const [agreements, setAgreements] = useState<Agreement[]>([])
   const [languages, setLanguages] = useState<SupportedLanguage[]>([])
   const [loading, setLoading] = useState(true)
@@ -165,13 +167,13 @@ export default function AgreementsPage() {
       const results = await Promise.all(updates)
       const hasError = results.some(r => r.error)
       if (hasError) {
-        alert('일부 약관을 저장하는 중 오류가 발생했습니다.')
+        await alert('일부 약관을 저장하는 중 오류가 발생했습니다.')
       } else {
-        alert('모든 변경사항이 성공적으로 저장되었습니다.')
+        await alert('모든 변경사항이 성공적으로 저장되었습니다.')
         fetchInitialData()
       }
     } else {
-      alert('수정된 내용이 없습니다.')
+      await alert('수정된 내용이 없습니다.')
     }
     
     setIsSubmitting(false)
@@ -303,6 +305,7 @@ export default function AgreementsPage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   )
 }

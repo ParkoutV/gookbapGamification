@@ -14,6 +14,7 @@ import { Save, ArrowLeft, Plus, Minus, Image as ImageIcon, Trash2, X, Move, Maxi
 import { v4 as uuidv4 } from 'uuid'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import TranslationButton from '@/components/TranslationButton'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 const ZoomControls = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) => {
   const { zoomIn, zoomOut, setTransform } = useControls()
@@ -52,6 +53,7 @@ const ZoomControls = ({ containerRef }: { containerRef: React.RefObject<HTMLDivE
 }
 
 export default function SpotDifferenceEditorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const router = useRouter()
   const unwrappedParams = use(params)
   const baseImageId = parseInt(unwrappedParams.id, 10)
@@ -112,7 +114,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
   const fetchGameData = async () => {
     const result = await getGameData(baseImageId)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
       router.push('/main/spot-difference')
       return
     }
@@ -161,16 +163,16 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
 
   const handleSave = async () => {
     if (questionsCount > slots.length) {
-      alert(`문제 개수(${questionsCount}개)는 파츠 그룹의 개수(${slots.length}개)보다 클 수 없습니다. 파츠 그룹을 더 추가하거나 문제 개수를 줄여주세요.`)
+      await alert(`문제 개수(${questionsCount}개)는 파츠 그룹의 개수(${slots.length}개)보다 클 수 없습니다. 파츠 그룹을 더 추가하거나 문제 개수를 줄여주세요.`)
       return
     }
 
     setSaving(true)
     const result = await saveGameData(baseImageId, slots, parts, deletedSlotIds, deletedPartIds, baseImage?.title, questionsCount)
     if (result.error) {
-      alert(result.error)
+      await alert(result.error)
     } else {
-      alert('저장되었습니다.')
+      await alert('저장되었습니다.')
       // Reset deleted trackers and re-fetch so isNew/temp ids don't cause duplicate inserts on the next save
       setDeletedSlotIds([])
       setDeletedPartIds([])
@@ -195,8 +197,9 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
     setActiveSlotId(newSlot.tempId)
   }
 
-  const deleteSlot = (tempId: string) => {
-    if (!confirm('파츠 영역과 업로드된 모든 이미지를 삭제하시겠습니까?')) return
+  const deleteSlot = async (tempId: string) => {
+    const isOk = await confirm('파츠 영역과 업로드된 모든 이미지를 삭제하시겠습니까?')
+    if (!isOk) return
     
     const slot = slots.find(s => s.tempId === tempId)
     if (!slot.isNew) setDeletedSlotIds([...deletedSlotIds, slot.id])
@@ -282,7 +285,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           const result = await uploadPartImage(formData)
           
           if (result.error) {
-            alert(result.error)
+            await alert(result.error)
           } else {
             if (editingPartId) {
               // Update existing part
@@ -311,13 +314,13 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           setIsUploading(false)
         } catch (innerErr) {
           console.error('Inner part upload error:', innerErr)
-          alert('업로드 처리 중 오류가 발생했습니다.')
+          await alert('업로드 처리 중 오류가 발생했습니다.')
           setIsUploading(false)
         }
       }, 'image/webp', 0.9)
     } catch (err) {
       console.error(err)
-      alert('업로드 준비 중 오류가 발생했습니다.')
+      await alert('업로드 준비 중 오류가 발생했습니다.')
       setIsUploading(false)
     }
   }
@@ -835,6 +838,7 @@ export default function SpotDifferenceEditorPage({ params }: { params: Promise<{
           </div>
         </div>
       )}
-    </div>
+      <DialogComponent />
+      </div>
   )
 }

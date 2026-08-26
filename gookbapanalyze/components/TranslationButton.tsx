@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslator } from '@/hooks/useTranslator'
 import { Languages, Loader2, CheckCircle2 } from 'lucide-react'
+import { useCustomDialog } from '@/hooks/useCustomDialog'
 
 interface TranslationButtonProps {
   // 번역할 텍스트 맵. 예: { name: '이름', desc: '설명' }
@@ -25,6 +26,7 @@ export default function TranslationButton({
   className = "",
   existingTranslations = {}
 }: TranslationButtonProps) {
+  const { alert, confirm, DialogComponent } = useCustomDialog()
   const { isTranslating, currentUsage, translate } = useTranslator()
   const [translatingLang, setTranslatingLang] = useState<string | null>(null)
   const [translationProgress, setTranslationProgress] = useState<{current: number, total: number} | null>(null)
@@ -33,12 +35,12 @@ export default function TranslationButton({
   const executeTranslation = async () => {
     const validEntries = Object.entries(sourceTexts).filter(([_, text]) => text && text.trim() !== '')
     if (validEntries.length === 0) {
-      alert('한국어(ko) 텍스트를 먼저 하나 이상 입력해주세요.');
+      await alert('한국어(ko) 텍스트를 먼저 하나 이상 입력해주세요.');
       return;
     }
     
     if (targetLanguages.length === 0) {
-      alert('번역 대상 언어가 없습니다. (이미 값이 채워져 있을 수 있습니다.)');
+      await alert('번역 대상 언어가 없습니다. (이미 값이 채워져 있을 수 있습니다.)');
       return;
     }
 
@@ -60,7 +62,7 @@ export default function TranslationButton({
     }
 
     if (totalTasks === 0) {
-      alert('모든 다국어 빈칸이 이미 채워져 있어 번역을 수행하지 않았습니다.');
+      await alert('모든 다국어 빈칸이 이미 채워져 있어 번역을 수행하지 않았습니다.');
       return;
     }
 
