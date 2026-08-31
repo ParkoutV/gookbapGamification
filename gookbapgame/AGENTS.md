@@ -230,8 +230,20 @@ All custom Node.js utility and database scripts (e.g. `.mjs` files) should be pl
     만들면 화면과 저장본의 QR 크기가 조용히 어긋난다.
 - **Phase 1 문항이 0개면** 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
 - **설문을 건너뛸지는 서버가 정한다 — localStorage가 아니다**(2026-08-15, 구자건 지적).
-  `enterSurveyFlow`가 `fetchPendingSurvey(1)`(→ `check_pending_survey` RPC)를 부르고,
+  `participateSurvey`가 `fetchPendingSurvey(1)`(→ `check_pending_survey` RPC)를 부르고,
   **미응답 문항이 0건일 때만** 룰렛으로 보낸다.
+  - **그 RPC는 `enterSurveyFlow`(설문 안내 진입)가 아니라 `participateSurvey`
+    ('참여하기' 클릭)에서 부른다**(2026-08-31, 이란토 제보). `check_pending_survey`는
+    미응답 문항을 돌려주면서 선택 문항(`is_required = false`)을 **"1회 노출"로 기록한다**
+    (대시보드 `optional_survey_once`, `gookbapanalyze/MANUAL.md:68`). 예전에는 안내
+    화면에 들어오자마자 불러서, 사용자가 '다음에 하기'를 누르면 **단 한 번뿐인 선택
+    문항 노출이 타버렸다** — 나중에 '설문하고 쿠폰 받기'로 다시 들어와도 `(선택)`
+    문항이 `loadQuestions`의 `pendingIds` 필터에 걸려 영영 안 떴다. **조회를 안내
+    진입으로 되돌리지 말 것.** `pendingSurvey.test.ts`가 `enterSurveyFlow` 본문에
+    `fetchPendingSurvey`가 없는지 검사한다.
+  - 대가로 **이미 답한 사람도 안내 화면을 한 번 보고 '참여하기'를 눌러야** 룰렛으로
+    넘어간다(다시하기마다). localStorage로 미리 거르는 길은 위 403 때문에 막혀 있어
+    감수한 것이다.
   - 예전에는 `hasSurveySubmitted()`(localStorage)만 봤다. 그런데 **쿠키
     (`gookbapgame_token`)와 localStorage는 수명이 다르다** — 쿠키가 지워지거나 만료되면
     `participant_id`가 새로 생기는데 플래그는 남아, 클라이언트는 "설문 했음"으로 보고

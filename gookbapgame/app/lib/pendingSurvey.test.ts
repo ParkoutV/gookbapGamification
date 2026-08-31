@@ -36,6 +36,25 @@ test("localStorage로 설문을 건너뛰지 않는다 — 쿠키와 수명이 �
   );
 });
 
+test("설문 안내 진입만으로는 check_pending_survey를 부르지 않는다", () => {
+  // 그 RPC는 선택 문항을 돌려주며 '1회 노출'로 기록한다(대시보드 optional_survey_once).
+  // 안내(surveyIntro)에 들어오자마자 부르면, '다음에 하기'를 누른 사람의 단 한 번뿐인
+  // (선택) 문항 노출이 타버려 재진입해도 영영 안 뜬다(2026-08-31 이란토 제보).
+  // 조회는 '참여하기'(participateSurvey) 뒤로 미뤄야 한다.
+  const enterStart = PAGE.indexOf("const enterSurveyFlow");
+  const enterEnd = PAGE.indexOf("const participateSurvey");
+  assert.ok(
+    enterStart >= 0 && enterEnd > enterStart,
+    "enterSurveyFlow / participateSurvey 정의를 찾지 못했다"
+  );
+  assert.doesNotMatch(
+    PAGE.slice(enterStart, enterEnd),
+    /fetchPendingSurvey/,
+    "enterSurveyFlow가 아직 RPC를 부른다 — 선택 문항 노출이 거절로 타버린다"
+  );
+  assert.match(PAGE, /onParticipate=\{participateSurvey\}/);
+});
+
 test("조회 실패는 건너뛰지 않는다 (fail closed)", () => {
   // `ok`가 true일 때만 건너뛴다. `pending.questionIds.length === 0`만 보면
   // 실패가 빈 배열로 위장돼 그대로 403이 된다.
