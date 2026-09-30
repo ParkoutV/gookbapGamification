@@ -218,88 +218,69 @@ export default function Home({ searchParams }: PageProps) {
     phaseRef.current = phase;
   }, [phase]);
 
-  // 설문 안내로 들어가되, Phase 1 문항이 0개면 설문 화면을 건너뛰고 곧장 룰렛으로 간다.
-  // loadQuestions는 비동기이므로, 그 사이 사용자가 설문 안내를 벗어났다면(예: 참여
-  // 거부) 되돌아온 뒤 강제로 wheel로 보내면 안 된다 — 여전히 surveyIntro일 때만 전환한다.
-  //
-  // 이미 답한 사람이라면 설문은 짐이 아니라 이미 획득한 혜택이다 — 다시 답하게 하지
-  // 않고 곧장 룰렛으로 보낸다. **그 판정은 서버(RPC)가 한다**(아래 주석 참고).
-  //
-  // phaseRef 가드는 **await 뒤의 wheel 전환에만** 건다. `goToPhase("surveyIntro")`
-  // 직후에 확인하면 그 setState가 아직 커밋되지 않아 phaseRef.current가 "이전" phase를
-  // 가리켜 가드가 항상 false로 오탐한다 — 그래서 동기 구간에는 두지 않는다.
-  // 반대로 await를 지난 뒤에는 그 사이 사용자가 화면을 벗어났을 수 있으므로 반드시
-  // 필요하다(설문 안내에서 참여를 거부하고 나갔는데 강제로 룰렛에 들어가면 안 된다).
-  const enterSurveyFlow = useCallback(async () => {
+  /*
+   * 설문 안내(`surveyIntro`)를 띄운다. **여기서는 서버에 묻지 않는다.**
+   *
+   * `check_pending_survey` RPC는 미응답 문항을 돌려주면서 선택 문항(`is_required =
+   * false`)을 "1회 노출"로 기록한다(대시보드 `optional_survey_once`, gookbapanalyze
+   * MANUAL.md). 예전에는 이 흐름에 들어오자마자 그 RPC를 불렀는데, 사용자가 안내에서
+   * '다음에 하기'를 누르면 **단 한 번뿐인 선택 문항 노출이 그대로 타버렸다** — 나중에
+   * '설문하고 쿠폰 받기'로 다시 들어와도 `(선택)` 문항은 영영 안 떴다(2026-08-31,
+   * 이란토 제보). 그래서 조회는 사용자가 '참여하기'를 누르는 `participateSurvey`로 미룬다.
+   *
+   * 대가: 이미 답한 사람도 이제 안내 화면을 한 번 보고 버튼을 눌러야 룰렛으로 넘어간다.
+   * localStorage로 미리 거르는 길은 막혀 있다 — 쿠키와 수명이 달라 403(SURVEY_REQUIRED)을
+   * 부른다(2026-08-15 구자건 지적, `pendingSurvey.test.ts`).
+   */
+  const enterSurveyFlow = useCallback(() => {
     resetCoupon();
     // 흐름에 들어가는 순간 거절 상태를 끈다 — 버튼은 한 번 쓰면 소진된다.
     // 여기서 끄지 않으면 거절 → 버튼 → 설문 → 뽑기 → 오늘의 결과로 돌아왔을 때
     // 버튼이 또 떠서 뽑기를 계속 태울 수 있다(서버가 하루 3회를 허용한다).
     // 끄는 지점이 여기 하나뿐이라 진입 경로(게임 결과·시작 화면·재진입 버튼)가
-    // 늘어도 빠뜨릴 곳이 없다. 다시 거절하면 그때 다시 켜지는 것이 맞다 —
-    // 그 사람은 여전히 뽑지 않았다.
+    // 늘어도 빠뜨릴 곳이 없다.
     setDeclinedSurvey(false);
     goToPhase("surveyIntro");
+  }, [resetCoupon, goToPhase]);
 
-    /*
-     * **설문을 건너뛸지는 서버(RPC)가 정한다**(2026-08-15, 구자건 지적).
-     *
-     * 예전에는 `hasSurveySubmitted()`(localStorage)만 보고 곧장 wheel로 보냈다.
-     * 그런데 **쿠키(`gookbapgame_token`)와 localStorage는 수명이 다르다** — 쿠키가
-     * 지워지거나 만료되면 participant_id가 새로 생기는데 localStorage 플래그는 남아,
-     * 클라이언트는 "설문 했음"으로 보고 건너뛰지만 서버 기준으로는 응답이 없어
-     * 뽑기가 403(SURVEY_REQUIRED)으로 거절된다. 실제로 프로덕션에서 난 증상이다.
-     *
-     * localStorage는 **지우지 않고 힌트로 남긴다** — 재제출 차단(`submitAnswers`)과
-     * `declinedSurvey` 연동이 그 값에 걸려 있다. 여기서는 "판정 권위"만 RPC로 옮긴다.
-     *
-     * **조회 실패는 fail closed** — 설문을 보여주는 쪽으로 떨어진다. 빈 목록을
-     * "건너뛰기"로 쓰는 자리라 실패를 빈 목록과 뭉뚱그리면 그대로 403이 되고,
-     * 설문을 한 번 더 보는 쪽이 쿠폰을 못 받는 것보다 낫다.
-     */
-    /*
-     * **판정이 끝날 때까지 설문 안내를 가린다**(2026-08-15 이란토 제보).
-     *
-     * 아래 RPC를 기다리는 동안 `surveyIntro`가 이미 그려져 있어서, 설문을 이미 마쳐
-     * 곧장 룰렛으로 갈 사람에게도 **설문 독려 화면이 한 번 번쩍 스쳤다.** 안 해도 될
-     * 설문을 권하는 화면이라 잘못된 안내다.
-     *
-     * 화면 전환 자체를 늦추지는 않는다 — 그러면 이번엔 결과 화면이 멈춰 보인다.
-     * 대신 뽑기 화면과 **같은 대기 오버레이**를 덮는다(게임 안의 "서버를 기다리는
-     * 화면"은 전부 같은 모양이라는 원칙, `GatchaLoading` 주석).
-     */
+  /*
+   * '참여하기'를 누른 뒤에야 서버에 미응답 문항을 묻는다(위 `enterSurveyFlow` 주석).
+   *
+   * - **0건**: 이미 다 답한 사람이다. 다시 답하게 하지 않고 곧장 룰렛으로 보낸다
+   *   (**판정 권위는 서버 RPC**, 2026-08-15).
+   * - **조회 실패는 fail closed** — 설문을 보여주는 쪽으로 떨어진다. 빈 목록을
+   *   "건너뛰기"로 쓰는 자리라 실패를 섞으면 그대로 403이 되고, 설문을 한 번 더 보는
+   *   쪽이 쿠폰을 못 받는 것보다 낫다.
+   *
+   * RPC를 기다리는 동안은 뽑기 화면과 **같은 대기 오버레이**를 덮는다
+   * (`surveyGateWaiting` → `GatchaLoading`). `phaseRef` 가드: await 도중 사용자가
+   * 화면을 벗어났으면 강제로 전환하지 않는다.
+   */
+  const participateSurvey = useCallback(async () => {
     setSurveyGateWaiting(true);
     try {
       const pending = await fetchPendingSurvey(COUPON_SURVEY_PHASE);
-      // await를 지났으므로 그 사이 사용자가 설문 안내를 벗어났을 수 있다(위 주석).
       if (pending.ok && pending.questionIds.length === 0) {
         if (phaseRef.current === "surveyIntro") goToPhase("wheel");
         return;
       }
-
-      // **문항 조회까지 가려야 한다.** 이쪽도 "empty"/"failed"면 룰렛으로 보내므로,
-      // 여기서 오버레이를 걷으면 설문 독려 화면이 그 사이에 다시 번쩍인다.
       const outcome = await loadQuestions(pending.questionIds);
-      // "empty"(문항 0건)와 "failed"(조회 실패) 모두 룰렛으로 보낸다 — 설문을 못
-      // 불러왔다고 쿠폰 기회까지 막으면 사용자에게 더 큰 손해다. 다만 "failed"는
-      // 콘솔에만 남던 것을 여기서 구분해 기록한다.
       if (outcome === "failed") {
         console.error(
-          "[enterSurveyFlow] 설문 문항 조회 실패 — 설문을 건너뛰고 룰렛으로 진행한다."
+          "[participateSurvey] 설문 문항 조회 실패 — 설문을 건너뛰고 룰렛으로 진행한다."
         );
       }
-      if (outcome !== "shown" && phaseRef.current === "surveyIntro") {
-        goToPhase("wheel");
+      if (phaseRef.current === "surveyIntro") {
+        goToPhase(outcome === "shown" ? "survey" : "wheel");
       }
     } finally {
-      // 어느 경로로 빠져나가든 반드시 걷는다 — 남으면 설문 화면 위에 오버레이가 얹힌다.
       setSurveyGateWaiting(false);
     }
-  }, [resetCoupon, goToPhase, loadQuestions]);
+  }, [goToPhase, loadQuestions]);
 
-  const enterDrawFromStart = useCallback(async () => {
+  const enterDrawFromStart = useCallback(() => {
     setFromStartScreen(true);
-    await enterSurveyFlow();
+    enterSurveyFlow();
   }, [enterSurveyFlow]);
 
   const handleSurveySubmit = useCallback(
@@ -310,9 +291,6 @@ export default function Home({ searchParams }: PageProps) {
     [goToPhase, submitAnswers]
   );
 
-  const handleSurveyAgain = useCallback(async () => {
-    await enterSurveyFlow();
-  }, [enterSurveyFlow]);
 
   /**
    * 앨범을 닫을 때 돌아갈 화면.
@@ -506,19 +484,19 @@ export default function Home({ searchParams }: PageProps) {
 
       {game.phase === "surveyIntro" && (
         <>
-          {/* 판정이 끝날 때까지 **설문 안내를 그리지 않는다.** 뽑기 화면과 같은 대기
-              오버레이를 쓴다 — 게임 안의 "서버를 기다리는 화면"은 전부 같은 모양이다.
+          {/* '참여하기'를 누른 뒤 문항을 받아오는 동안(`participateSurvey`) 안내 대신
+              대기 오버레이를 그린다 — 뽑기 화면과 같은 모양이다(게임 안의 "서버를
+              기다리는 화면"은 전부 같은 모양이라는 원칙).
 
-              예전에는 안내 화면을 그대로 둔 채 오버레이만 얹었는데, `GatchaLoading`이
-              배경을 칠하지 않아(시간대 배경이 비쳐야 한다) **'불러오는 중' 창 뒤로
-              설문 독려 화면이 그대로 비쳤다**(2026-08-17 제보). 안 해도 될 설문을
-              권하는 화면이 미리 보이는 것이라 잘못된 안내이기도 하다.
-              스크림으로 덮지 말 것 — 시간대 배경까지 덮인다(`WheelScreen` 주석). */}
+              `GatchaLoading`이 배경을 칠하지 않아(시간대 배경이 비쳐야 한다) 안내 화면을
+              그대로 둔 채 오버레이만 얹으면 **'불러오는 중' 창 뒤로 안내가 비친다**
+              (2026-08-17 제보). 스크림으로 덮지 말 것 — 시간대 배경까지 덮인다
+              (`WheelScreen` 주석). */}
           {surveyGateWaiting ? (
             <GatchaLoading variant="waiting" />
           ) : (
             <SurveyIntroScreen
-              onParticipate={() => goToPhase("survey")}
+              onParticipate={participateSurvey}
               onDecline={declineSurvey}
             />
           )}
@@ -589,7 +567,7 @@ export default function Home({ searchParams }: PageProps) {
           onRestart={game.resetToStart}
           /* 거절한 사람에게만 준다. DailyResultScreen은 이 prop이 없으면
              버튼을 렌더하지 않는다(옵셔널 prop + 가드). */
-          onSurveyAgain={declinedSurvey ? handleSurveyAgain : undefined}
+          onSurveyAgain={declinedSurvey ? enterSurveyFlow : undefined}
           onOpenMyCoupons={() => void openMyCoupons("dailyResult")}
         />
       )}
