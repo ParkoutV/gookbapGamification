@@ -332,11 +332,14 @@ Supabase의 `auth.users`와 1:1로 매칭되는 시스템 전반의 계정 및 �
 * **`created_at`** (`timestamp with time zone`): 제출 일시.
   * *제약조건:* 테이블 자체의 `UNIQUE` 제약조건은 제거되었으며, 데이터베이스 트리거(`trg_enforce_unique_survey_response_phase_1_2`)를 통해 **Phase 1과 Phase 2의 질문에 대해서만** 동일 유저가 두 번 답변하는 것을 차단합니다. **Phase 0은 중복 응답을 허용**하며, 대시보드의 '중복 응답 처리' 필터를 통해 통계 조회 시 최신 응답만 남기도록 처리할 수 있습니다.
 
-**[`optional_survey_records`] (Admin: ALL, Everyone: SELECT)**
+**[`optional_survey_records`] (Admin: ALL, 익명/일반 관리자: 직접 SELECT 금지, 익명 RPC 유지)**
 
 **[RLS Policies]**
 - `ALL` (공개): `최고 관리자(Admin) 전용` *(Policy: optional_survey_records_admin_all)*
-- `SELECT` (공개): `모두 허용` *(Policy: optional_survey_records_select_everyone)*
+- 공개 SELECT 정책 `optional_survey_records_select_everyone`은 제거되었으며 `PUBLIC`, `anon`의 테이블 SELECT 권한을 회수합니다.
+- `SELECT` (authenticated, RESTRICTIVE): `accounts.permission = 0`인 최고 관리자만 허용합니다. *(Policy: optional_survey_records_select_admin_only)* 기존 Admin ALL 정책과 함께 적용됩니다.
+- 익명 참가자는 기존 `check_pending_survey(p_survey_phase, p_participant_id, p_track_id)` RPC를 호출합니다. 이 함수는 해당 ID의 잔여 질문을 반환하고 선택 질문 노출 이력을 자동 기록합니다. `record_optional_survey_shown`을 포함한 기존 RPC의 본문·인자·반환값·anon 실행 권한은 변경하지 않았습니다.
+- 적용 마이그레이션: `supabase/migrations/20260930000000_restrict_optional_survey_records.sql` (2026-09-30 운영 DB 적용). 트랜잭션 내 임시 데이터로 RPC 자동 기록 및 재노출 방지를 검증하고 임시 데이터는 롤백했습니다.
 * **`participant_id`** (`uuid`, Primary Key): 응답자 식별자 (`participants` 외래키, `CASCADE`)
 * **`record`** (`jsonb`): 이미 노출된 선택 질문(`is_required = FALSE`)의 `question_id` 배열을 저장합니다. (기본값: '[]'::jsonb)
 
@@ -936,7 +939,17 @@ localStorage.setItem('track_last_active', now.toString());
 
 
 
- # # #   G a m e   M a n a g e m e n t   ( E x c e l   E x p o r t   &   D a t a   R e s e t ) 
- -   * * E x c e l   E x p o r t * * :   G E T   / a p i / e x p o r t - e x c e l   g e n e r a t e s   a n   E x c e l   f i l e   c o n t a i n i n g   r a w   d a t a   f r o m   	 r a c k _ l o g s ,   g a m e _ s c o r e _ l o g s ,   a n d   s u r v e y _ r e s p o n s e s .   T h e   p a r t i c i p a n t _ i d   i s   m a s k e d   i n t e r n a l l y   i n t o   s e q u e n c e   n u m b e r s   ( e . g . ,   P a r t i c i p a n t _ 1 )   b e f o r e   b e i n g   i n j e c t e d   i n t o   a   p r e d e f i n e d   E x c e l   t e m p l a t e   ( g a m e _ a s s e t s / t e m p l a t e s / k p i _ t e m p l a t e . x l s x )   d o w n l o a d e d   f r o m   S u p a b a s e   S t o r a g e . 
- -   * * D a t a   R e s e t * * :   P r o v i d e s   a   f u n c t i o n   d e l e t e A l l G a m e D a t a ( )   t o   p e r m a n e n t l y   d e l e t e   p a r t i c i p a n t s ,   s u r v e y _ r e s p o n s e s ,   a n d   r e s e t   w e b _ c o u p o n s ,   w i p i n g   a l l   u s e r - g e n e r a t e d   g a m e   d a t a .  
- 
+### Game Management (Excel Export & Data Reset)
+- **Excel Export**: GET /api/export-excel generates an Excel file containing raw data from 	rack_logs, game_score_logs, and survey_responses. The participant_id is masked internally into sequence numbers (e.g., Participant_1) before being injected into a predefined Excel template (game_assets/templates/kpi_template.xlsx) downloaded from Supabase Storage.
+- **Data Reset**: Provides a function deleteAllGameData() to permanently delete participants, survey_responses, and reset web_coupons, wiping all user-generated game data.
+
+### Security boundaries updated on 2026-09-30
+- `utils/supabase/authorization.ts` verifies the Supabase user with `auth.getUser()` and reads the user's `accounts` role through the anon-key session client. Missing users, failed account lookups, and roles outside the allowed list are denied.
+- `/api/cleanup-storage` requires the highest administrator (`permission = 0`) before parsing the request or scheduling storage deletion. The background deletion retains its server-only service-role client.
+- `/api/translate` requires a logged-in dashboard account with `permission = 0` or `1` before translation or usage-counter work. The existing privileged usage-counter RPC remains server-side.
+- `toggleOptionalSurveyOnce` requires the highest administrator and updates `survey_settings` through the anon-key session client and RLS. It must confirm an updated row before reporting success.
+- Survey result actions use the anon-key session client. Branch administrators receive only Phase 2 questions for their assigned branch and responses whose question IDs belong to that filtered set. An account without an assigned branch receives empty results. Highest administrators retain the full result scope.
+- `optional_survey_records` direct SELECT is revoked from PUBLIC and anon. Authenticated SELECT is restricted to the highest administrator in addition to existing policies. The existing `check_pending_survey` and `record_optional_survey_shown` SECURITY DEFINER functions retain their bodies and anonymous execution grants. Anonymous callers can supply a participant UUID, receive pending questions, and have optional-question exposure recorded; this ID-based contract does not authenticate ownership of the UUID. The migration is `supabase/migrations/20260930000000_restrict_optional_survey_records.sql` and was applied to the shared database on 2026-09-30.
+- Image generation continues to use the game's supplied dataset, coordinates, composition algorithm, and cache contract. `utils/gameAssetFetch.ts` permits only HTTPS URLs on the configured Supabase origin under `/storage/v1/object/public/game_assets/`. It rejects credentials, query strings, fragments, unsafe path encodings, and redirects; permits PNG/JPEG/WebP/GIF/AVIF responses; and limits each download to 20 MiB and 15 seconds. All selected asset URLs are validated before any image fetch starts. Do not replace the supplied dataset with a database reload as part of this protection.
+- Email-verification cookies, coupon issuance counts/inventory, and initial password setup were explicitly deferred and are unchanged.
+- Service-role usage, explicit user-request comments, and candidates for session/RLS replacement are documented in `docs/service-role-usage.md`. Changes are covered by focused tests in `tests/security.test.mjs`; do not require a full application build or unchanged native image-composition tests for this scope.

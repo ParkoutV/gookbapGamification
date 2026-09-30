@@ -1,4 +1,5 @@
 import sharp, { OverlayOptions } from 'sharp';
+import { fetchGameAsset, validateGameAssetUrl } from './gameAssetFetch';
 
 interface PartOverlay {
   imageUrl: string;
@@ -17,16 +18,15 @@ export async function generateUnifiedImageBuffer(
   const CANVAS_WIDTH = 1200;
   const CANVAS_HEIGHT = 800;
 
+  // Validate the entire selected set before starting any image request.
+  // The caller's dataset, slot layout, and existing cache contract stay unchanged.
+  validateGameAssetUrl(baseImageUrl);
+  parts.forEach(part => validateGameAssetUrl(part.imageUrl));
+
   // 1 & 2. Fetch base image and ALL parts concurrently
   const [baseBuffer, ...partBuffers] = await Promise.all([
-    fetch(baseImageUrl).then(async res => {
-      if (!res.ok) throw new Error(`Failed to fetch base image: ${res.statusText}`);
-      return Buffer.from(await res.arrayBuffer());
-    }),
-    ...parts.map(part => fetch(part.imageUrl).then(async res => {
-      if (!res.ok) throw new Error(`Failed to fetch part image: ${res.statusText}`);
-      return Buffer.from(await res.arrayBuffer());
-    }))
+    fetchGameAsset(baseImageUrl),
+    ...parts.map(part => fetchGameAsset(part.imageUrl))
   ]);
 
   const resizedBasePromise = sharp(baseBuffer)

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { after } from 'next/server'
+import { authorizeDashboard } from '@/utils/supabase/authorization'
 
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   try {
+    const access = await authorizeDashboard([0])
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
+    }
+
     const { paths = [], skip = 0 } = await req.json()
     const cookieHeader = req.headers.get('cookie') || ''
     const appUrl = req.nextUrl.origin
@@ -20,8 +26,9 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({ success: true, message: `Cleanup processing started for skip: ${skip}` })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    console.error('Storage cleanup request failed:', error)
+    return NextResponse.json({ error: 'Storage cleanup failed' }, { status: 500 })
   }
 }
 
@@ -33,7 +40,7 @@ async function processCleanup(paths: string[], skip: number, cookieHeader: strin
   const batch = paths.slice(skip, skip + BATCH_SIZE)
 
   if (batch.length > 0) {
-    const { data, error } = await supabase.storage.from('game_assets').remove(batch)
+    const { error } = await supabase.storage.from('game_assets').remove(batch)
     if (error) {
       console.error(`[Storage Cleanup] Error removing batch:`, error)
     } else {
